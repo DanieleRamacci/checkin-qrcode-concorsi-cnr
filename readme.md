@@ -10,7 +10,7 @@ Questo progetto permette di effettuare il **check-in dei candidati a un concorso
 
 ---
 
-## ⚙️ Requisiti
+##  Requisiti
 
 - Python 3.10+
 - [ngrok](https://ngrok.com/download)
@@ -18,7 +18,7 @@ Questo progetto permette di effettuare il **check-in dei candidati a un concorso
 
 ---
 
-## 🧪 1. Installazione in locale (con virtualenv)
+## 1. Installazione in locale (con virtualenv)
 
 Apri il terminale nella cartella del progetto (o clonala con `git clone`) e poi:
 
@@ -29,7 +29,7 @@ source venv/bin/activate  # Su Windows: venv\Scripts\activate
 
 # Installa le dipendenze
 pip install -r requirements.txt
-🚀 2. Avvio del server Flask
+ 2. Avvio del server Flask
 L'app Flask è contenuta in server.py. Per avviarla:
 
 
@@ -54,7 +54,7 @@ Registrati su ngrok.com, accedi al tuo account, e prendi il tuo authtoken, poi e
 
 
 ngrok config add-authtoken TUO_AUTHTOKEN
-🌐 Avvia ngrok:
+Avvia ngrok:
 Con il server Flask in esecuzione:
 
 
@@ -75,7 +75,7 @@ Test QR (per generare e provare QR):
 Dashboard Sessioni (root):
 👉 https://TUO-LINK.ngrok.io/
 
-📌 Note importanti
+ Note importanti
 La webcam funziona solo in HTTPS: assicurati di usare sempre il link https://...ngrok.io
 
 Se chiudi ngrok o riavvii il server, il link cambia: ricalcola e ricarica la sessione master
