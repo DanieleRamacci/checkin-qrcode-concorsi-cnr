@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scanner Check-in</title>
+  <script src="https://unpkg.com/html5-qrcode" defer></script>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    #reader { width: 100%; max-width: 400px; margin-bottom: 20px; }
+    #status { margin-top: 10px; font-weight: bold; }
+    #candidate-info { margin-top: 10px; }
+    #reset-btn, #confirm-btn { margin-top: 10px; display: none; }
+  </style>
+</head>
+<body>
+  <h1>Scanner Check-in</h1>
+  <div id="reader"></div>
+  <div id="status">📷 Scansiona un QR code...</div>
+  <div id="candidate-info"></div>
+  <button id="confirm-btn" onclick="confermaCheckin()"> Conferma Check-in</button>
+  <button id="reset-btn" onclick="resetScanner()"> Nuovo check-in</button>
+
+  <script>
+    let html5QrCode;
+    let scanning = true;
+    let ultimoCandidato = null;
+
+    function resetScanner() {
+      if (html5QrCode) {
+        html5QrCode.stop().then(() => {
+          startScanner();
+        }).catch(err => {
+          console.error("Errore nel riavvio scanner:", err);
+        });
+      }
+      document.getElementById("status").textContent = "📷 Scansiona un QR code...";
+      document.getElementById("candidate-info").innerHTML = "";
+      document.getElementById("confirm-btn").style.display = "none";
+      document.getElementById("reset-btn").style.display = "none";
+      scanning = true;
+      ultimoCandidato = null;
+    }
+
+    function processMasterQR(data) {
+      fetch('/upload-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      })
+      .then(res => res.json())
+      .then(response => {
+        if (response.success) {
+          localStorage.setItem("session_id", data.session_id);
+          document.getElementById("status").textContent = ` Sessione ${data.session_id} caricata. Ora scansiona i candidati.`;
+        } else {
+          document.getElementById("status").textContent = " Errore creazione sessione: " + response.message;
+        }
+        document.getElementById("reset-btn").style.display = "inline-block";
+      })
+      .catch(err => {
+        document.getElementById("status").textContent = " Errore di rete.";
+        console.error(err);
+      });
+    }
+
+    function processCandidateQR(data) {
+      const session_id = localStorage.getItem("session_id");
+      if (!session_id) {
+        document.getElementById("status").textContent = "Errore Nessuna sessione attiva. Scansiona prima il QR master.";
+        return;
+      }
+
+      if (!data.id || !data.session_id) {
+        document.getElementById("status").textContent = "Errore QR candidato non valido.";
+        return;
+      }
+
+      if (data.session_id !== session_id) {
+        document.getElementById("status").textContent = `Errore Il candidato appartiene a un'altra sessione (${data.session_id})`;
+        return;
+      }
+
+      // Salvo in memoria il candidato e mostro i dati
+      ultimoCandidato = data;
+
+      document.getElementById("candidate-info").innerHTML = `
+        <p><strong>${data.nome} ${data.cognome}</strong><br>
+        Documento: ${data.numero_documento}</p>
+      `;
+      document.getElementById("status").textContent = "🔍 Verifica completata. Confermare il check-in.";
+      document.getElementById("confirm-btn").style.display = "inline-block";
+      document.getElementById("reset-btn").style.display = "inline-block";
+    }
+
+    function confermaCheckin() {
+      if (!ultimoCandidato) return;
+      const session_id = localStorage.getItem("session_id");
+
+      fetch('/checkin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id, id: ultimoCandidato.id })
+      })
+      .then(res => res.json())
+      .then(response => {
+        if (response.success) {
+          document.getElementById("status").textContent = " Check-in confermato!";
+        } else {
+          document.getElementById("status").textContent = " Errore check-in: " + response.message;
+        }
+        document.getElementById("confirm-btn").style.display = "none";
+      })
+      .catch(err => {
+        document.getElementById("status").textContent = " Errore di rete.";
+        console.error(err);
+      });
+    }
+
+    function onScanSuccess(decodedText) {
+      if (!scanning) return;
+      scanning = false;
+
+      try {
+        const data = JSON.parse(decodedText);
+
+        if (data.session_id && Array.isArray(data.candidati)) {
+          processMasterQR(data);
+        } else if (data.id) {
+          processCandidateQR(data);
+        } else {
+          document.getElementById("status").textContent = " QR non riconosciuto.";
+        }
+      } catch (e) {
+        document.getElementById("status").textContent = " QR non valido.";
+        console.error(e);
+      }
+    }
+
+    function startScanner() {
+      html5QrCode = new Html5Qrcode("reader");
+      Html5Qrcode.getCameras().then(devices => {
+        if (devices && devices.length) {
+          html5QrCode.start(
+            { facingMode: "environment" }, // forzato a posteriore
+            { fps: 10, qrbox: 250 },
+            onScanSuccess
+          ).catch(err => {
+            document.getElementById("status").textContent = " Errore avvio scanner: " + err;
+          });
+        } else {
+          document.getElementById("status").textContent = "Nessuna fotocamera trovata.";
+        }
+      }).catch(err => {
+        document.getElementById("status").textContent = " Errore accesso fotocamera.";
+        console.error(err);
+      });
+    }
+
+    window.addEventListener("load", startScanner);
+  </script>
+</body>
+</html>

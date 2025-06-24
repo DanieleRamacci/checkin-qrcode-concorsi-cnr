@@ -1,0 +1,9 @@
+version: '3.8'
+services:
+  checkin-app:
+    build: .
+    ports:
+      - "5050:5050"
+    volumes:
+      - ./database:/app/database
+    restart: unless-stopped

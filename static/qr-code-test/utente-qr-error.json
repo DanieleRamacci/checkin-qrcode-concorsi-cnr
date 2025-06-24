@@ -1,0 +1,8 @@
+{
+  "session_id": "abc123xyz",
+  "id": "001",
+  "nome": "Mario",
+  "cognome": "Rossi",
+  "numero_documento": "AV8877894",
+  "link_documento": "https://selezionionline.cnr.it/jconon/rest/content?nodeRef=fbbfbf26-2c03-4403-bd49-bcd54d2d1b23;1.0&guest=true"
+}
