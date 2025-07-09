@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Gestione Concorso</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+    }
+    .checkin-yes {
+      background-color: #d4edda;
+    }
+    .checkin-no {
+      background-color: #f8d7da;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #aaa;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #f0f0f0;
+    }
+    .errore {
+      background-color: #ffcdd2;
+      padding: 10px;
+      color: #b00020;
+      border: 1px solid #b00020;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Gestione sessione di concorso</h1>
+
+  <div id="errore" class="errore" style="display: none;"></div>
+
+  <h2 id="titolo-sessione"></h2>
+  <p><strong>Luogo:</strong> <span id="luogo-sessione"></span></p>
+  <p><strong>Data e ora:</strong> <span id="data-ora-sessione"></span></p>
+  <p><strong>Stato:</strong> <span id="stato-sessione"></span></p>
+
+  <button id="scarica">Scarica lista candidati</button>
+  <div id="output"></div>
+
+  <h2>Elenco candidati</h2>
+  <table id="tabella-candidati">
+    <thead>
+      <tr>
+        <th>Nome</th>
+        <th>Cognome</th>
+        <th>Documento</th>
+        <th>Check-in</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get('session_id');
+
+    document.getElementById('scarica').addEventListener('click', async () => {
+      try {
+        const res = await fetch(`/get-candidati?session_id=${sessionId}`);
+        const data = await res.json();
+        document.getElementById('output').textContent = data.message;
+        caricaDatiSessione(); // ricarica candidati
+      } catch (err) {
+        console.error('Errore:', err);
+        document.getElementById('output').textContent = "Errore nel download candidati.";
+      }
+    });
+
+    function mostraErrore(msg) {
+      const div = document.getElementById('errore');
+      div.textContent = msg;
+      div.style.display = 'block';
+    }
+
+    async function caricaDatiSessione() {
+      try {
+        const res = await fetch(`/sessione/${sessionId}`);
+        const data = await res.json();
+
+        if (!data.success || !data.session) {
+          mostraErrore("Sessione non trovata.");
+          return;
+        }
+
+        const s = data.session;
+
+        // Controllo validità data odierna
+        const oggi = new Date().toISOString().slice(0, 10); // yyyy-mm-dd
+        const dataSessione = s.giorno; // formato yyyy-mm-dd
+
+        if (oggi !== dataSessione) {
+          mostraErrore("⚠️ Attenzione: la sessione non è prevista per la giornata odierna.");
+          return;
+        }
+
+        if (!s.attiva) {
+          mostraErrore("⚠️ La sessione non è attiva. Attivala prima di procedere.");
+          return;
+        }
+
+        // Mostra info sessione
+        document.getElementById('titolo-sessione').textContent = `Concorso: ${s.nome_sessione}`;
+        document.getElementById('luogo-sessione').textContent = s.luogo;
+        document.getElementById('data-ora-sessione').textContent = `${s.giorno} – ${s.ora}`;
+        document.getElementById('stato-sessione').textContent = s.attiva ? 'ATTIVA 🟢' : 'NON ATTIVA 🔴';
+
+        // Popola tabella candidati
+        const tbody = document.querySelector('#tabella-candidati tbody');
+        tbody.innerHTML = '';
+
+        s.candidates.forEach(c => {
+          const tr = document.createElement('tr');
+          tr.className = c.checkin_effettuato ? 'checkin-yes' : 'checkin-no';
+          tr.innerHTML = `
+            <td>${c.nome}</td>
+            <td>${c.cognome}</td>
+            <td>${c.numero_documento}</td>
+            <td>${c.checkin_effettuato ? '✅' : '❌'}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+      } catch (err) {
+        console.error("Errore nel caricamento sessione:", err);
+        mostraErrore("Errore durante il caricamento dei dati.");
+      }
+    }
+
+    caricaDatiSessione();
+  </script>
+</body>
+</html>
