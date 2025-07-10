@@ -9,11 +9,14 @@ import os
 import json
 import jwt
 
+from flask import jsonify
+import hashlib
+
 
 # === FLASK APP ===
 app = Flask(__name__, static_folder='static')
 # === CONFIGURAZIONE SESSIONE ===
-app.secret_key = 'supersecretkey'  # ⚠️ Sposta in .env in produzione
+app.secret_key = 'supersecretkey'  #  Sposta in .env in produzione
 app.config['SESSION_TYPE'] = 'filesystem'
 
 # Assicura che la cartella 'instance/flask_session' esista
@@ -32,7 +35,7 @@ DB_PATH = 'checkin.db'
 # === CONFIG OIDC ===
 OIDC_CLIENT_ID = 'selezioni'
 OIDC_CLIENT_SECRET = '17812d1a-6bdc-412f-acf8-ba0d9aa130de'
-OIDC_REDIRECT_URI = 'https://747805b8928a.ngrok-free.app/oidc-callback'
+OIDC_REDIRECT_URI = 'https://980849cff71b.ngrok-free.app/oidc-callback'
 OIDC_AUTH_URL = 'https://traefik.test.si.cnr.it/auth/realms/cnr/protocol/openid-connect/auth'
 OIDC_TOKEN_URL = 'https://traefik.test.si.cnr.it/auth/realms/cnr/protocol/openid-connect/token'
 OIDC_USERINFO_URL = 'https://traefik.test.si.cnr.it/auth/realms/cnr/protocol/openid-connect/userinfo'
@@ -97,11 +100,14 @@ def oidc_callback():
         print("JWT Decodificato:", json.dumps(decoded, indent=2))
 
         # Salva access token e dati utente decodificati in sessione
+        email = decoded.get('email')
+        if not email:
+            return "Errore: il token non contiene un'email valida", 400
+        session['user_email'] = email
         session['user'] = decoded.get('preferred_username') or decoded.get('email') or decoded.get('sub')
         session['access_token'] = access_token
         session['user_info'] = decoded
-        session['id_token'] = id_token  # <-- questa è la parte che ti mancava
-
+        session['id_token'] = id_token  
         return redirect('/')
 
     except Exception as e:
@@ -140,6 +146,11 @@ def logout():
 def gestione_concorso():
     return send_from_directory('static', 'gestione-concorso.html')
 
+@app.route('/sessioni.html')
+@login_required
+def sessioni():
+    return send_from_directory('static', 'sessioni.html')
+
 
 @app.route('/')
 @login_required
@@ -155,6 +166,211 @@ def qr_test():
 @login_required
 def scanner():
     return send_from_directory('static', 'scanner.html')
+
+
+import requests
+from flask import jsonify, session
+
+from datetime import datetime
+import sqlite3
+
+@app.route('/sync-commissioni')
+@login_required
+def sync_commissioni():
+    access_token = session.get('access_token')
+    user_email = session.get('user_email')
+
+    if not access_token or not user_email:
+        return jsonify({"success": False, "message": "Autenticazione mancante"}), 401
+
+    try:
+        # 1. Chiamata API remota
+        api_url = 'https://cool-jconon.test.si.cnr.it/openapi/v1/call/commissions'
+        headers = {
+            'Authorization': f'Bearer {access_token}',
+            'Accept': 'application/json'
+        }
+        response = requests.get(api_url, headers=headers)
+        response.raise_for_status()
+        remote_commissions = response.json()  # lista di dizionari
+
+        remote_ids = {c['id'] for c in remote_commissions}
+
+        with sqlite3.connect('checkin.db') as conn:
+            cursor = conn.cursor()
+
+            # 2. Recupera commissioni già salvate per questo utente
+            cursor.execute("""
+                SELECT commission_id FROM commissions
+                WHERE user_email = ?
+            """, (user_email,))
+            local_ids = {row[0] for row in cursor.fetchall()}
+
+            # 3. INSERT nuove commissioni
+            nuovi = remote_ids - local_ids
+            for c in remote_commissions:
+                if c['id'] in nuovi:
+                    cursor.execute("""
+                        INSERT INTO commissions (commission_id, titolo, user_email, data_sync)
+                        VALUES (?, ?, ?, ?)
+                    """, (c['id'], c['title'], user_email, datetime.now().isoformat()))
+
+            # 4. DELETE commissioni non più autorizzate
+            da_eliminare = local_ids - remote_ids
+            for cid in da_eliminare:
+                cursor.execute("""
+                    DELETE FROM commissions
+                    WHERE commission_id = ? AND user_email = ?
+                """, (cid, user_email))
+
+            # 5. Recupera la lista aggiornata dal DB
+            cursor.execute("""
+                SELECT commission_id, titolo FROM commissions
+                WHERE user_email = ?
+                ORDER BY titolo
+            """, (user_email,))
+            risultati = [{"id": r[0], "title": r[1]} for r in cursor.fetchall()]
+
+        return jsonify({
+            "success": True,
+            "commissioni": risultati
+        })
+
+    except requests.exceptions.HTTPError as http_err:
+        return jsonify({
+            "success": False,
+            "error": "Errore HTTP",
+            "status_code": response.status_code,
+            "body": response.text
+        }), response.status_code
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+    
+
+@app.route('/get-sessioni/<commission_id>')
+@login_required
+def get_sessioni(commission_id):
+    access_token = session.get('access_token')
+    user_email = session.get('user_email')
+
+    print(f"[DEBUG] Richiesta per commission_id={commission_id}, user_email={user_email}")
+
+    if not access_token or not user_email:
+        print("[DEBUG] Token o email mancanti")
+        return jsonify({"success": False, "message": "Autenticazione mancante"}), 401
+
+    try:
+        with sqlite3.connect('checkin.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT 1 FROM commissions
+                WHERE commission_id = ? AND user_email = ?
+            """, (commission_id, user_email))
+            if not cursor.fetchone():
+                print(f"[DEBUG] Nessuna autorizzazione trovata per commission_id={commission_id}")
+                return jsonify({"success": False, "message": "Commissione non autorizzata"}), 403
+
+        api_url = f'https://cool-jconon.test.si.cnr.it/openapi/v1/call/exam-sessions/{commission_id}'
+        headers = {
+            'Authorization': f'Bearer {access_token}',
+            'Accept': 'application/json'
+        }
+
+        response = requests.get(api_url, headers=headers)
+        print(f"[DEBUG] Status code API: {response.status_code}")
+        print(f"[DEBUG] Body API: {response.text}")
+        response.raise_for_status()
+
+        sessioni_data = response.json()
+
+        print(f"[DEBUG] Sessioni trovate: {list(sessioni_data.keys())}")
+
+        result = []
+        now = datetime.now().isoformat()
+
+        with sqlite3.connect('checkin.db') as conn:
+            cursor = conn.cursor()
+
+            for session_string, candidati in sessioni_data.items():
+                print(f"[DEBUG] Parsing session_string: {session_string}")
+                try:
+                    parts = session_string.split(' - ')
+                    if len(parts) != 2:
+                        raise ValueError("Formato session_string non valido")
+
+                    luogo = parts[0].strip()
+                    data_ora_str = parts[1].strip()
+
+                    giorno_str, ora_str = data_ora_str.split(' ')
+                    giorno = giorno_str.strip()
+                    ora = ora_str.strip()
+                    data_esame_iso = datetime.strptime(f"{giorno} {ora}", "%d/%m/%Y %H:%M").isoformat()
+
+                    raw_key = f"{commission_id}::{session_string}"
+                    session_id = hashlib.md5(raw_key.encode()).hexdigest()
+
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO sessioni (
+                            session_id, commission_id, user_email, session_string,
+                            nome, giorno, ora, luogo, data_esame,
+                            attiva, candidati_importati, sync_user_email, data_sync
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)
+                    """, (
+                        session_id,
+                        commission_id,
+                        user_email,
+                        session_string,
+                        session_string,
+                        giorno,
+                        ora,
+                        luogo,
+                        data_esame_iso,
+                        user_email,
+                        now
+                    ))
+
+                    print(f"[DEBUG] Sessione inserita: {session_id}")
+
+                    result.append({
+                        "session_id": session_id,
+                        "session_string": session_string,
+                        "luogo": luogo,
+                        "giorno": giorno,
+                        "ora": ora
+                    })
+
+                except Exception as e:
+                    print(f"[ERRORE PARSING] session_string: {session_string} -> {e}")
+                    continue
+
+        print(f"[DEBUG] Totale sessioni restituite: {len(result)}")
+
+        return jsonify({
+            "success": True,
+            "commission_id": commission_id,
+            "sessioni": result
+        })
+
+    except requests.exceptions.HTTPError as http_err:
+        print(f"[ERRORE HTTP] {response.status_code}: {response.text}")
+        return jsonify({
+            "success": False,
+            "error": "HTTP error",
+            "status_code": response.status_code,
+            "body": response.text
+        }), response.status_code
+
+    except Exception as e:
+        print(f"[ERRORE GENERICO] {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
 
 
 @app.route("/checkin-candidato", methods=["POST"])
@@ -264,6 +480,7 @@ from flask import request, jsonify
 import sqlite3
 from datetime import datetime
 
+
 @app.route("/session-check", methods=["GET"])
 def session_check():
     session_id = request.args.get("session_id")
@@ -356,7 +573,7 @@ def mie_sessioni_esame():
         {
             "id": "sessione123",
             "nome": "Concorso Area Tecnica",
-            "giorno": "2025-07-09",
+            "giorno": "2025-07-10",
             "ora": "09:00",
             "luogo": "Aula 3, Via Roma",
             "attiva": 1
@@ -364,11 +581,20 @@ def mie_sessioni_esame():
         {
             "id": "sessione456",
             "nome": "Concorso Area Amministrativa",
-            "giorno": "2025-07-21",
+            "giorno": "2025-07-10",
             "ora": "15:00",
             "luogo": "Aula 1, Via Milano",
-            "attiva": 0
-        }
+            "attiva": 1
+        },
+        {
+            "id": "sessione888",
+            "nome": "367.434 sessione 1",
+            "giorno": "2025-07-10",
+            "ora": "15:00",
+            "luogo": "Aula 1, Via Napoli",
+            "attiva": 1
+        },
+        
     ]
 
     importa_sessioni(sessioni)  # salva nel DB
@@ -388,58 +614,76 @@ def get_candidati():
     if not session_id:
         return jsonify({"success": False, "message": "Missing session_id"}), 400
 
-    # JSON fittizio di esempio
-    candidati = [
-        {
-            "uid": "eaec8a7c-65d1-433c-8f57-54159329cbca",
-            "firstName": "Mario",
-            "lastName": "Rossi",
-            "birthdate": "01/01/1990",
-            "fiscalCode": "RSSMRA90A01H501X",
-            "documentType": "Carta d'identità",
-            "documentNumber": "AB123456",
-            "documentDate": "01/02/2020",
-            "documentIssuedBy": "Comune di Roma"
-        },
-        {
-            "uid": "abcde-12345-0002",
-            "firstName": "Lucia",
-            "lastName": "Verdi",
-            "birthdate": "15/07/1988",
-            "fiscalCode": "VRDLUC88L55H501T",
-            "documentType": "Passaporto",
-            "documentNumber": "YA998877",
-            "documentDate": "15/03/2021",
-            "documentIssuedBy": "Questura di Milano"
-        },
-        # ...altri candidati...
-    ]
-
-    # Inserisci session_id nel dizionario
-    for c in candidati:
-        c['session_id'] = session_id
-
     try:
         with sqlite3.connect(DB_PATH) as conn:
             cursor = conn.cursor()
+
+            # Verifica se i candidati sono già stati importati
+            cursor.execute("SELECT candidati_importati FROM sessioni WHERE session_id = ?", (session_id,))
+            row = cursor.fetchone()
+            if not row:
+                return jsonify({"success": False, "message": "Sessione non trovata."}), 404
+            if row[0] == 1:
+                return jsonify({"success": False, "message": "I candidati sono già stati importati per questa sessione."}), 400
+
+            # JSON fittizio di esempio
+            candidati = [
+                {
+                    "uid": "eaec8a7c-65d1-433c-8f57-54159329cbca",
+                    "firstName": "Mario",
+                    "lastName": "Rossi",
+                    "birthdate": "01/01/1990",
+                    "fiscalCode": "RSSMRA90A01H501X",
+                    "documentType": "Carta d'identità",
+                    "documentNumber": "AB123456",
+                    "documentDate": "01/02/2020",
+                    "documentIssuedBy": "Comune di Roma"
+                },
+                {
+                    "uid": "abcde-12345-0002",
+                    "firstName": "Lucia",
+                    "lastName": "Verdi",
+                    "birthdate": "15/07/1988",
+                    "fiscalCode": "VRDLUC88L55H501T",
+                    "documentType": "Passaporto",
+                    "documentNumber": "YA998877",
+                    "documentDate": "15/03/2021",
+                    "documentIssuedBy": "Questura di Milano"
+                },
+                # ... altri candidati ...
+            ]
+
+            # Inserisci session_id nei record dei candidati
+            for c in candidati:
+                c['session_id'] = session_id
+
+            # Inserimento nel DB
             for c in candidati:
                 cursor.execute("""
-                    INSERT OR REPLACE INTO candidati (
+                    INSERT OR IGNORE INTO candidati (
                         uid, session_id, first_name, last_name, birthdate,
                         fiscal_code, document_type, document_number,
-                        document_date, document_issued_by, checkin_effettuato
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                        document_date, document_issued_by
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     c['uid'], c['session_id'], c['firstName'], c['lastName'], c['birthdate'],
                     c['fiscalCode'], c['documentType'], c['documentNumber'],
                     c['documentDate'], c['documentIssuedBy']
                 ))
+
+
+            # Aggiorna lo stato nella tabella sessioni
+            cursor.execute("UPDATE sessioni SET candidati_importati = 1 WHERE session_id = ?", (session_id,))
+
             conn.commit()
+
     except Exception as e:
         return jsonify({"success": False, "message": f"Errore durante l'importazione: {str(e)}"}), 500
 
-    return jsonify({"success": True, "message": f"{len(candidati)} candidati importati correttamente nella sessione {session_id}."})
-
+    return jsonify({
+        "success": True,
+        "message": f"{len(candidati)} candidati importati correttamente nella sessione {session_id}."
+    })
 
 
         
