@@ -5,22 +5,42 @@ DB_PATH = 'checkin.db'
 with sqlite3.connect(DB_PATH) as conn:
     cursor = conn.cursor()
 
-    # Rimuove la tabella esistente (opzionale se siamo in fase iniziale)
+    # Drop opzionali
     cursor.execute("DROP TABLE IF EXISTS sessioni")
+    cursor.execute("DROP TABLE IF EXISTS commissions")
 
-    # Tabella sessioni aggiornata
+    # ✅ Tabella commissions (bandi)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS commissions (
+        commission_id TEXT,
+        titolo TEXT NOT NULL,
+        user_email TEXT NOT NULL,
+        data_sync TEXT,
+        PRIMARY KEY (commission_id, user_email)
+    );
+    """)
+
+    # ✅ Tabella sessioni aggiornata
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS sessioni (
         session_id TEXT PRIMARY KEY,
+        commission_id TEXT NOT NULL,
+        user_email TEXT NOT NULL,
+        session_string TEXT NOT NULL,
         nome TEXT NOT NULL,
         giorno TEXT NOT NULL,
         ora TEXT NOT NULL,
         luogo TEXT NOT NULL,
-        attiva INTEGER DEFAULT 0
+        data_esame TEXT,
+        attiva INTEGER DEFAULT 0,
+        candidati_importati INTEGER DEFAULT 0,
+        sync_user_email TEXT,
+        data_sync TEXT,
+        FOREIGN KEY (commission_id, user_email) REFERENCES commissions(commission_id, user_email)
     );
     """)
 
-    # Tabella candidati
+    # ✅ Tabella candidati
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS candidati (
         uid TEXT,
@@ -40,4 +60,4 @@ with sqlite3.connect(DB_PATH) as conn:
     );
     """)
 
-    print("✅ Database inizializzato con successo.")
+    print("✅ Database aggiornato con successo.")
