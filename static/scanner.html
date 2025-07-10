@@ -54,8 +54,8 @@
   <button id="reset-btn" onclick="resetScanner()">Nuovo check-in</button>
 
 
-<button id="confirm-btn" onclick="confermaCheckin(false)">✅ Conferma Check-in</button>
-<button id="scaduto-btn" onclick="confermaCheckin(true)">⚠️ Documento Scaduto</button>
+<button id="confirm-btn" onclick="confermaCheckin(false)">Conferma Check-in</button>
+<button id="scaduto-btn" onclick="confermaCheckin(true)">Documento Scaduto</button>
 
 
   <script>
@@ -66,10 +66,16 @@
     async function verificaSessione(session_id) {
       try {
         const now = new Date();
-        const res = await fetch(`/session-check?session_id=${session_id}&timestamp=${now.toISOString()}`);
+        const localISO = now.getFullYear() + "-" +
+                        String(now.getMonth() + 1).padStart(2, '0') + "-" +
+                        String(now.getDate()).padStart(2, '0') + "T" +
+                        String(now.getHours()).padStart(2, '0') + ":" +
+                        String(now.getMinutes()).padStart(2, '0');
+        const res = await fetch(`/session-check?session_id=${session_id}&timestamp=${encodeURIComponent(localISO)}`);
+
         const data = await res.json();
         if (data.success) {
-          document.getElementById("status").textContent = `✅ Sessione valida: ${session_id}`;
+          document.getElementById("status").textContent = ` Sessione valida: ${session_id}`;
           document.getElementById("session-input-container").style.display = "none";
           document.getElementById("clear-session-btn").style.display = "inline-block";
           startScanner();
@@ -145,8 +151,8 @@ function onScanSuccess(decodedText) {
   }
   const uid = parsed.uid;
    console.log("QR letto:", decodedText);
-  console.log("➡️ UID letto dal QR code:", `"${uid}"`);
- console.log("➡️ Session ID usato:", `"${session_id}"`);
+  console.log("UID letto dal QR code:", `"${uid}"`);
+ console.log("Session ID usato:", `"${session_id}"`);
 
   if (!session_id || !uid) {
     document.getElementById("status").textContent = "Errore: sessione o QR non validi.";
