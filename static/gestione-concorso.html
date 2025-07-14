@@ -102,12 +102,15 @@
 <script>
   const params = new URLSearchParams(window.location.search);
   const sessionId = params.get('session_id');
+  const erroreDiv = document.getElementById('errore');
 
   document.getElementById('scarica').addEventListener('click', async () => {
     try {
       const res = await fetch(`/get-candidati?session_id=${sessionId}`);
       const data = await res.json();
       document.getElementById('output').textContent = data.message;
+      erroreDiv.innerHTML = ''; // pulizia errori prima di ricaricare
+      erroreDiv.classList.add('d-none');
       caricaDatiSessione();
     } catch (err) {
       console.error('Errore:', err);
@@ -116,9 +119,23 @@
   });
 
   function mostraErrore(msg) {
-    const div = document.getElementById('errore');
-    div.textContent = msg;
-    div.classList.remove('d-none');
+    if (!erroreDiv.innerHTML.includes(msg)) {
+      erroreDiv.innerHTML += `<div>${msg}</div>`;
+      erroreDiv.classList.remove('d-none');
+    }
+  }
+
+  function parseItalianDate(str) {
+    const [gg, mm, aaaa] = str.split('/');
+    return `${aaaa}-${mm.padStart(2, '0')}-${gg.padStart(2, '0')}`;
+  }
+
+  function isDocumentExpired(documentDateStr) {
+    if (!documentDateStr) return true;
+    const [gg, mm, aaaa] = documentDateStr.split('/');
+    const docDate = new Date(`${aaaa}-${mm}-${gg}`);
+    const today = new Date();
+    return docDate < today;
   }
 
   async function caricaDatiSessione() {
@@ -127,34 +144,36 @@
       const data = await res.json();
 
       if (!data.success || !data.session) {
-        mostraErrore("Sessione non trovata.");
+        mostraErrore("❌ Sessione non trovata.");
         return;
       }
 
       const s = data.session;
       const oggi = new Date().toISOString().slice(0, 10);
+      const giornoSessione = parseItalianDate(s.giorno);
 
-      if (oggi !== s.giorno) {
-        mostraErrore("⚠️ Attenzione: la sessione non è prevista per la giornata odierna.");
-        return;
+      if (oggi !== giornoSessione) {
+        mostraErrore("⚠️ La sessione non è prevista per la giornata odierna.");
       }
 
       if (!s.attiva) {
-        mostraErrore("⚠️ La sessione non è attiva. Attivala prima di procedere.");
-        return;
+        mostraErrore("⚠️ La sessione non risulta attiva. Procedi solo se autorizzato.");
       }
 
-      document.getElementById('titolo-sessione').textContent = s.nome_sessione;
-      document.getElementById('luogo-sessione').textContent = s.luogo;
-      document.getElementById('data-ora-sessione').textContent = `${s.giorno} – ${s.ora}`;
+      // Intestazione sessione
+      document.getElementById('titolo-sessione').textContent = s.nome_sessione || '-';
+      document.getElementById('luogo-sessione').textContent = s.luogo || '-';
+      document.getElementById('data-ora-sessione').textContent = `${s.giorno || '-'} – ${s.ora || '-'}`;
       const statoEl = document.getElementById('stato-sessione');
       statoEl.textContent = s.attiva ? 'Attiva' : 'Non attiva';
       statoEl.className = 'badge ' + (s.attiva ? 'bg-success' : 'bg-danger');
 
+      // Tabella candidati
       const tbody = document.querySelector('#tabella-candidati tbody');
       tbody.innerHTML = '';
 
       s.candidates.forEach((c, index) => {
+        const validita = isDocumentExpired(c.documentDate) ? '❌ Scaduto' : '✅ Valido';
         const tr = document.createElement('tr');
         tr.className = c.checkin_effettuato ? 'table-success' : 'table-danger';
         tr.innerHTML = `
@@ -163,18 +182,31 @@
           <td>${c.cognome}</td>
           <td>${c.numero_documento}</td>
           <td>${c.checkin_effettuato ? '✅' : '❌'}</td>
+          <td>${validita}</td>
         `;
         tbody.appendChild(tr);
       });
 
+      // Aggiunta intestazione se non già presente
+      const theadRow = document.querySelector('#tabella-candidati thead tr');
+      if (theadRow.children.length === 5) {
+        const th = document.createElement('th');
+        th.scope = "col";
+        th.textContent = 'Validità documento';
+        theadRow.appendChild(th);
+      }
+
     } catch (err) {
       console.error("Errore nel caricamento sessione:", err);
-      mostraErrore("Errore durante il caricamento dei dati.");
+      mostraErrore("❌ Errore durante il caricamento dei dati.");
     }
   }
 
   caricaDatiSessione();
 </script>
+
+
+
 
 </body>
 </html>

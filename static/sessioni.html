@@ -31,54 +31,70 @@
   </div>
 
   <script>
-    async function caricaSessioni() {
-      const params = new URLSearchParams(window.location.search);
-      const commission_id = params.get('commission_id');
+  async function caricaSessioni() {
+    const params = new URLSearchParams(window.location.search);
+    const commission_id = params.get('commission_id');
 
-      if (!commission_id) {
-        alert("Commission ID mancante nell'URL");
+    if (!commission_id) {
+      alert("Commission ID mancante nell'URL");
+      return;
+    }
+
+    try {
+      const res = await fetch(`/get-sessioni/${commission_id}`, {
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      });
+
+      if (res.status === 401) {
+        alert("La sessione è scaduta. Verrai reindirizzato alla pagina di login.");
+        window.location.href = "/login";
         return;
       }
 
-      try {
-        const res = await fetch(`/get-sessioni/${commission_id}`);
-        const data = await res.json();
-
-        if (!data.success) {
-          alert("Errore nel recupero sessioni: " + (data.message || data.error));
-          return;
-        }
-
-        const sessioni = data.sessioni;
-
-        const tbody = document.getElementById('corpo-tabella-sessioni');
-        tbody.innerHTML = '';
-
-        sessioni.forEach((s, index) => {
-          const tr = document.createElement('tr');
-          tr.innerHTML = `
-            <th scope="row">${index + 1}</th>
-            <td>${s.session_string}</td>
-            <td>${s.luogo}</td>
-            <td>${s.giorno}</td>
-            <td>${s.ora}</td>
-            <td>
-              <a href="/gestione-concorso.html?session_id=${s.session_id}" class="btn btn-sm btn-primary">
-                Gestisci
-              </a>
-            </td>
-          `;
-          tbody.appendChild(tr);
-        });
-
-      } catch (err) {
-        console.error('Errore nel caricamento sessioni:', err);
+      if (!res.ok) {
+        throw new Error('Errore HTTP');
       }
-    }
 
-    // Esegui al caricamento della pagina
-    window.addEventListener('DOMContentLoaded', caricaSessioni);
-  </script>
+      const data = await res.json();
+
+      if (!data.success) {
+        alert("Errore nel recupero sessioni: " + (data.message || data.error));
+        return;
+      }
+
+      const sessioni = data.sessioni;
+      const tbody = document.getElementById('corpo-tabella-sessioni');
+      tbody.innerHTML = '';
+
+      sessioni.forEach((s, index) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <th scope="row">${index + 1}</th>
+          <td>${s.session_string}</td>
+          <td>${s.luogo}</td>
+          <td>${s.giorno}</td>
+          <td>${s.ora}</td>
+          <td>
+            <a href="/gestione-concorso.html?session_id=${s.session_id}" class="btn btn-sm btn-primary">
+              Gestisci
+            </a>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+    } catch (err) {
+      console.error('Errore nel caricamento sessioni:', err);
+      alert("Errore nel caricamento delle sessioni. Riprova più tardi.");
+    }
+  }
+
+  // Esegui al caricamento della pagina
+  window.addEventListener('DOMContentLoaded', caricaSessioni);
+</script>
+
 
 </body>
 </html>

@@ -8,6 +8,9 @@ from datetime import datetime
 import os
 import json
 import jwt
+import csv
+from urllib.parse import quote
+from flask import request, jsonify
 
 from flask import jsonify
 import hashlib
@@ -35,7 +38,7 @@ DB_PATH = 'checkin.db'
 # === CONFIG OIDC ===
 OIDC_CLIENT_ID = 'selezioni'
 OIDC_CLIENT_SECRET = '17812d1a-6bdc-412f-acf8-ba0d9aa130de'
-OIDC_REDIRECT_URI = 'https://980849cff71b.ngrok-free.app/oidc-callback'
+OIDC_REDIRECT_URI = 'https://83c08f8aeab0.ngrok-free.app/oidc-callback'
 OIDC_AUTH_URL = 'https://traefik.test.si.cnr.it/auth/realms/cnr/protocol/openid-connect/auth'
 OIDC_TOKEN_URL = 'https://traefik.test.si.cnr.it/auth/realms/cnr/protocol/openid-connect/token'
 OIDC_USERINFO_URL = 'https://traefik.test.si.cnr.it/auth/realms/cnr/protocol/openid-connect/userinfo'
@@ -45,6 +48,8 @@ def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'access_token' not in session:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': False, 'error': 'Unauthorized'}), 401
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated_function
@@ -606,59 +611,91 @@ from flask import request, jsonify
 import sqlite3
 
 DB_PATH = 'checkin.db'
+import io
 
 @app.route('/get-candidati', methods=['GET'])
 @login_required
 def get_candidati():
+    import requests
+    import os
+    import sqlite3
+    from urllib.parse import quote
+
     session_id = request.args.get('session_id')
     if not session_id:
         return jsonify({"success": False, "message": "Missing session_id"}), 400
 
     try:
+        access_token = session.get('access_token')
+        user_email = session.get('user_email')
+
+        if not access_token or not user_email:
+            print("[DEBUG] Token o email mancanti")
+            return jsonify({"success": False, "message": "Autenticazione mancante"}), 401
+
         with sqlite3.connect(DB_PATH) as conn:
             cursor = conn.cursor()
 
-            # Verifica se i candidati sono già stati importati
-            cursor.execute("SELECT candidati_importati FROM sessioni WHERE session_id = ?", (session_id,))
+            # Recupera dati della sessione
+            cursor.execute("""
+                SELECT commission_id, session_string, candidati_importati
+                FROM sessioni
+                WHERE session_id = ?
+            """, (session_id,))
             row = cursor.fetchone()
+
             if not row:
                 return jsonify({"success": False, "message": "Sessione non trovata."}), 404
-            if row[0] == 1:
+
+            commission_id, session_string, candidati_importati = row
+
+            print(f"[DEBUG] session_id: {session_id}")
+            print(f"[DEBUG] commission_id: {commission_id}")
+            print(f"[DEBUG] session_string: {session_string}")
+            print(f"[DEBUG] candidati_importati: {candidati_importati}")
+
+            if candidati_importati == 1:
                 return jsonify({"success": False, "message": "I candidati sono già stati importati per questa sessione."}), 400
 
-            # JSON fittizio di esempio
-            candidati = [
-                {
-                    "uid": "eaec8a7c-65d1-433c-8f57-54159329cbca",
-                    "firstName": "Mario",
-                    "lastName": "Rossi",
-                    "birthdate": "01/01/1990",
-                    "fiscalCode": "RSSMRA90A01H501X",
-                    "documentType": "Carta d'identità",
-                    "documentNumber": "AB123456",
-                    "documentDate": "01/02/2020",
-                    "documentIssuedBy": "Comune di Roma"
-                },
-                {
-                    "uid": "abcde-12345-0002",
-                    "firstName": "Lucia",
-                    "lastName": "Verdi",
-                    "birthdate": "15/07/1988",
-                    "fiscalCode": "VRDLUC88L55H501T",
-                    "documentType": "Passaporto",
-                    "documentNumber": "YA998877",
-                    "documentDate": "15/03/2021",
-                    "documentIssuedBy": "Questura di Milano"
-                },
-                # ... altri candidati ...
-            ]
+            # Verifica autorizzazione dell’utente sulla commissione
+            cursor.execute("""
+                SELECT 1 FROM commissions
+                WHERE commission_id = ? AND user_email = ?
+            """, (commission_id, user_email))
+            if not cursor.fetchone():
+                print(f"[DEBUG] Nessuna autorizzazione trovata per commission_id={commission_id}")
+                return jsonify({"success": False, "message": "Commissione non autorizzata"}), 403
 
-            # Inserisci session_id nei record dei candidati
-            for c in candidati:
-                c['session_id'] = session_id
+            # Costruzione URL API remota
+            encoded_session = quote(session_string, safe='')
+            api_url = f"https://cool-jconon.test.si.cnr.it/openapi/v1/call/exam-sessions/{commission_id}?session={encoded_session}"
+            print(f"[DEBUG] Chiamata API selezioni online: {api_url}")
 
-            # Inserimento nel DB
-            for c in candidati:
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Accept": "*/*"
+            }
+
+            res = requests.get(api_url, headers=headers)
+            print(f"[DEBUG] Response code: {res.status_code}")
+            if res.status_code != 200:
+                return jsonify({"success": False, "message": f"Errore chiamata API Selezioni Online: {res.status_code}"}), 502
+
+            try:
+                json_data = res.json()
+                print(f"[DEBUG] JSON ricevuto: {list(json_data.keys())}")
+            except Exception as e:
+                print(f"[ERRORE PARSING JSON] {str(e)}")
+                return jsonify({"success": False, "message": "La risposta non è in formato JSON valido."}), 500
+
+            candidati = json_data.get(session_string)
+            if not candidati:
+                return jsonify({"success": False, "message": "Nessun candidato trovato nella sessione indicata."}), 404
+
+            inseriti = 0
+            for row in candidati:
+                if not row.get("uid"):
+                    continue
                 cursor.execute("""
                     INSERT OR IGNORE INTO candidati (
                         uid, session_id, first_name, last_name, birthdate,
@@ -666,27 +703,43 @@ def get_candidati():
                         document_date, document_issued_by
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
-                    c['uid'], c['session_id'], c['firstName'], c['lastName'], c['birthdate'],
-                    c['fiscalCode'], c['documentType'], c['documentNumber'],
-                    c['documentDate'], c['documentIssuedBy']
+                    row.get("uid"),
+                    session_id,
+                    row.get("firstName"),
+                    row.get("lastName"),
+                    row.get("birthdate"),
+                    row.get("fiscalCode"),
+                    row.get("documentType"),
+                    row.get("documentNumber"),
+                    row.get("documentDate"),
+                    row.get("documentIssuedBy"),
                 ))
+                inseriti += 1
 
+            if inseriti == 0:
+                return jsonify({"success": False, "message": "Nessun candidato è stato importato dal file JSON."}), 500
 
-            # Aggiorna lo stato nella tabella sessioni
-            cursor.execute("UPDATE sessioni SET candidati_importati = 1 WHERE session_id = ?", (session_id,))
+            # Aggiorna stato sessione
+            cursor.execute("""
+                UPDATE sessioni
+                SET candidati_importati = 1,
+                    sync_user_email = ?,
+                    data_sync = datetime('now')
+                WHERE session_id = ?
+            """, (user_email, session_id))
 
             conn.commit()
+
+            return jsonify({
+                "success": True,
+                "message": f"{inseriti} candidati importati correttamente dal file JSON."
+            })
 
     except Exception as e:
         return jsonify({"success": False, "message": f"Errore durante l'importazione: {str(e)}"}), 500
 
-    return jsonify({
-        "success": True,
-        "message": f"{len(candidati)} candidati importati correttamente nella sessione {session_id}."
-    })
 
 
-        
 @app.route('/me')
 @login_required
 def me():
