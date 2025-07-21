@@ -1,0 +1,23 @@
+<!-- templates/header.html -->
+<header class="it-header-wrapper" data-bs-target="#header-nav">
+  <div class="it-header-slim-wrapper">
+    <div class="container-xxl">
+      <div class="row">
+        <div class="col-12">
+          <div class="it-header-slim-wrapper-content">
+            <a class="d-none d-lg-block navbar-brand" href="/">Sistema Gestione Presenze Concorsi CNR</a>
+            <div class="it-header-slim-right-zone">
+              <div class="it-access-top-wrapper">
+                {% if session.get('token') %}
+                  <a class="btn btn-outline-light btn-sm" href="/me">Area riservata</a>
+                {% else %}
+                  <a class="btn btn-primary btn-sm" href="/login">Accedi</a>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>

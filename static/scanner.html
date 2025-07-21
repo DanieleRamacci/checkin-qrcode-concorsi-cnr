@@ -13,28 +13,20 @@
     #reset-btn, #confirm-btn, #clear-session-btn { margin-top: 10px; display: none; }
 
     button {
-  padding: 16px 24px;
-  font-size: 18px;
-  width: 100%;
-  margin-bottom: 10px;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-}
+      padding: 16px 24px;
+      font-size: 18px;
+      width: 100%;
+      margin-bottom: 10px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
 
-#confirm-btn {
-  background-color: #28a745;
-  color: white;
-  display: none;
-}
-
-#scaduto-btn {
-  background-color: #ffc107;
-  color: black;
-  display: none;
-}
-
-
+    #confirm-btn {
+      background-color: #28a745;
+      color: white;
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -51,12 +43,9 @@
   <div id="reader"></div>
   <div id="status">📷 Scansiona un QR code...</div>
   <div id="candidate-info"></div>
+
+  <button id="confirm-btn" onclick="confermaCheckin()">Conferma Check-in</button>
   <button id="reset-btn" onclick="resetScanner()">Nuovo check-in</button>
-
-
-<button id="confirm-btn" onclick="confermaCheckin(false)">Conferma Check-in</button>
-<button id="scaduto-btn" onclick="confermaCheckin(true)">Documento Scaduto</button>
-
 
   <script>
     let html5QrCode;
@@ -66,16 +55,12 @@
     async function verificaSessione(session_id) {
       try {
         const now = new Date();
-        const localISO = now.getFullYear() + "-" +
-                        String(now.getMonth() + 1).padStart(2, '0') + "-" +
-                        String(now.getDate()).padStart(2, '0') + "T" +
-                        String(now.getHours()).padStart(2, '0') + ":" +
-                        String(now.getMinutes()).padStart(2, '0');
+        const localISO = now.toISOString().slice(0, 16);
         const res = await fetch(`/session-check?session_id=${session_id}&timestamp=${encodeURIComponent(localISO)}`);
 
         const data = await res.json();
         if (data.success) {
-          document.getElementById("status").textContent = ` Sessione valida: ${session_id}`;
+          document.getElementById("status").textContent = `✅ Sessione valida: ${session_id}`;
           document.getElementById("session-input-container").style.display = "none";
           document.getElementById("clear-session-btn").style.display = "inline-block";
           startScanner();
@@ -135,91 +120,75 @@
       });
     }
 
-function onScanSuccess(decodedText) {
- 
+    function onScanSuccess(decodedText) {
+      if (!scanning) return;
+      scanning = false;
 
-  if (!scanning) return;
-  scanning = false;
-
-  const session_id = localStorage.getItem("session_id");
-  let parsed;
-  try {
-    parsed = JSON.parse(decodedText);
-  } catch (e) {
-    document.getElementById("status").textContent = "QR non valido.";
-    return;
-  }
-  const uid = parsed.uid;
-   console.log("QR letto:", decodedText);
-  console.log("UID letto dal QR code:", `"${uid}"`);
- console.log("Session ID usato:", `"${session_id}"`);
-
-  if (!session_id || !uid) {
-    document.getElementById("status").textContent = "Errore: sessione o QR non validi.";
-    return;
-  }
-
-  fetch("/verifica-candidato", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ uid, session_id })
-  })
-    .then(res => res.json())
-    .then(data => {
-      console.log("⬅️ Risposta del server:", data);
-
-      if (!data.success) {
-        document.getElementById("status").textContent = "❌ " + data.message;
-        document.getElementById("reset-btn").style.display = "inline-block";
+      const session_id = localStorage.getItem("session_id");
+      let parsed;
+      try {
+        parsed = JSON.parse(decodedText);
+      } catch (e) {
+        document.getElementById("status").textContent = "QR non valido.";
         return;
       }
 
-      ultimoCandidato = {
-        uid,
-        session_id
-      };
+      const uid = parsed.uid;
+      if (!session_id || !uid) {
+        document.getElementById("status").textContent = "Errore: sessione o QR non validi.";
+        return;
+      }
 
-      document.getElementById("status").textContent = "✅ Candidato trovato. Conferma o segnala documento scaduto.";
-      document.getElementById("candidate-info").innerHTML = `
-        <p><strong>Nome:</strong> ${data.candidato.nome}</p>
-        <p><strong>Cognome:</strong> ${data.candidato.cognome}</p>
-        <p><strong>Numero documento:</strong> ${data.candidato.numero_documento}</p>
-      `;
+      fetch("/verifica-candidato", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uid, session_id })
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (!data.success) {
+            document.getElementById("status").textContent = "❌ " + data.message;
+            document.getElementById("reset-btn").style.display = "inline-block";
+            return;
+          }
 
-      document.getElementById("confirm-btn").style.display = "inline-block";
-      document.getElementById("scaduto-btn").style.display = "inline-block";
-      document.getElementById("reset-btn").style.display = "inline-block";
-    })
-    .catch(err => {
-      console.error(err);
-      document.getElementById("status").textContent = "Errore durante la verifica del QR.";
-    });
-}
+          ultimoCandidato = { uid, session_id };
+          document.getElementById("status").textContent = "✅ Candidato trovato. Conferma il check-in.";
+          document.getElementById("candidate-info").innerHTML = `
+            <p><strong>Nome:</strong> ${data.candidato.nome}</p>
+            <p><strong>Cognome:</strong> ${data.candidato.cognome}</p>
+            <p><strong>Numero documento:</strong> ${data.candidato.numero_documento}</p>
+          `;
+          document.getElementById("confirm-btn").style.display = "inline-block";
+          document.getElementById("reset-btn").style.display = "inline-block";
+        })
+        .catch(err => {
+          console.error(err);
+          document.getElementById("status").textContent = "Errore durante la verifica del QR.";
+        });
+    }
 
-function confermaCheckin(documentoScaduto = false) {
-  if (!ultimoCandidato) return;
+    function confermaCheckin() {
+      if (!ultimoCandidato) return;
 
-  fetch("/checkin-candidato", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      uid: ultimoCandidato.uid,
-      session_id: ultimoCandidato.session_id,
-      documento_scaduto: documentoScaduto
-    })
-  })
-    .then(res => res.json())
-    .then(data => {
-      document.getElementById("status").textContent = data.success ? "✅ Check-in registrato!" : "❌ " + data.message;
-      document.getElementById("confirm-btn").style.display = "none";
-      document.getElementById("scaduto-btn").style.display = "none";
-    })
-    .catch(err => {
-      console.error(err);
-      document.getElementById("status").textContent = "Errore durante la registrazione del check-in.";
-    });
-}
-
+      fetch("/checkin-candidato", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          uid: ultimoCandidato.uid,
+          session_id: ultimoCandidato.session_id
+        })
+      })
+        .then(res => res.json())
+        .then(data => {
+          document.getElementById("status").textContent = data.success ? "✅ Check-in registrato!" : "❌ " + data.message;
+          document.getElementById("confirm-btn").style.display = "none";
+        })
+        .catch(err => {
+          console.error(err);
+          document.getElementById("status").textContent = "Errore durante la registrazione del check-in.";
+        });
+    }
 
     window.addEventListener("load", () => {
       const storedSession = localStorage.getItem("session_id");

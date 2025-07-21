@@ -1,15 +1,29 @@
-import sqlite3
+import psycopg2
+from psycopg2 import sql
 
-DB_PATH = 'checkin.db'
+# ⚠️ Sostituisci questi dati con quelli reali
+DB_NAME = "checkin"
+DB_USER = "postgres"
+DB_PASSWORD = "password"
+DB_HOST = "localhost"
+DB_PORT = "5432"
 
-with sqlite3.connect(DB_PATH) as conn:
+try:
+    conn = psycopg2.connect(
+        dbname=DB_NAME,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        host=DB_HOST,
+        port=DB_PORT
+    )
     cursor = conn.cursor()
 
-    # Drop opzionali
-    cursor.execute("DROP TABLE IF EXISTS sessioni")
-    cursor.execute("DROP TABLE IF EXISTS commissions")
+    # Drop opzionali (solo per sviluppo: NON usare in produzione!)
+    cursor.execute("DROP TABLE IF EXISTS candidati CASCADE")
+    cursor.execute("DROP TABLE IF EXISTS sessioni CASCADE")
+    cursor.execute("DROP TABLE IF EXISTS commissions CASCADE")
 
-    # ✅ Tabella commissions (bandi)
+    # Tabella commissions
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS commissions (
         commission_id TEXT,
@@ -20,7 +34,7 @@ with sqlite3.connect(DB_PATH) as conn:
     );
     """)
 
-    # Tabella sessioni 
+    # Tabella sessioni
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS sessioni (
         session_id TEXT PRIMARY KEY,
@@ -60,4 +74,10 @@ with sqlite3.connect(DB_PATH) as conn:
     );
     """)
 
-    print("✅ Database aggiornato con successo.")
+    conn.commit()
+    cursor.close()
+    conn.close()
+    print("✅ Database PostgreSQL aggiornato con successo.")
+
+except Exception as e:
+    print(f"❌ Errore durante la creazione delle tabelle: {e}")

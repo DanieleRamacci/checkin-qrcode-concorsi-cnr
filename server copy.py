@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory, session, redirect, url_for
+from flask import Flask, request, jsonify, send_from_directory, session, redirect, url_for, render_template
 from flask_session import Session
 from urllib.parse import urlencode
 from functools import wraps
@@ -44,25 +44,28 @@ OIDC_TOKEN_URL = 'https://traefik.test.si.cnr.it/auth/realms/cnr/protocol/openid
 OIDC_USERINFO_URL = 'https://traefik.test.si.cnr.it/auth/realms/cnr/protocol/openid-connect/userinfo'
 
 # === DECORATORE LOGIN ===
+
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'access_token' not in session:
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return jsonify({'success': False, 'error': 'Unauthorized'}), 401
-            return redirect(url_for('login'))
+            # Salva la pagina richiesta per tornare dopo il login
+            next_url = request.url
+            return redirect(url_for('login', next=next_url))
         return f(*args, **kwargs)
     return decorated_function
 
 # === LOGIN / CALLBACK / LOGOUT ===
 @app.route('/login')
 def login():
+    next_url = request.args.get('next') or url_for('index', _external=True)
+
     params = {
         'client_id': OIDC_CLIENT_ID,
         'response_type': 'code',
         'scope': 'openid profile email',
         'redirect_uri': OIDC_REDIRECT_URI,
-        'state': 'xyz'
+        'state': next_url  # <--- qui salviamo l'URL da cui proveniva l'utente
     }
     return redirect(f"{OIDC_AUTH_URL}?{urlencode(params)}")
 
@@ -113,7 +116,8 @@ def oidc_callback():
         session['access_token'] = access_token
         session['user_info'] = decoded
         session['id_token'] = id_token  
-        return redirect('/')
+        next_url = request.args.get('state', '/')
+        return redirect(next_url)
 
     except Exception as e:
         print("Errore nella richiesta token:")
@@ -151,16 +155,39 @@ def logout():
 def gestione_concorso():
     return send_from_directory('static', 'gestione-concorso.html')
 
-@app.route('/sessioni.html')
+@app.route('/sessioni')
 @login_required
 def sessioni():
-    return send_from_directory('static', 'sessioni.html')
+    commission_id = request.args.get('commission_id')
+    if not commission_id:
+        return "Commission ID mancante", 400
+
+    sessioni = get_sessioni_per_commissione(commission_id)  # Assicurati che questa funzione esista
+    return render_template('sessioni.html', sessioni=sessioni, commission_id=commission_id)
+
+
 
 
 @app.route('/')
 @login_required
 def index():
-    return send_from_directory('static', 'dashboard.html')
+    user_email = session.get('user_email')
+    access_token = session.get('access_token')
+
+    if not access_token or not user_email:
+        return redirect(url_for('login'))
+
+    commissioni = get_commissioni_sincronizzate(access_token, user_email)
+
+    if commissioni is None:
+        # Token scaduto, logout forzato
+        session.clear()
+        return redirect(url_for('login'))
+
+    return render_template('dashboard.html', commissioni=commissioni, user_email=user_email)
+
+
+
 
 @app.route('/qr-test')
 @login_required
@@ -571,40 +598,6 @@ def get_session(session_id):
         return jsonify(success=False, message=str(e)), 500
     
 
-@app.route('/mie-sessioni-esame', methods=['GET'])
-@login_required
-def mie_sessioni_esame():
-    sessioni = [
-        {
-            "id": "sessione123",
-            "nome": "Concorso Area Tecnica",
-            "giorno": "2025-07-10",
-            "ora": "09:00",
-            "luogo": "Aula 3, Via Roma",
-            "attiva": 1
-        },
-        {
-            "id": "sessione456",
-            "nome": "Concorso Area Amministrativa",
-            "giorno": "2025-07-10",
-            "ora": "15:00",
-            "luogo": "Aula 1, Via Milano",
-            "attiva": 1
-        },
-        {
-            "id": "sessione888",
-            "nome": "367.434 sessione 1",
-            "giorno": "2025-07-10",
-            "ora": "15:00",
-            "luogo": "Aula 1, Via Napoli",
-            "attiva": 1
-        },
-        
-    ]
-
-    importa_sessioni(sessioni)  # salva nel DB
-    return jsonify(sessioni)
-
 
 import requests
 from flask import request, jsonify
@@ -780,7 +773,96 @@ def importa_sessioni(sessioni):
             ))
         conn.commit()
 
+""" test route"""
+@app.route('/sessioni')
+@login_required
+def pagina_sessioni():
+    commission_id = request.args.get('commission_id')
+    if not commission_id:
+        return "Commission ID mancante", 400
 
+    sessioni = get_sessioni_per_commissione(commission_id)  # ← funzione da definire tu
+    return render_template('sessioni.html', sessioni=sessioni, commission_id=commission_id)
+
+
+def get_sessioni_per_commissione(commission_id):
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT session_id, nome, giorno, ora, luogo
+            FROM sessioni
+            WHERE commission_id = ?
+        """, (commission_id,))
+        rows = cursor.fetchall()
+
+        sessioni = []
+        for row in rows:
+            sessioni.append({
+                "session_id": row[0],
+                "session_string": row[1],  # nome della sessione
+                "giorno": row[2],
+                "ora": row[3],
+                "luogo": row[4]
+            })
+        return sessioni
+
+def get_commissioni_sincronizzate(access_token, user_email):
+    try:
+        # 1. Chiamata API remota
+        api_url = 'https://cool-jconon.test.si.cnr.it/openapi/v1/call/commissions'
+        headers = {
+            'Authorization': f'Bearer {access_token}',
+            'Accept': 'application/json'
+        }
+        response = requests.get(api_url, headers=headers)
+
+        if response.status_code == 401:
+            print("[DEBUG] Token scaduto o non valido")
+            return None  # <== Questo segnala errore di autenticazione
+
+        response.raise_for_status()
+        remote_commissions = response.json()
+
+        remote_ids = {c['id'] for c in remote_commissions}
+
+        with sqlite3.connect('checkin.db') as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT commission_id FROM commissions
+                WHERE user_email = ?
+            """, (user_email,))
+            local_ids = {row[0] for row in cursor.fetchall()}
+
+            nuovi = remote_ids - local_ids
+            for c in remote_commissions:
+                if c['id'] in nuovi:
+                    cursor.execute("""
+                        INSERT INTO commissions (commission_id, titolo, user_email, data_sync)
+                        VALUES (?, ?, ?, ?)
+                    """, (c['id'], c['title'], user_email, datetime.now().isoformat()))
+
+            da_eliminare = local_ids - remote_ids
+            for cid in da_eliminare:
+                cursor.execute("""
+                    DELETE FROM commissions
+                    WHERE commission_id = ? AND user_email = ?
+                """, (cid, user_email))
+
+            cursor.execute("""
+                SELECT commission_id, titolo FROM commissions
+                WHERE user_email = ?
+                ORDER BY titolo
+            """, (user_email,))
+            risultati = [{"id": r[0], "title": r[1]} for r in cursor.fetchall()]
+
+        return risultati  # Anche se vuoto, è comunque lista valida
+
+    except Exception as e:
+        print(f"[ERRORE SYNC GENERICO] {e}")
+        return []
+
+ 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5050, debug=True)
 

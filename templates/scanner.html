@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Scanner Check-in</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Bootstrap Italia -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-italia@2.6.1/dist/css/bootstrap-italia.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap-italia@2.6.1/dist/js/bootstrap-italia.bundle.min.js" defer></script>
+  <script src="https://unpkg.com/html5-qrcode" defer></script>
+
+  <style>
+    #reader { width: 100%; max-width: 400px; margin: auto; margin-bottom: 20px; }
+    .btn-lg { font-size: 1rem; padding: 12px 20px; }
+    #status { font-weight: bold; margin-top: 15px; }
+    #candidate-info p { margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+  <div class="container my-4">
+    <h1 class="text-center">Scanner Check-in</h1>
+
+    <div id="session-setup" class="mb-4 text-center">
+      <p class="text-muted">📷 Scansiona il QR code della sessione per iniziare</p>
+    </div>
+
+    <button id="clear-session-btn" class="btn btn-outline-danger w-100 mb-3 d-none" onclick="cancellaSessione()">Elimina sessione</button>
+
+    <div id="reader"></div>
+
+    <div id="status" class="text-center text-info">📷 In attesa di scansione...</div>
+
+    <div id="candidate-info" class="mt-3"></div>
+
+    <button id="confirm-btn" class="btn btn-success w-100 btn-lg d-none" onclick="confermaCheckin()">Conferma Check-in</button>
+    <button id="reset-btn" class="btn btn-secondary w-100 btn-lg d-none" onclick="resetScanner()">Nuovo Check-in</button>
+  </div>
+
+  <script>
+    let html5QrCode;
+    let scanning = false;
+    let ultimoCandidato = null;
+
+    function scannerSessione() {
+      const reader = new Html5Qrcode("reader");
+      Html5Qrcode.getCameras().then(devices => {
+        if (devices.length) {
+          reader.start(
+            { facingMode: "environment" },
+            { fps: 10, qrbox: 250 },
+            (decodedText) => {
+              try {
+              console.log("QR letto:", decodedText);
+let parsed;
+try {
+  parsed = JSON.parse(decodedText);
+} catch (err) {
+  document.getElementById("status").textContent = "❌ QR non in formato JSON.";
+  console.log("Errore parsing JSON:", err);
+  return;
+}
+
+const session_id = parsed.session_id;
+if (!session_id) {
+  document.getElementById("status").textContent = "❌ QR code non contiene session_id.";
+  console.log("QR privo di session_id:", parsed);
+  return;
+}
+
+console.log("Session ID trovato:", session_id);
+document.getElementById("status").innerHTML = `📄 Session ID: <code>${session_id}</code><br>Verifica in corso...`;
+
+reader.stop().then(() => {
+  localStorage.setItem("session_id", session_id);
+  verificaSessione(session_id);
+});
+
+              } catch (err) {
+                document.getElementById("status").textContent = "QR code non valido.";
+              }
+            }
+          ).catch(err => {
+            document.getElementById("status").textContent = "Errore scanner sessione: " + err;
+          });
+        } else {
+          document.getElementById("status").textContent = "Nessuna fotocamera trovata.";
+        }
+      });
+    }
+
+async function verificaSessione(session_id) {
+  try {
+    const now = new Date();
+    const localISO = now.toISOString().slice(0, 16);
+    console.log("Verifica sessione con:", session_id, localISO);
+
+    const res = await fetch(`/session-check?session_id=${session_id}&timestamp=${encodeURIComponent(localISO)}`);
+    const data = await res.json();
+    console.log("Risposta session-check:", data);
+
+    if (data.success) {
+      document.getElementById("status").textContent = `✅ Sessione valida: ${session_id}`;
+      document.getElementById("session-setup").style.display = "none";
+      document.getElementById("clear-session-btn").classList.remove("d-none");
+      startScanner();
+    } else {
+      document.getElementById("status").textContent = `❌ ${data.message}`;
+    }
+  } catch (err) {
+    console.error("Errore fetch /session-check:", err);
+    document.getElementById("status").textContent = "Errore nella verifica della sessione.";
+  }
+}
+
+
+    function cancellaSessione() {
+      localStorage.removeItem("session_id");
+      location.reload();
+    }
+
+    function resetScanner() {
+      if (html5QrCode) {
+        html5QrCode.stop().then(startScanner).catch(console.error);
+      }
+      document.getElementById("status").textContent = "📷 Scansiona un QR code...";
+      document.getElementById("candidate-info").innerHTML = "";
+      document.getElementById("confirm-btn").classList.add("d-none");
+      document.getElementById("reset-btn").classList.add("d-none");
+      scanning = true;
+      ultimoCandidato = null;
+    }
+
+    function startScanner() {
+      html5QrCode = new Html5Qrcode("reader");
+      Html5Qrcode.getCameras().then(devices => {
+        if (devices && devices.length) {
+          html5QrCode.start(
+            { facingMode: "environment" },
+            { fps: 10, qrbox: 250 },
+            onScanSuccess
+          ).catch(err => {
+            document.getElementById("status").textContent = "Errore avvio scanner: " + err;
+          });
+        } else {
+          document.getElementById("status").textContent = "Nessuna fotocamera trovata.";
+        }
+      }).catch(err => {
+        document.getElementById("status").textContent = "Errore accesso fotocamera.";
+      });
+      scanning = true;
+    }
+
+    function onScanSuccess(decodedText) {
+      if (!scanning) return;
+      scanning = false;
+
+      const session_id = localStorage.getItem("session_id");
+      let parsed;
+      try {
+        parsed = JSON.parse(decodedText);
+      } catch (e) {
+        document.getElementById("status").textContent = "QR non valido.";
+        return;
+      }
+
+      const uid = parsed.uid;
+      console.log("Decoded:", decodedText);
+      console.log("Parsed:", parsed);
+      console.log("session_id:", session_id);
+      if (!session_id || !uid) {
+        document.getElementById("status").textContent = "Errore: sessione o QR non validi.";
+        return;
+      }
+
+      fetch("/verifica-candidato", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uid, session_id })
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (!data.success) {
+            document.getElementById("status").textContent = "❌ " + data.message;
+            document.getElementById("reset-btn").classList.remove("d-none");
+            return;
+          }
+
+          ultimoCandidato = { uid, session_id };
+          document.getElementById("status").textContent = "✅ Candidato trovato. Conferma il check-in.";
+          document.getElementById("candidate-info").innerHTML = `
+            <p><strong>Nome:</strong> ${data.candidato.nome}</p>
+            <p><strong>Cognome:</strong> ${data.candidato.cognome}</p>
+            <p><strong>Numero documento:</strong> ${data.candidato.numero_documento}</p>
+          `;
+          document.getElementById("confirm-btn").classList.remove("d-none");
+          document.getElementById("reset-btn").classList.remove("d-none");
+        })
+        .catch(err => {
+          document.getElementById("status").textContent = "Errore durante la verifica del QR.";
+        });
+    }
+
+    function confermaCheckin() {
+      if (!ultimoCandidato) return;
+
+      fetch("/checkin-candidato", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          uid: ultimoCandidato.uid,
+          session_id: ultimoCandidato.session_id
+        })
+      })
+        .then(res => res.json())
+        .then(data => {
+          document.getElementById("status").textContent = data.success ? "✅ Check-in registrato!" : "❌ " + data.message;
+          document.getElementById("confirm-btn").classList.add("d-none");
+        })
+        .catch(err => {
+          document.getElementById("status").textContent = "Errore durante la registrazione del check-in.";
+        });
+    }
+
+    window.addEventListener("load", () => {
+      const storedSession = localStorage.getItem("session_id");
+      if (storedSession) {
+        verificaSessione(storedSession);
+      } else {
+        scannerSessione();
+      }
+    });
+  </script>
+</body>
+</html>
