@@ -1,10 +1,10 @@
-from flask import Flask, request, jsonify, send_from_directory, session, redirect, url_for, render_template
+from flask import Flask, request, abort, jsonify, send_from_directory, session, redirect, url_for, render_template
 from flask_session import Session
 from urllib.parse import urlencode
 from functools import wraps
 import psycopg2
 import requests
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 import json
 import random
@@ -273,7 +273,7 @@ def index():
         session.clear()
         return redirect(url_for('login'))
 
-    return render_template('dashboard.html', commissioni=commissioni, user_email=user_email)
+    return render_template('dashboard.html', commissioni=commissioni, user_email=user_email, active_page="dashboard")
 
 
 
@@ -975,11 +975,11 @@ def get_sessioni_internamente(commission_id, access_token, user_email):
                                 session_id, commission_id, user_email, session_string,
                                 nome, giorno, ora, luogo, data_esame,
                                 attiva, candidati_importati, sync_user_email, data_sync
-                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 0, 0, %s, %s)
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                             ON CONFLICT (session_id) DO NOTHING
                         """, (
                             session_id, commission_id, user_email, session_string,
-                            session_string, giorno, ora, luogo, data_esame_iso,
+                            session_string, giorno, ora, luogo, data_esame_iso,False, False,
                             user_email, now
                         ))
 
@@ -999,6 +999,105 @@ def get_sessioni_internamente(commission_id, access_token, user_email):
     except Exception as e:
         print(f"[ERRORE GENERICO get_sessioni] {e}")
         return None
+
+import traceback
+
+
+@app.route("/api/dispositivo/registrazione", methods=["POST"])
+def registra_dispositivo():
+    try:
+        data = request.get_json()
+
+        ip_address = data.get("ip_address")
+        user_agent = data.get("user_agent")
+        session_id = data.get("session_id")
+        timestamp = datetime.now(timezone.utc)
+
+        if not session_id:
+            return jsonify(success=False, message="Session ID mancante"), 400
+
+        # Connessione al DB
+        conn = psycopg2.connect(
+            dbname="checkin",
+            user="postgres",
+            password="password",
+            host="localhost",
+            port="5432"
+        )
+        cursor = conn.cursor()
+
+        # Inserimento nel DB
+        cursor.execute(
+            """
+            INSERT INTO dispositivi (ip_address, user_agent, session_id, timestamp)
+            VALUES (%s, %s, %s, %s)
+            """,
+            (ip_address, user_agent, session_id, timestamp)
+        )
+
+        conn.commit()
+        return jsonify(success=True, message="Dispositivo registrato")
+
+    except Exception as e:
+        print("❌ Errore durante la registrazione del dispositivo:", e)
+        traceback.print_exc()
+        return jsonify(success=False, message="Errore interno"), 500
+
+    finally:
+        try:
+            cursor.close()
+            conn.close()
+        except:
+            pass
+
+
+@app.route("/dispositivi/<session_id>")
+@login_required
+def pagina_dispositivi(session_id):
+    try:
+        conn = psycopg2.connect(
+            dbname="checkin",
+            user="postgres",
+            password="password",
+            host="localhost",
+            port="5432"
+        )
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Recupera info sessione
+        cursor.execute("SELECT * FROM sessioni WHERE session_id = %s", (session_id,))
+        sessione = cursor.fetchone()
+        if not sessione:
+            abort(404, description="Sessione non trovata")
+
+        # Recupera dispositivi associati
+        cursor.execute("""
+            SELECT timestamp, nome_dispositivo, user_agent, ip_address
+            FROM dispositivi
+            WHERE session_id = %s
+            ORDER BY timestamp DESC
+        """, (session_id,))
+        dispositivi = cursor.fetchall()
+
+        # Costruzione QR code e link
+        qr_url = url_for("genera_qr_code", session_id=session_id)
+        qr_url_text = qr_url
+
+        return render_template(
+            "dispositivi.html",
+            sessione=sessione,
+            dispositivi=dispositivi,
+            qr_url=qr_url,  # Se già generato come immagine
+            qr_url_text=qr_url_text
+        )
+
+    except Exception as e:
+        print("❌ Errore:", e)
+        traceback.print_exc()  # <--- AGGIUNGI QUESTO
+        abort(500)
+    finally:
+        cursor.close()
+        conn.close()
 
 def is_document_valid(date_str):
     try:

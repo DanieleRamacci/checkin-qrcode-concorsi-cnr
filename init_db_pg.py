@@ -1,7 +1,7 @@
 import psycopg2
 from psycopg2 import sql
 
-# ⚠️ Sostituisci questi dati con quelli reali
+# ⚠️ Configurazione DB
 DB_NAME = "checkin"
 DB_USER = "postgres"
 DB_PASSWORD = "password"
@@ -18,10 +18,11 @@ try:
     )
     cursor = conn.cursor()
 
-    # Drop opzionali (solo per sviluppo: NON usare in produzione!)
+    # Drop tabelle (⚠️ solo in fase di sviluppo!)
     cursor.execute("DROP TABLE IF EXISTS candidati CASCADE")
     cursor.execute("DROP TABLE IF EXISTS sessioni CASCADE")
     cursor.execute("DROP TABLE IF EXISTS commissions CASCADE")
+    cursor.execute("DROP TABLE IF EXISTS dispositivi CASCADE")
 
     # Tabella commissions
     cursor.execute("""
@@ -46,8 +47,8 @@ try:
         ora TEXT NOT NULL,
         luogo TEXT NOT NULL,
         data_esame TEXT,
-        attiva INTEGER DEFAULT 0,
-        candidati_importati INTEGER DEFAULT 0,
+        attiva BOOLEAN DEFAULT FALSE,
+        candidati_importati BOOLEAN DEFAULT FALSE,
         sync_user_email TEXT,
         data_sync TEXT,
         FOREIGN KEY (commission_id, user_email) REFERENCES commissions(commission_id, user_email)
@@ -67,10 +68,22 @@ try:
         document_number TEXT,
         document_date TEXT,
         document_issued_by TEXT,
-        checkin_effettuato INTEGER DEFAULT 0,
-        documento_scaduto INTEGER DEFAULT 0,
+        checkin_effettuato BOOLEAN DEFAULT FALSE,
+        documento_scaduto BOOLEAN DEFAULT FALSE,
         PRIMARY KEY (uid, session_id),
         FOREIGN KEY (session_id) REFERENCES sessioni(session_id)
+    );
+    """)
+
+    # Tabella dispositivi
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS dispositivi (
+        id SERIAL PRIMARY KEY,
+        ip_address TEXT,
+        user_agent TEXT,
+        session_id TEXT,
+        nome_dispositivo TEXT,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)
 

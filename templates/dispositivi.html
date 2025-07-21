@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Dispositivi collegati</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-italia@2.6.1/dist/css/bootstrap-italia.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap-italia@2.6.1/dist/js/bootstrap-italia.bundle.min.js" defer></script>
+  <style>
+    body {
+      background-color: #f5f6f8;
+    }
+    .sidebar-wrapper {
+      background-color: white;
+      min-height: 100vh;
+      border-right: 1px solid #e0e0e0;
+    }
+    .content-area {
+      background-color: #f5f6f8;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+    .it-card {
+      background-color: white;
+    }
+  </style>
+</head>
+<body>
+
+{% include 'header.html' %}
+
+<div class="container-fluid">
+  <div class="row">
+    <!-- Sidebar -->
+    {% include 'sidebar.html' %}
+
+    <!-- Contenuto principale -->
+    <main class="col-md-10 content-area">
+      <div class="it-card-wrapper">
+        <div class="it-card rounded shadow-sm p-4 mb-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4><svg class="icon me-2"><use href="/bootstrap-italia/svg/sprite.svg#it-camera"></use></svg> Collegamento Dispositivi – <span class="text-primary">{{ sessione.nome }}</span></h4>
+            <a href="/qr-code/{{ sessione.session_id }}" class="btn btn-outline-secondary btn-sm">
+              <svg class="icon"><use href="/bootstrap-italia/svg/sprite.svg#it-refresh"></use></svg> Genera Nuovo
+            </a>
+          </div>
+          <div class="row align-items-center">
+            <div class="col-md-3 text-center">
+              <img src="{{ qr_url }}" alt="QR Code" style="max-width: 150px;" class="img-fluid">
+            </div>
+            <div class="col-md-9">
+              <ol class="mb-2">
+                <li>Apri l'app di scansione sul dispositivo mobile</li>
+                <li>Scansiona il QR code mostrato a sinistra</li>
+                <li>Inserisci le credenziali del commissario</li>
+                <li>Il dispositivo sarà collegato alla sessione d'esame</li>
+              </ol>
+              <div class="bg-light p-2 rounded small">
+                URL di collegamento:<br>
+                <code>{{ qr_url_text }}</code>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dispositivi collegati -->
+        <div class="it-card rounded shadow-sm p-4">
+          <h5><svg class="icon me-2"><use href="/bootstrap-italia/svg/sprite.svg#it-mobile"></use></svg> Dispositivi Collegati ({{ dispositivi|length }})</h5>
+          <div class="table-responsive mt-3">
+            <table class="table table-hover">
+              <thead>
+                <tr>
+                  <th>Ora di collegamento</th>
+                  <th>Nome dispositivo</th>
+                  <th>Browser / Sistema</th>
+                  <th>IP</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for d in dispositivi %}
+                  <tr>
+                    <td>{{ d.timestamp }}</td>
+                    <td>{{ d.nome_dispositivo }}</td>
+                    <td>{{ d.user_agent }}</td>
+                    <td>{{ d.ip_address }}</td>
+                  </tr>
+                {% else %}
+                  <tr><td colspan="4" class="text-center text-muted">Nessun dispositivo collegato.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+</div>
+
+</body>
+</html>

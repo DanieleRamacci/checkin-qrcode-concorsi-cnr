@@ -97,13 +97,36 @@ async function verificaSessione(session_id) {
     const res = await fetch(`/session-check?session_id=${session_id}&timestamp=${encodeURIComponent(localISO)}`);
     const data = await res.json();
     console.log("Risposta session-check:", data);
+if (data.success) {
+  document.getElementById("status").textContent = `✅ Sessione valida: ${session_id}`;
+  document.getElementById("session-setup").style.display = "none";
+  document.getElementById("clear-session-btn").classList.remove("d-none");
 
-    if (data.success) {
-      document.getElementById("status").textContent = `✅ Sessione valida: ${session_id}`;
-      document.getElementById("session-setup").style.display = "none";
-      document.getElementById("clear-session-btn").classList.remove("d-none");
-      startScanner();
-    } else {
+  // 👉 REGISTRA DISPOSITIVO QUI
+  const userAgent = navigator.userAgent;
+  try {
+    const ipRes = await fetch("https://api.ipify.org?format=json");
+    const ipData = await ipRes.json();
+    const ip = ipData.ip;
+
+    await fetch("/api/dispositivo/registrazione", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ip_address: ip,
+        user_agent: userAgent,
+        session_id: session_id
+      })
+    });
+    console.log("✅ Dispositivo registrato.");
+  } catch (err) {
+    console.warn("⚠️ Errore nella registrazione del dispositivo:", err);
+  }
+
+  // Dopo la registrazione, avvia lo scanner
+  startScanner();
+}
+ else {
       document.getElementById("status").textContent = `❌ ${data.message}`;
     }
   } catch (err) {
