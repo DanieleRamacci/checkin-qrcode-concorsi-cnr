@@ -17,10 +17,17 @@ import io
 import hashlib
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from routes import register_blueprints  # importa la funzione dal __init__.py
+from routes.auth import login_required  # solo se serve
+
+
 
 
 # === FLASK APP ===
 app = Flask(__name__, static_folder='static')
+register_blueprints(app)  # registra auth_bp (e in futuro altri blueprint)
+
+
 
 # === CONFIGURAZIONE SESSIONE ===
 app.secret_key = 'supersecretkey'  # 🔐 Sposta in .env in produzione
@@ -30,9 +37,11 @@ app.config['SESSION_TYPE'] = 'filesystem'
 session_dir = os.path.join(app.instance_path, 'flask_session')
 os.makedirs(session_dir, exist_ok=True)
 app.config['SESSION_FILE_DIR'] = session_dir
-
 print(">>> Session directory:", session_dir)
 Session(app)
+
+
+
 
 # === CONFIG DATABASE POSTGRES ===
 DB_CONFIG = {
@@ -46,121 +55,6 @@ DB_CONFIG = {
 def get_db_connection():
     return psycopg2.connect(**DB_CONFIG)
 
-# === CONFIG OIDC ===
-OIDC_CLIENT_ID = 'selezioni'
-OIDC_CLIENT_SECRET = '17812d1a-6bdc-412f-acf8-ba0d9aa130de'
-OIDC_REDIRECT_URI = 'https://83c08f8aeab0.ngrok-free.app/oidc-callback'
-OIDC_AUTH_URL = 'https://traefik.test.si.cnr.it/auth/realms/cnr/protocol/openid-connect/auth'
-OIDC_TOKEN_URL = 'https://traefik.test.si.cnr.it/auth/realms/cnr/protocol/openid-connect/token'
-OIDC_USERINFO_URL = 'https://traefik.test.si.cnr.it/auth/realms/cnr/protocol/openid-connect/userinfo'
-
-# === DECORATORE LOGIN ===
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'access_token' not in session:
-            next_url = request.url
-            return redirect(url_for('login', next=next_url))
-        return f(*args, **kwargs)
-    return decorated_function
-
-# === LOGIN / CALLBACK / LOGOUT ===
-@app.route('/login')
-def login():
-    next_url = request.args.get('next') or url_for('index', _external=True)
-
-    params = {
-        'client_id': OIDC_CLIENT_ID,
-        'response_type': 'code',
-        'scope': 'openid profile email',
-        'redirect_uri': OIDC_REDIRECT_URI,
-        'state': next_url  # <--- qui salviamo l'URL da cui proveniva l'utente
-    }
-    return redirect(f"{OIDC_AUTH_URL}?{urlencode(params)}")
-
-from flask import redirect, session
-import jwt
-
-
-@app.route('/oidc-callback')
-def oidc_callback():
-    try:
-        code = request.args.get('code')
-        if not code:
-            return "Codice non trovato", 400
-
-        # Scambio del codice per un access token
-        token_response = requests.post(
-            OIDC_TOKEN_URL,
-            data={
-                'grant_type': 'authorization_code',
-                'code': code,
-                'redirect_uri': OIDC_REDIRECT_URI,
-                'client_id': OIDC_CLIENT_ID,
-                'client_secret': OIDC_CLIENT_SECRET
-            },
-            headers={'Content-Type': 'application/x-www-form-urlencoded'}
-        )
-
-        token_response.raise_for_status()
-
-        tokens = token_response.json()
-        access_token = tokens['access_token']
-        id_token = tokens.get('id_token')
-        session['token']= access_token
-
-
-        # DEBUG: stampa il token completo
-        print("TOKEN:", json.dumps(tokens, indent=2))
-        print("Access token:", access_token)
-
-
-        # Decodifica JWT senza verifica (solo per visualizzazione interna)
-        decoded = jwt.decode(access_token, options={"verify_signature": False, "verify_aud": False})
-        print("JWT Decodificato:", json.dumps(decoded, indent=2))
-
-        # Salva access token e dati utente decodificati in sessione
-        email = decoded.get('email')
-        if not email:
-            return "Errore: il token non contiene un'email valida", 400
-        session['user_email'] = email
-        session['user'] = decoded.get('preferred_username') or decoded.get('email') or decoded.get('sub')
-        session['access_token'] = access_token
-        session['user_info'] = decoded
-        session['id_token'] = id_token  
-        next_url = request.args.get('state', '/')
-        return redirect(next_url)
-
-
-    except Exception as e:
-        print("Errore nella richiesta token:")
-        try:
-            print("Status code:", token_response.status_code)
-            print("Response body:", token_response.text)
-        except:
-            pass
-        import traceback
-        traceback.print_exc()
-        return f"Errore: {str(e)}", 500
-
-@app.route('/logout')
-def logout():
-    id_token = session.get("id_token")  # Assicurati che venga salvato nella sessione dopo il login
-    session.clear()
-    session.modified = True
-
-
-    logout_url = (
-        "https://traefik.test.si.cnr.it/auth/realms/cnr/protocol/openid-connect/logout"
-        f"?post_logout_redirect_uri={url_for('login', _external=True)}"
-        f"&scope=openid email profile"
-        f"&prompt=login"
-    )
-
-    if id_token:
-        logout_url += f"&id_token_hint={id_token}"
-
-    return redirect(logout_url)
 
 
 
@@ -226,36 +120,6 @@ def gestione_concorso(session_id):
         return render_template("gestione-concorso.html", messaggi=[str(e)], sessione=None, candidati=[])
 
 
-@app.route('/sessioni')
-@login_required
-def sessioni():
-    commission_id = request.args.get('commission_id')
-    if not commission_id:
-        return "Commission ID mancante", 400
-
-    access_token = session.get('access_token')
-    user_email = session.get('user_email')
-
-    # 🔁 Sincronizzazione se necessaria
-    get_sessioni_internamente(commission_id, access_token, user_email)
-
-    # ✅ Lettura da DB PostgreSQL
-    try:
-        sessioni = []
-        with get_db_connection() as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                cursor.execute("""
-                    SELECT session_id, nome, giorno, ora, luogo, attiva
-                    FROM sessioni
-                    WHERE commission_id = %s AND user_email = %s
-                    ORDER BY giorno, ora
-                """, (commission_id, user_email))
-                sessioni = cursor.fetchall()
-    except Exception as e:
-        return f"Errore durante il recupero delle sessioni: {str(e)}", 500
-
-    return render_template('sessioni.html', sessioni=sessioni, commission_id=commission_id)
-
 
 @app.route('/')
 @login_required
@@ -264,14 +128,14 @@ def index():
     access_token = session.get('access_token')
 
     if not access_token or not user_email:
-        return redirect(url_for('login'))
+        return redirect(url_for('auth.login'))
 
     commissioni = get_commissioni_sincronizzate(access_token, user_email)
 
     if commissioni is None:
         # Token scaduto, logout forzato
         session.clear()
-        return redirect(url_for('login'))
+        return redirect(url_for('auth.login'))
 
     return render_template('dashboard.html', commissioni=commissioni, user_email=user_email, active_page="dashboard")
 
@@ -837,15 +701,6 @@ def importa_sessioni(sessioni):
                     sessione.get('attiva', 0)
                 ))
 
-@app.route('/sessioni')
-@login_required
-def pagina_sessioni():
-    commission_id = request.args.get('commission_id')
-    if not commission_id:
-        return "Commission ID mancante", 400
-
-    sessioni = get_sessioni_per_commissione(commission_id)
-    return render_template('sessioni.html', sessioni=sessioni, commission_id=commission_id)
 
 def get_sessioni_per_commissione(commission_id):
     with psycopg2.connect(**DB_CONFIG) as conn:
