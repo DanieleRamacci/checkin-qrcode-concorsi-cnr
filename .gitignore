@@ -2,3 +2,5 @@ note.txt
 instance
 checkin.db
 node_modules
+.env
+*.pyc

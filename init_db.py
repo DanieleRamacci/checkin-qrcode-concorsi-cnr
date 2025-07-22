@@ -1,15 +1,40 @@
-import sqlite3
+import os
+import psycopg2
+from psycopg2 import sql
 
-DB_PATH = 'checkin.db'
+# Ambiente: 'dev' o 'prod'
+APP_ENV = os.getenv("APP_ENV", "dev")  # default: sviluppo
 
-with sqlite3.connect(DB_PATH) as conn:
+# Configurazione DB da variabili d'ambiente
+DB_NAME = os.getenv("POSTGRES_DB", "checkin")
+DB_USER = os.getenv("POSTGRES_USER", "postgres")
+DB_PASSWORD = os.getenv("POSTGRES_PASSWORD", "cnr_pass")
+DB_HOST = os.getenv("POSTGRES_HOST", "db")
+DB_PORT = os.getenv("POSTGRES_PORT", "5432")
+
+print(f" Ambiente: {APP_ENV}")
+print(f" Connessione al DB {DB_NAME} su {DB_HOST}:{DB_PORT} con utente '{DB_USER}'")
+
+try:
+    conn = psycopg2.connect(
+        dbname=DB_NAME,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        host=DB_HOST,
+        port=DB_PORT
+    )
     cursor = conn.cursor()
 
-    # Drop opzionali
-    cursor.execute("DROP TABLE IF EXISTS sessioni")
-    cursor.execute("DROP TABLE IF EXISTS commissions")
+    if APP_ENV == "dev":
+        print("  Ambiente di sviluppo: elimino le tabelle esistenti...")
+        cursor.execute("DROP TABLE IF EXISTS candidati CASCADE")
+        cursor.execute("DROP TABLE IF EXISTS sessioni CASCADE")
+        cursor.execute("DROP TABLE IF EXISTS commissions CASCADE")
+        cursor.execute("DROP TABLE IF EXISTS dispositivi CASCADE")
 
-    # ✅ Tabella commissions (bandi)
+    print("  Creazione delle tabelle (se non esistono)...")
+
+    # Tabella commissions
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS commissions (
         commission_id TEXT,
@@ -20,7 +45,7 @@ with sqlite3.connect(DB_PATH) as conn:
     );
     """)
 
-    # Tabella sessioni 
+    # Tabella sessioni
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS sessioni (
         session_id TEXT PRIMARY KEY,
@@ -32,8 +57,8 @@ with sqlite3.connect(DB_PATH) as conn:
         ora TEXT NOT NULL,
         luogo TEXT NOT NULL,
         data_esame TEXT,
-        attiva INTEGER DEFAULT 0,
-        candidati_importati INTEGER DEFAULT 0,
+        attiva BOOLEAN DEFAULT FALSE,
+        candidati_importati BOOLEAN DEFAULT FALSE,
         sync_user_email TEXT,
         data_sync TEXT,
         FOREIGN KEY (commission_id, user_email) REFERENCES commissions(commission_id, user_email)
@@ -53,11 +78,30 @@ with sqlite3.connect(DB_PATH) as conn:
         document_number TEXT,
         document_date TEXT,
         document_issued_by TEXT,
-        checkin_effettuato INTEGER DEFAULT 0,
-        documento_scaduto INTEGER DEFAULT 0,
+        checkin_effettuato BOOLEAN DEFAULT FALSE,
+        documento_scaduto BOOLEAN DEFAULT FALSE,
         PRIMARY KEY (uid, session_id),
         FOREIGN KEY (session_id) REFERENCES sessioni(session_id)
     );
     """)
 
-    print("✅ Database aggiornato con successo.")
+    # Tabella dispositivi
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS dispositivi (
+        id SERIAL PRIMARY KEY,
+        ip_address TEXT,
+        user_agent TEXT,
+        session_id TEXT,
+        nome_dispositivo TEXT,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    print(" Database PostgreSQL aggiornato con successo.")
+
+except Exception as e:
+    print(f" Errore durante la creazione delle tabelle: {e}")

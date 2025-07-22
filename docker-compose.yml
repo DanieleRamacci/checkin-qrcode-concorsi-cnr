@@ -1,9 +1,22 @@
-version: '3.8'
+version: "3.9"
 services:
-  checkin-app:
+  web:
     build: .
     ports:
       - "5050:5050"
     volumes:
-      - ./database:/app/database
-    restart: unless-stopped
+      - .:/app
+    env_file:
+      - .env
+    depends_on:
+      - db
+
+  db:
+    image: postgres:15
+    env_file:
+      - .env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
