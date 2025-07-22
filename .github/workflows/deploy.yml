@@ -28,9 +28,13 @@ jobs:
       - name: Checkout codice
         uses: actions/checkout@v4
 
-      - name: Setup Docker
-        uses: docker/setup-buildx-action@v3
-
-      - name: Avvia Docker Compose (build + up)
+      - name: Setup SSH
         run: |
-          docker-compose up --build -d
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H your.server.ip >> ~/.ssh/known_hosts
+
+      - name: Deploy via SSH
+        run: |
+          ssh your-user@your.server.ip "cd /percorso/del/progetto && git pull && docker-compose up --build -d"
