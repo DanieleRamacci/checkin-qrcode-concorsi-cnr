@@ -13,7 +13,7 @@
                 <h5 class="mb-2">Collega un Dispositivo</h5>
                 <p class="mb-3 text-muted">Collega uno o più dispositivi per la scansione dei QR Code dei candidati.</p>
               </div>
-              <a class="btn btn-primary" href="{{ url_for('pagina_dispositivi', session_id=sessione.session_id) }}">
+              <a class="btn btn-primary" href="{{ url_for('dispositivi.pagina_dispositivi', session_id=sessione.session_id) }}">
                 Collega
               </a>
             </div>
@@ -62,42 +62,36 @@
           <strong>Check-in Candidati Iniziato</strong>
           <span class="text-muted small">09:00</span>
         </div>
-        <div class="text-muted small">Verifica identità e documenti dei candidati</div>
       </li>
       <li class="timeline-step current">
         <div class="d-flex justify-content-between align-items-start">
           <strong>Check-in Candidati Concluso</strong>
           <span class="text-muted small">09:30</span>
         </div>
-        <div class="text-muted small">Tutti i candidati sono stati verificati</div>
       </li>
       <li class="timeline-step upcoming">
         <div class="d-flex justify-content-between align-items-start">
           <strong>Scelta delle Buste</strong>
           <span class="text-muted small">10:00</span>
         </div>
-        <div class="text-muted small">Selezione casuale delle buste per le prove</div>
       </li>
       <li class="timeline-step">
         <div class="d-flex justify-content-between align-items-start">
           <strong>Inizio Esame</strong>
           <span class="text-muted small">10:30</span>
         </div>
-        <div class="text-muted small">Avvio delle prove scritte</div>
       </li>
       <li class="timeline-step">
         <div class="d-flex justify-content-between align-items-start">
           <strong>Esame in Corso</strong>
           <span class="text-muted small">11:00</span>
         </div>
-        <div class="text-muted small">Monitoraggio dell'andamento delle prove</div>
       </li>
       <li class="timeline-step">
-        <div class="d-flex justify-content-between align-items-start">
+        <div class="d-flex justify-content-between align-items-start small">
           <strong>Esame Concluso</strong>
           <span class="text-muted small">14:00</span>
         </div>
-        <div class="text-muted small">Ritiro elaborati e chiusura prove</div>
       </li>
     </ul>
   </div>
