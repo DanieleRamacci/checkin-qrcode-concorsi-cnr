@@ -61,12 +61,19 @@ def gestione_concorso(session_id):
         return render_template("gestione-concorso.html", messaggi=[str(e)], sessione=None, candidati=[])
 
 
-# Funzione di utilità per la validità del documento
+
 def is_document_valid(document_date_str):
     try:
-        # Adatta questo parsing alla formattazione dei tuoi dati (es. YYYY-MM-DD o DD/MM/YYYY)
-        document_date = datetime.strptime(document_date_str, "%Y-%m-%d")
-        return document_date > datetime.now()
-    except:
+        print(f"[DEBUG] Data stringa ricevuta: {document_date_str}")
+        # Usa il formato corretto: giorno/mese/anno
+        document_date = datetime.strptime(document_date_str, "%d/%m/%Y")
+        print(f"[DEBUG] Data convertita: {document_date.isoformat()}")
+        print(f"[DEBUG] Data attuale: {datetime.now().isoformat()}")
+
+        is_valid = document_date > datetime.now()
+        print(f"[DEBUG] Documento valido? {is_valid}")
+        return is_valid
+    except Exception as e:
+        print(f"[DEBUG] Errore durante il parsing della data: {e}")
         return False
 

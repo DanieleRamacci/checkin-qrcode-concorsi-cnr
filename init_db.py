@@ -8,8 +8,8 @@ APP_ENV = os.getenv("APP_ENV", "dev")  # default: sviluppo
 # Configurazione DB da variabili d'ambiente
 DB_NAME = os.getenv("POSTGRES_DB", "checkin")
 DB_USER = os.getenv("POSTGRES_USER", "postgres")
-DB_PASSWORD = os.getenv("POSTGRES_PASSWORD", "cnr_pass")
-DB_HOST = os.getenv("POSTGRES_HOST", "db")
+DB_PASSWORD = os.getenv("POSTGRES_PASSWORD", "")
+DB_HOST = os.getenv("POSTGRES_HOST", "localhost")
 DB_PORT = os.getenv("POSTGRES_PORT", "5432")
 
 print(f" Ambiente: {APP_ENV}")
@@ -31,6 +31,8 @@ try:
         cursor.execute("DROP TABLE IF EXISTS sessioni CASCADE")
         cursor.execute("DROP TABLE IF EXISTS commissions CASCADE")
         cursor.execute("DROP TABLE IF EXISTS dispositivi CASCADE")
+        cursor.execute("DROP TABLE IF EXISTS session_state_log CASCADE")
+
 
     print("  Creazione delle tabelle (se non esistono)...")
 
@@ -61,7 +63,19 @@ try:
         candidati_importati BOOLEAN DEFAULT FALSE,
         sync_user_email TEXT,
         data_sync TEXT,
+        stato_corrente TEXT DEFAULT 'iniziale',
         FOREIGN KEY (commission_id, user_email) REFERENCES commissions(commission_id, user_email)
+    );
+    """)
+    
+    cursor.execute(""" 
+    CREATE TABLE IF NOT EXISTS session_state_log (
+        id SERIAL PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        stato TEXT NOT NULL,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        utente TEXT,
+        FOREIGN KEY (session_id) REFERENCES sessioni(session_id)
     );
     """)
 

@@ -118,3 +118,27 @@ def importa_sessioni(sessioni):
 
 
 
+def get_sessione_by_id(session_id):
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT session_id, commission_id, nome, giorno, ora, luogo, attiva, candidati_importati, stato_corrente
+                FROM sessioni
+                WHERE session_id = %s
+            """, (session_id,))
+            row = cursor.fetchone()
+
+            if not row:
+                return None
+
+            return {
+                "session_id": row[0],
+                "commission_id": row[1],
+                "nome": row[2],
+                "giorno": row[3],
+                "ora": row[4],
+                "luogo": row[5],
+                "attiva": row[6],
+                "candidati_importati": row[7],
+                "stato_corrente": row[8],
+            }

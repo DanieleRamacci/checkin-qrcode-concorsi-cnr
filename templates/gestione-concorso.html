@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-italia@2.6.1/dist/css/bootstrap-italia.min.css">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap-italia@2.6.1/dist/js/bootstrap-italia.bundle.min.js" defer></script>
+
   <style>
     body {
       background-color: #f5f6f8;
@@ -86,7 +87,10 @@
     
     <!-- Main content -->
     <main class="col-md-10 content-area">
-    {% include "azioni.html" %}
+      <!-- wrapper azioni -->
+    <div id="azioni-wrapper">
+      {% include "frammenti/azioni.html" %}
+    </div>
 
 
 
@@ -173,6 +177,7 @@
     });
   });
 </script>
+<script src="{{ url_for('static', filename='js/azioni.js') }}"></script>
 
 </body>
 </html>

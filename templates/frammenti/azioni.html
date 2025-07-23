@@ -1,0 +1,138 @@
+<div class="row">
+  <!-- Colonna Azioni (larghezza 7/12) -->
+ <!-- Colonna Azioni (larghezza 7/12) -->
+<div class="col-md-7" id="contenitore-azioni" data-session-id="{{ sessione.session_id }}">
+
+  <!-- Card: Scarica Candidati -->
+  {% if stato_corrente == 'iniziale' %}
+  <div class="it-card-wrapper mb-3">
+    <div class="it-card shadow-sm p-3 bg-light">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <h5 class="mb-2">Scarica Lista Candidati</h5>
+          <p class="mb-3 text-muted">Scarica i candidati registrati per questa sessione.</p>
+        </div>
+        <button class="btn btn-outline-primary scarica-candidati" data-session-id="{{ sessione.session_id }}">
+          Scarica
+        </button>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Card: Collega Dispositivo -->
+{% if stato_corrente == 'candidati_scaricati' %}
+<div class="it-card-wrapper mb-3">
+  <div class="it-card shadow-sm p-3 bg-light">
+    <div class="d-flex justify-content-between align-items-start">
+      <div>
+        <h5 class="mb-2">Collega un Dispositivo</h5>
+        <p class="mb-3 text-muted">Per proseguire è necessario collegare almeno un dispositivo alla sessione.</p>
+      </div>
+      <a class="btn btn-primary" href="{{ url_for('dispositivi.pagina_dispositivi', session_id=sessione.session_id) }}">
+        Collega
+      </a>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+
+  <!-- Card: Avvia Check-in -->
+  {% if stato_corrente == 'dispositivi_connessi' %}
+  <div class="it-card-wrapper mb-3">
+    <div class="it-card shadow-sm p-3 bg-light">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <h5 class="mb-2">Avvia il Check-in</h5>
+          <p class="mb-3 text-muted">Avvia la fase di check-in per questa sessione.</p>
+        </div>
+        <form method="POST" action="{{ url_for('azioni.avvia_checkin', session_id=sessione.session_id) }}">
+          <button class="btn btn-success" type="submit">
+            Avvia
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Card: Concludi Check-in -->
+  {% if stato_corrente == 'checkin_avviato' %}
+  <div class="it-card-wrapper mb-3">
+    <div class="it-card shadow-sm p-3 bg-light">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <h5 class="mb-2">Concludi Check-in</h5>
+          <p class="mb-3 text-muted">Concludi la fase di check-in per procedere.</p>
+        </div>
+        <form method="POST" action="{{ url_for('azioni.concludi_checkin', session_id=sessione.session_id) }}">
+          <button class="btn btn-warning" type="submit">
+            Concludi
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Card: Genera Liste -->
+  {% if stato_corrente == 'checkin_concluso' %}
+  <div class="it-card-wrapper mb-3">
+    <div class="it-card shadow-sm p-3 bg-light">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <h5 class="mb-2">Genera Liste</h5>
+          <p class="mb-3 text-muted">Genera le liste di candidati per l’esame.</p>
+        </div>
+        <form method="POST" action="{{ url_for('azioni.genera_liste', session_id=sessione.session_id) }}">
+          <button class="btn btn-outline-dark" type="submit">
+            Genera
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+
+  <!-- Colonna Timeline (larghezza 5/12) -->
+  <div class="col-md-5">
+    <div class="card p-4 overflow-auto" style="max-height: 550px;" id="timeline-container">
+      <h5 class="mb-4">Timeline Esame</h5>
+      <ul class="exam-timeline list-unstyled position-relative ps-3">
+
+        <li class="timeline-step {% if stato_corrente in ['candidati_scaricati', 'checkin_avviato', 'checkin_concluso', 'liste_generate'] %}done{% endif %}">
+          <div class="d-flex justify-content-between align-items-start">
+            <strong>Candidati Importati</strong>
+            <span class="text-muted small">Step 1</span>
+          </div>
+        </li>
+
+        <li class="timeline-step {% if stato_corrente in ['checkin_avviato', 'checkin_concluso', 'liste_generate'] %}done{% endif %}">
+          <div class="d-flex justify-content-between align-items-start">
+            <strong>Check-in Iniziato</strong>
+            <span class="text-muted small">Step 2</span>
+          </div>
+        </li>
+
+        <li class="timeline-step {% if stato_corrente in ['checkin_concluso', 'liste_generate'] %}done{% endif %}">
+          <div class="d-flex justify-content-between align-items-start">
+            <strong>Check-in Concluso</strong>
+            <span class="text-muted small">Step 3</span>
+          </div>
+        </li>
+
+        <li class="timeline-step {% if stato_corrente == 'liste_generate' %}done{% endif %}">
+          <div class="d-flex justify-content-between align-items-start">
+            <strong>Liste Generate</strong>
+            <span class="text-muted small">Step 4</span>
+          </div>
+        </li>
+
+      </ul>
+    </div>
+  </div>
+</div>

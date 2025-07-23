@@ -5,6 +5,7 @@ from datetime import datetime
 from db import get_db_connection  # se hai una funzione centralizzata
 from routes.auth import login_required  # è un decoratore deve essere importato 
 from urllib.parse import quote
+from utils.candidati import importa_candidati_da_api
 
 BASE_URL = os.environ.get('BASE_URL', 'https://cool-jconon.test.si.cnr.it')
 
@@ -187,4 +188,6 @@ def get_candidati():
 
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
+
+
 

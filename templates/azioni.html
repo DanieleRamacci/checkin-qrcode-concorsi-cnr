@@ -1,32 +1,19 @@
 <div class="it-card-wrapper">
   <div class="it-card shadow-sm p-4 bg-white">
     <div class="row">
-      <!-- Colonna Azioni (2/3) -->
-      <div class="col-md-8 ">
+
+      <!-- Colonna Azioni -->
+      <div class="col-md-7">
         <h3 class="mb-4">Azioni</h3>
 
-        <!-- Card: Collega Dispositivo (sempre visibile) -->
+        <!-- Card: Scarica Candidati -->
+        {% if stato_corrente == 'iniziale' %}
         <div class="it-card-wrapper mb-3">
           <div class="it-card shadow-sm p-3 bg-light">
             <div class="d-flex justify-content-between align-items-start">
               <div>
-                <h5 class="mb-2">Collega un Dispositivo</h5>
-                <p class="mb-3 text-muted">Collega uno o più dispositivi per la scansione dei QR Code dei candidati.</p>
-              </div>
-              <a class="btn btn-primary" href="{{ url_for('dispositivi.pagina_dispositivi', session_id=sessione.session_id) }}">
-                Collega
-              </a>
-            </div>
-          </div>
-        </div>
-
-        <!-- Card: Scarica Candidati (sparisce dopo esecuzione) -->
-        <div class="it-card-wrapper mb-3 azione-card" id="card-scarica-candidati">
-          <div class="it-card shadow-sm p-3 bg-light">
-            <div class="d-flex justify-content-between align-items-start">
-              <div>
                 <h5 class="mb-2">Scarica Lista Candidati</h5>
-                <p class="mb-3 text-muted">Scarica il file contenente tutti i candidati registrati per questa sessione.</p>
+                <p class="mb-3 text-muted">Scarica i candidati registrati per questa sessione.</p>
               </div>
               <button class="btn btn-outline-primary scarica-candidati" data-session-id="{{ sessione.session_id }}">
                 Scarica
@@ -34,67 +21,50 @@
             </div>
           </div>
         </div>
+        {% endif %}
 
-        <!-- Altre azioni future... -->
-        <!--
-        <div class="it-card-wrapper mb-3 azione-card" id="card-altro">
+        <!-- Card: Collega Dispositivo -->
+        {% if stato_corrente == 'candidati_scaricati' %}
+        <div class="it-card-wrapper mb-3">
           <div class="it-card shadow-sm p-3 bg-light">
             <div class="d-flex justify-content-between align-items-start">
               <div>
-                <h5 class="mb-2">Altra Azione</h5>
-                <p class="mb-3 text-muted">Descrizione dell’azione da svolgere.</p>
+                <h5 class="mb-2">Collega un Dispositivo</h5>
+                <p class="mb-3 text-muted">Collega uno o più dispositivi per la scansione dei QR Code.</p>
               </div>
-              <button class="btn btn-outline-secondary">Esegui</button>
+              <a class="btn btn-primary" href="{{ url_for('dispositivi.pagina_dispositivi', session_id=sessione.session_id) }}">
+                Collega
+              </a>
             </div>
           </div>
         </div>
-        -->
+        {% endif %}
 
       </div>
 
-      <!-- Colonna Info Sessione (1/3) -->
- <div class="col-md-4">
-  <div class="card p-4 overflow-auto" style="max-height: 550px;" id="timeline-container">
-    <h5 class="mb-4">Timeline Esame</h5>
-    <ul class="exam-timeline list-unstyled position-relative ps-3">
-      <li class="timeline-step done">
-        <div class="d-flex justify-content-between align-items-start">
-          <strong>Check-in Candidati Iniziato</strong>
-          <span class="text-muted small">09:00</span>
+      <!-- Colonna Timeline Info -->
+      <div class="col-md-5">
+        <div class="card p-4 overflow-auto" style="max-height: 550px;" id="timeline-container">
+          <h5 class="mb-4">Timeline Esame</h5>
+          <ul class="exam-timeline list-unstyled position-relative ps-3">
+            <!-- Timeline mockup -->
+            <li class="timeline-step {% if stato_corrente in ['checkin_avviato', 'checkin_concluso', 'liste_generate'] %}done{% endif %}">
+              <div class="d-flex justify-content-between align-items-start">
+                <strong>Check-in Iniziato</strong>
+                <span class="text-muted small">09:00</span>
+              </div>
+            </li>
+            <li class="timeline-step {% if stato_corrente in ['checkin_concluso', 'liste_generate'] %}current{% endif %}">
+              <div class="d-flex justify-content-between align-items-start">
+                <strong>Check-in Concluso</strong>
+                <span class="text-muted small">09:30</span>
+              </div>
+            </li>
+          </ul>
         </div>
-      </li>
-      <li class="timeline-step current">
-        <div class="d-flex justify-content-between align-items-start">
-          <strong>Check-in Candidati Concluso</strong>
-          <span class="text-muted small">09:30</span>
-        </div>
-      </li>
-      <li class="timeline-step upcoming">
-        <div class="d-flex justify-content-between align-items-start">
-          <strong>Scelta delle Buste</strong>
-          <span class="text-muted small">10:00</span>
-        </div>
-      </li>
-      <li class="timeline-step">
-        <div class="d-flex justify-content-between align-items-start">
-          <strong>Inizio Esame</strong>
-          <span class="text-muted small">10:30</span>
-        </div>
-      </li>
-      <li class="timeline-step">
-        <div class="d-flex justify-content-between align-items-start">
-          <strong>Esame in Corso</strong>
-          <span class="text-muted small">11:00</span>
-        </div>
-      </li>
-      <li class="timeline-step">
-        <div class="d-flex justify-content-between align-items-start small">
-          <strong>Esame Concluso</strong>
-          <span class="text-muted small">14:00</span>
-        </div>
-      </li>
-    </ul>
+      </div>
+
+    </div>
   </div>
 </div>
 
-</div>

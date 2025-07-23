@@ -1,0 +1,46 @@
+<h1>Sessioni attive</h1>
+<table>
+  <thead>
+    <tr>
+      {% for key in sessioni[0].keys() %}
+      <th>{{ key }}</th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for s in sessioni %}
+    <tr>
+      {% for value in s.values() %}
+      <td>{{ value }}</td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Log degli stati (session_state_log)</h2>
+<table>
+  <thead>
+    <tr>
+      {% for key in logs[0].keys() %}
+      <th>{{ key }}</th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in logs %}
+    <tr>
+      {% for value in r.values() %}
+      <td>{{ value }}</td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>JSON Debug</h2>
+<h3>Sessioni</h3>
+<pre>{{ sessioni | tojson(indent=2) }}</pre>
+
+<h3>Log</h3>
+<pre>{{ logs | tojson(indent=2) }}</pre>
