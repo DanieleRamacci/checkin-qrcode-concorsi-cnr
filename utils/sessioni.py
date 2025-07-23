@@ -1,7 +1,10 @@
 import requests
 import hashlib
 from datetime import datetime
-from db import get_db_connection  # se hai una funzione centralizzata
+import os
+from db import get_db_connection 
+BASE_URL = os.environ.get('BASE_URL', 'https://cool-jconon.test.si.cnr.it')
+
 
 def get_sessioni_internamente(commission_id, access_token, user_email):
     try:
@@ -15,7 +18,7 @@ def get_sessioni_internamente(commission_id, access_token, user_email):
                     print(f"[DEBUG] Nessuna autorizzazione per commission_id={commission_id}")
                     return None
 
-        api_url = f'https://cool-jconon.test.si.cnr.it/openapi/v1/call/exam-sessions/{commission_id}'
+        api_url = f"{BASE_URL}/openapi/v1/call/exam-sessions/{commission_id}"
         headers = {
             'Authorization': f'Bearer {access_token}',
             'Accept': 'application/json'

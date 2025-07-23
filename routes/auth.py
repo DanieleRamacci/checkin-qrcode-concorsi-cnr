@@ -19,6 +19,7 @@ OIDC_REDIRECT_URI = os.getenv("OIDC_REDIRECT_URI")
 OIDC_AUTH_URL = os.getenv("OIDC_AUTH_URL")
 OIDC_TOKEN_URL = os.getenv("OIDC_TOKEN_URL")
 OIDC_USERINFO_URL = os.getenv("OIDC_USERINFO_URL")
+BASE_URL = os.getenv("BASE_URL", "http://localhost:5050")  
 
 
 

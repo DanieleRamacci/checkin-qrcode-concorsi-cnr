@@ -1,10 +1,12 @@
 from flask import Blueprint, Flask, request, abort, jsonify, send_from_directory, session, redirect, url_for, render_template
 import requests
+import os
 from datetime import datetime
 from db import get_db_connection  # se hai una funzione centralizzata
 from routes.auth import login_required  # è un decoratore deve essere importato 
 
 commissioni_bp = Blueprint('commissioni', __name__)
+BASE_URL = os.environ.get('BASE_URL', 'https://cool-jconon.test.si.cnr.it')
 
 
 @commissioni_bp.route('/sync-commissioni')
@@ -18,7 +20,7 @@ def sync_commissioni():
 
     try:
         # 1. Chiamata API remota
-        api_url = 'https://cool-jconon.test.si.cnr.it/openapi/v1/call/commissions'
+        api_url = f"{BASE_URL}/openapi/v1/call/commissions"
         headers = {
             'Authorization': f'Bearer {access_token}',
             'Accept': 'application/json'

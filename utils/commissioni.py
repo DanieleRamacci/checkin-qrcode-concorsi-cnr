@@ -2,11 +2,13 @@ import requests
 from db import get_db_connection  
 from utils.sessioni import get_sessioni_internamente
 from datetime import datetime
+import os
+BASE_URL = os.environ.get('BASE_URL', 'https://cool-jconon.test.si.cnr.it')
 
 
 def get_commissioni_sincronizzate(access_token, user_email):
     try:
-        api_url = 'https://cool-jconon.test.si.cnr.it/openapi/v1/call/commissions'
+        api_url = f"{BASE_URL}/openapi/v1/call/commissions"
         headers = {
             'Authorization': f'Bearer {access_token}',
             'Accept': 'application/json'
