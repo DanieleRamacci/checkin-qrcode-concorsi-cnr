@@ -61,7 +61,7 @@ def azioni_view(session_id):
     )
 
 
-@azioni_bp.route("/api/sessione/<session_id>/stato")
+@azioni_bp.route("/sessione/<session_id>/stato_corrente")
 @login_required
 def api_get_stato(session_id):
     try:
@@ -88,6 +88,7 @@ def azioni_frammento(session_id):
 @azioni_bp.route("/sessione/<session_id>/verifica_dispositivi", methods=["POST"])
 @login_required
 def verifica_dispositivi(session_id):
+    print("dentro verifica dispositivi")
     user_email = session.get("user_email")
     if not user_email:
         return jsonify({"success": False, "message": "Utente non autenticato"}), 401
@@ -96,6 +97,7 @@ def verifica_dispositivi(session_id):
     with db.cursor() as cursor:
         cursor.execute("SELECT COUNT(*) FROM dispositivi WHERE session_id = %s", (session_id,))
         count = cursor.fetchone()[0]
+        print("conteggio dispositivi", count)
     db.close()
 
     if count > 0:
@@ -114,3 +116,21 @@ def avvia_checkin(session_id):
 
     set_stato_corrente(session_id, "checkin_avviato", utente=user_email)
     return jsonify({"success": True, "message": "Check-in avviato con successo!"})
+
+
+@azioni_bp.route("/sessione/<session_id>/concludi_checkin", methods=["POST"])
+@login_required
+def concludi_checkin(session_id):
+    user_email = session.get("user_email")
+    if not user_email:
+        return jsonify({"success": False, "message": "Utente non autenticato"}), 401
+
+    set_stato_corrente(session_id, "checkin_concluso", utente=user_email)
+    return jsonify({"success": True, "message": "Check-in concluso con successo!"})
+
+
+@azioni_bp.route("/sessione/<session_id>/genera_liste", methods=["POST"])
+@login_required
+def genera_liste(session_id):
+    return jsonify({"status": "ok", "message": "Funzione non ancora implementata."})
+

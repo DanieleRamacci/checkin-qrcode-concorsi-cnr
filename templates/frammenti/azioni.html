@@ -1,7 +1,8 @@
 <div class="row">
   <!-- Colonna Azioni (larghezza 7/12) -->
  <!-- Colonna Azioni (larghezza 7/12) -->
-<div class="col-md-7" id="contenitore-azioni" data-session-id="{{ sessione.session_id }}">
+<div class="col-md-7" id="contenitore-azioni" data-session-id="{{sessione.session_id}}"   data-stato-corrente="{{stato_corrente}}">
+
 
   <!-- Card: Scarica Candidati -->
   {% if stato_corrente == 'iniziale' %}
@@ -21,7 +22,7 @@
   {% endif %}
 
   <!-- Card: Collega Dispositivo -->
-{% if stato_corrente == 'candidati_scaricati' %}
+{% if stato_corrente == 'candidati_scaricati'  %}
 <div class="it-card-wrapper mb-3">
   <div class="it-card shadow-sm p-3 bg-light">
     <div class="d-flex justify-content-between align-items-start">
@@ -47,11 +48,11 @@
           <h5 class="mb-2">Avvia il Check-in</h5>
           <p class="mb-3 text-muted">Avvia la fase di check-in per questa sessione.</p>
         </div>
-        <form method="POST" action="{{ url_for('azioni.avvia_checkin', session_id=sessione.session_id) }}">
-          <button class="btn btn-success" type="submit">
-            Avvia
-          </button>
-        </form>
+        <button class="btn btn-success avvia-checkin" data-session-id="{{ sessione.session_id }}">
+          Avvia checkin
+        </button>
+
+
       </div>
     </div>
   </div>
@@ -66,11 +67,11 @@
           <h5 class="mb-2">Concludi Check-in</h5>
           <p class="mb-3 text-muted">Concludi la fase di check-in per procedere.</p>
         </div>
-        <form method="POST" action="{{ url_for('azioni.concludi_checkin', session_id=sessione.session_id) }}">
-          <button class="btn btn-warning" type="submit">
-            Concludi
-          </button>
-        </form>
+
+         <button class="btn btn-primary concludi-checkin" data-session-id="{{ sessione.session_id }}">
+          Concludi checkin
+        </button>
+
       </div>
     </div>
   </div>
