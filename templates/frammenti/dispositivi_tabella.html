@@ -1,0 +1,36 @@
+{% if dispositivi|length > 0 %}
+<div class="text-end mb-3">
+  <button class="btn btn-primary" onclick="tornaAGestioneConcorso('{{ sessione_id }}')">
+    Torna alla gestione concorso
+  </button>
+</div>
+{% endif %}
+
+<table class="table table-hover">
+  <thead>
+    <tr>
+      <th>Ora di collegamento</th>
+      <th>Nome dispositivo</th>
+      <th>Browser / Sistema</th>
+      <th>IP</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for d in dispositivi %}
+      <tr>
+        <td>{{ d.timestamp }}</td>
+        <td>{{ d.nome_dispositivo }}</td>
+        <td>{{ d.user_agent }}</td>
+        <td>{{ d.ip_address }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="4" class="text-center text-muted">Nessun dispositivo collegato.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<script>
+function tornaAGestioneConcorso(sessionId) {
+  window.location.href = "/gestione-concorso/" + sessionId;
+}
+</script>

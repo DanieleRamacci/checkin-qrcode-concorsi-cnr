@@ -6,6 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-italia@2.6.1/dist/css/bootstrap-italia.min.css">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap-italia@2.6.1/dist/js/bootstrap-italia.bundle.min.js" defer></script>
+  <script src="https://unpkg.com/htmx.org@1.9.2"></script>
+
   <style>
     body {
       background-color: #f5f6f8;
@@ -62,33 +64,13 @@
         </div>
 
         <!-- Dispositivi collegati -->
-        <div class="it-card rounded shadow-sm p-4">
-          <h5><svg class="icon me-2"><use href="/bootstrap-italia/svg/sprite.svg#it-mobile"></use></svg> Dispositivi Collegati ({{ dispositivi|length }})</h5>
-          <div class="table-responsive mt-3">
-            <table class="table table-hover">
-              <thead>
-                <tr>
-                  <th>Ora di collegamento</th>
-                  <th>Nome dispositivo</th>
-                  <th>Browser / Sistema</th>
-                  <th>IP</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for d in dispositivi %}
-                  <tr>
-                    <td>{{ d.timestamp }}</td>
-                    <td>{{ d.nome_dispositivo }}</td>
-                    <td>{{ d.user_agent }}</td>
-                    <td>{{ d.ip_address }}</td>
-                  </tr>
-                {% else %}
-                  <tr><td colspan="4" class="text-center text-muted">Nessun dispositivo collegato.</td></tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
+    <div class="table-responsive mt-3" id="wrapper-tabella-dispositivi"
+     hx-get="/frammenti/dispositivi/{{ sessione.session_id }}"
+     hx-trigger="every 2s"
+     hx-swap="innerHTML">
+        <!-- HTMX caricherà qui la tabella -->
+     </div>
+
 
       </div>
     </main>
