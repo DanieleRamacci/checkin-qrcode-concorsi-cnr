@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-italia@2.6.1/dist/css/bootstrap-italia.min.css">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap-italia@2.6.1/dist/js/bootstrap-italia.bundle.min.js" defer></script>
+  <script src="https://unpkg.com/htmx.org@1.9.2"></script>
 
   <style>
     body {
@@ -25,51 +26,28 @@
       background-color: white;
     }
 
+#timeline-container {
+  overflow-y: auto;
+  position: relative; 
+}
 .exam-timeline .timeline-step {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  border-left: 2px solid #dcdcdc;
-  padding-left: 1rem;
-  margin-bottom: 1.5rem;
   position: relative;
+  padding-left: 0;
+  margin-bottom: 1.5rem;
+  border-left: none;
 }
 
-.exam-timeline .timeline-step::before {
-  content: '';
-  position: absolute;
-  left: -7px;
-  top: 0;
+.timeline-dot {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #dcdcdc;
+  display: inline-block;
 }
 
-.exam-timeline .timeline-step.done::before {
-  background: #198754; /* verde */
-}
-.exam-timeline .timeline-step.current::before {
-  background: #ffc107; /* giallo */
-}
-.exam-timeline .timeline-step .left {
-  display: flex;
-  gap: 0.75rem;
-}
-.exam-timeline .timeline-step .icon {
-  font-size: 1.2rem;
-  line-height: 1.5rem;
-}
-.exam-timeline .timeline-step .time {
-  font-size: 0.9rem;
-  color: #6c757d;
+/* Allinea 'Step X' tutto a destra */
+.step-label {
   white-space: nowrap;
-}
-.exam-timeline .timeline-step.current {
-  background-color: #f8f9fa;
-  border-radius: 4px;
-  padding: 0.75rem;
-  border-left: 3px solid #0d6efd;
+  margin-left: auto;
 }
 
   </style>
@@ -87,9 +65,12 @@
     
     <!-- Main content -->
     <main class="col-md-10 content-area">
-      <!-- wrapper azioni -->
-    <div id="azioni-wrapper">
-      {% include "frammenti/azioni.html" %}
+    <!-- wrapper azioni -->
+
+    <div 
+        hx-get="/sessione/{{ sessione.session_id }}/azioni-frammento" 
+        hx-trigger="load, azioniAggiornate from:body"
+        hx-swap="innerHTML">
     </div>
 
 
@@ -106,42 +87,16 @@
           </div>
         {% endif %}
 
-        <!-- Tabella candidati -->
-        {% if sessione %}
-          <h5 class="mb-3">Elenco candidati</h5>
-          <div class="table-responsive">
-            <table class="table table-striped table-hover">
-              <thead class="table-light">
-                <tr>
-                  <th>#</th>
-                  <th>Nome</th>
-                  <th>Cognome</th>
-                  <th>Documento</th>
-                  <th>Validità</th>
-                  <th>Check-in</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for c in candidati %}
-                  <tr class="{{ 'table-success' if c.checkin_effettuato else 'table-danger' }}">
-                    <th scope="row">{{ loop.index }}</th>
-                    <td>{{ c.nome }}</td>
-                    <td>{{ c.cognome }}</td>
-                    <td>{{ c.numero_documento }}</td>
-                    <td>
-                      {% if c.validita_documento == 'valido' %}
-                        ✅
-                      {% else %}
-                        ❌ <span class="text-danger">Scaduto</span>
-                      {% endif %}
-                    </td>
-                    <td>{{ '✅' if c.checkin_effettuato else '❌' }}</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        {% endif %}
+      <!-- Tabella candidati dinamica -->
+      {% if sessione %}
+        <div id="tabella-candidati"
+            hx-get="/sessione/{{ sessione.session_id }}/tabella_candidati"
+            hx-trigger="load, candidatiScaricati from:body"
+            hx-swap="innerHTML">
+          <!-- HTMX caricherà qui il frammento -->
+        </div>
+      {% endif %}
+
 
       </div>
     </div>
@@ -152,32 +107,58 @@
 
 <!-- Script -->
 <script>
-  document.querySelectorAll(".scarica-candidati").forEach(btn => {
-    btn.addEventListener("click", function () {
-      const sessionId = btn.dataset.sessionId;
-      if (!sessionId) {
-        alert("Session ID mancante.");
-        return;
-      }
+function ricaricaPaginaUnaSolaVolta(sessionId) {
+  const key = "pagina_ricaricata_" + sessionId;
 
-      fetch(`/get-candidati?session_id=${sessionId}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.success) {
-            alert(data.message);
-            location.reload();
-          } else {
-            alert("Errore: " + data.message);
-          }
-        })
-        .catch(err => {
-          alert("Errore di rete o del server.");
-          console.error(err);
-        });
-    });
+  if (!sessionStorage.getItem(key)) {
+    sessionStorage.setItem(key, "true");
+    location.reload();
+  } else {
+    sessionStorage.removeItem(key);
+  }
+}
+
+
+addEventListener("pageshow", () => {
+  const sessionId = "{{ sessione.session_id }}"; 
+  ricaricaPaginaUnaSolaVolta(sessionId);
+});
+
+
+
+  document.body.addEventListener('htmx:targetError', function (evt) {
+    alert("Errore: non è stato possibile aggiornare l'interfaccia. Ricarica la pagina.");
+    console.error("HTMX Target Error", evt);
   });
+
+
+ // autoscroll timeline
+
+  document.body.addEventListener("htmx:afterSwap", function (evt) {
+    if (evt.target.id === "timeline-wrapper") {
+      console.log(" 1dentro scroll");
+      const currentStep = document.getElementById("current-step");
+      const container = document.getElementById("timeline-container");
+
+      if (currentStep && container) {
+        console.log(" 2dentro scroll");
+        // Scroll automatico fluido centrato sul current step
+        currentStep.scrollIntoView({
+          behavior: "smooth",
+          block: "center"
+        });
+      }
+    }
+  });
+
+
+
+
+
+
 </script>
-<script src="{{ url_for('static', filename='js/azioni.js') }}"></script>
+
+
 
 </body>
 </html>

@@ -1,0 +1,48 @@
+<div class="card p-4 overflow-auto" style="max-height: 400px;" id="timeline-container">
+  <h5 class="mb-4">Timeline Esame</h5>
+  <ul class="exam-timeline list-unstyled ps-0">
+
+    {% set step_data = [
+      ('Candidati Importati', 'Step 1', ['candidati_scaricati', 'dispositivi_connessi', 'checkin_avviato', 'checkin_concluso', 'liste_generate', 'liste_inviate', 'lista_presenti_aggiornata_su_moodle', 'avvia_esame', 'esame_in_corso', 'esame_concluso']),
+      ('Check-in Iniziato', 'Step 2', ['checkin_avviato', 'checkin_concluso', 'liste_generate', 'liste_inviate', 'lista_presenti_aggiornata_su_moodle', 'avvia_esame', 'esame_in_corso', 'esame_concluso']),
+      ('Check-in Concluso', 'Step 3', ['checkin_concluso', 'liste_generate', 'liste_inviate', 'lista_presenti_aggiornata_su_moodle', 'avvia_esame', 'esame_in_corso', 'esame_concluso']),
+      ('Liste Generate', 'Step 4', ['liste_generate', 'liste_inviate', 'lista_presenti_aggiornata_su_moodle', 'avvia_esame', 'esame_in_corso', 'esame_concluso']),
+      ('Lista Inviata', 'Step 5', ['liste_inviate', 'lista_presenti_aggiornata_su_moodle', 'avvia_esame', 'esame_in_corso', 'esame_concluso']),
+      ('Presenti Importati', 'Step 6', ['lista_presenti_aggiornata_su_moodle', 'avvia_esame', 'esame_in_corso', 'esame_concluso']),
+      ('Esame Avviato', 'Step 7', ['avvia_esame', 'esame_in_corso', 'esame_concluso']),
+      ('Esame in Corso', 'Step 8', ['esame_in_corso', 'esame_concluso']),
+      ('Esame Concluso', 'Step 9', ['esame_concluso']),
+    ] %}
+
+ {% set current_index = -1 %}
+    {% for step in step_data %}
+      {% if current_index == -1 and stato_corrente in step[2] %}
+        {% set current_index = loop.index0 %}
+      {% endif %}
+    {% endfor %}  
+
+
+{% for label, step_label, valid_states in step_data %}
+  {% set is_current = stato_corrente in valid_states
+    and (loop.first or stato_corrente not in step_data[loop.index0 - 1][2]) %}
+  <li class="timeline-step">
+    <div class="d-flex justify-content-between align-items-center w-100">
+      <div class="d-flex align-items-center gap-2">
+        <span
+          class="timeline-dot {{ 'bg-success' if stato_corrente in valid_states else 'bg-secondary' }}"
+          {% if is_current %}id="current-step"{% endif %}
+        ></span>
+        <strong>{{ label }}</strong>
+      </div>
+      <span class="text-muted small step-label">{{ step_label }}</span>
+    </div>
+  </li>
+{% endfor %}
+
+
+
+
+  </ul>
+</div>
+
+

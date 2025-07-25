@@ -8,27 +8,44 @@ SESSION_STATES = [
     "dispositivi_connessi",
     "checkin_avviato",
     "checkin_concluso",
-    "liste_generate"
+    "liste_generate",
+    "liste_inviate",
+    "lista_presenti_aggiornata_su_moodle",
+    "avvia_esame",
+    "esame_in_corso",
+    "esame_concluso"
 ]
 
-# (Opzionale) mappa transizioni valide per maggiore controllo
+
 STATE_TRANSITIONS = {
     "iniziale": ["candidati_scaricati"],
     "candidati_scaricati": ["dispositivi_connessi"],
     "dispositivi_connessi": ["checkin_avviato"],
     "checkin_avviato": ["checkin_concluso"],
     "checkin_concluso": ["liste_generate"],
-    "liste_generate": []
+    "liste_generate": ["liste_inviate"],
+    "liste_inviate": ["lista_presenti_aggiornata_su_moodle"],
+    "lista_presenti_aggiornata_su_moodle": ["avvia_esame"],
+    "avvia_esame": ["esame_in_corso"],
+    "esame_in_corso": ["esame_concluso"],
+    "esame_concluso": []
 }
 
+# Azioni disponibili per ogni stato
 AZIONI_PER_STATO = {
     "iniziale": ["scarica_candidati"],
     "candidati_scaricati": ["collega_dispositivo"],
     "dispositivi_connessi": ["avvia_checkin"],
     "checkin_avviato": ["concludi_checkin"],
     "checkin_concluso": ["genera_liste"],
-    "liste_generate": []
+    "liste_generate": ["invia_liste"],
+    "liste_inviate": ["aggiorna_presenti_moodle"],
+    "lista_presenti_aggiornata_su_moodle": ["avvia_esame"],
+    "avvia_esame": ["inizia_esame"],
+    "esame_in_corso": ["concludi_esame"],
+    "esame_concluso": []
 }
+
 
 
 # Ottieni lo stato corrente da DB

@@ -32,6 +32,9 @@ try:
         cursor.execute("DROP TABLE IF EXISTS commissions CASCADE")
         cursor.execute("DROP TABLE IF EXISTS dispositivi CASCADE")
         cursor.execute("DROP TABLE IF EXISTS session_state_log CASCADE")
+        cursor.execute("DROP TABLE IF EXISTS liste_generate CASCADE")
+
+        
 
 
     print("  Creazione delle tabelle (se non esistono)...")
@@ -110,6 +113,18 @@ try:
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)
+    # Tabella liste generate
+    cursor.execute("""
+    CREATE TABLE liste_generate (
+        id SERIAL PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        file_xlsx TEXT NOT NULL,
+        file_csv_moodle TEXT NOT NULL,
+        num_presenti INTEGER NOT NULL,
+        generato_da TEXT NOT NULL,
+        timestamp_creazione TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+   );
+   """)
 
     conn.commit()
     cursor.close()

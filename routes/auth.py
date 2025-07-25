@@ -140,3 +140,18 @@ def logout():
 
     return redirect(logout_url)
 
+
+
+
+
+
+
+##api react 
+
+@auth_bp.route('/api/userinfo')
+@login_required
+def userinfo():
+    return jsonify({
+        "email": session.get("user_email"),
+        "username": session.get("user"),
+    })

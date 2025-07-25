@@ -4,3 +4,4 @@ checkin.db
 node_modules
 .env
 *.pyc
+files_liste

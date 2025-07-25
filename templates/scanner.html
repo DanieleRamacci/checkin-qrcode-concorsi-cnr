@@ -2,7 +2,6 @@
 <html lang="it">
 <head>
   <meta charset="UTF-8">
-  <title>Scanner Check-in</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-italia@2.6.1/dist/css/bootstrap-italia.min.css">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap-italia@2.6.1/dist/js/bootstrap-italia.bundle.min.js" defer></script>
@@ -150,6 +149,13 @@ if (data.success) {
       })
     });
     console.log("✅ Dispositivo registrato.");
+    await fetch(`/sessione/${session_id}/verifica_dispositivi`, {
+    method: "POST"
+    }).then(data=>{
+      if(data.success){
+
+      }
+    });
   } catch (err) {
     console.warn("⚠️ Errore nella registrazione del dispositivo:", err);
   }

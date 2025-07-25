@@ -5,7 +5,7 @@ from datetime import datetime
 from db import get_db_connection  # se hai una funzione centralizzata
 from routes.auth import login_required  # è un decoratore deve essere importato 
 from urllib.parse import quote
-from utils.candidati import importa_candidati_da_api
+from utils.candidati import importa_candidati_da_api 
 
 BASE_URL = os.environ.get('BASE_URL', 'https://cool-jconon.test.si.cnr.it')
 
@@ -78,6 +78,41 @@ def verifica_candidato():
         return jsonify(success=False, message=f"Errore server: {str(e)}"), 500
 
 
+@candidati_bp.route("/sessione/<session_id>/tabella_candidati", methods=["GET"])
+@login_required
+def frammento_tabella_candidati(session_id):
+    from datetime import datetime
+
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT first_name, last_name, document_number, document_date, checkin_effettuato
+                FROM candidati
+                WHERE session_id = %s
+            """, (session_id,))
+            righe = cursor.fetchall()
+
+    candidati = []
+    oggi = datetime.now().date()
+
+    for row in righe:
+        first_name, last_name, document_number, document_date, checkin_effettuato = row
+        try:
+            data_doc = datetime.strptime(document_date, "%d/%m/%Y").date()
+            validita_documento = 'valido' if data_doc >= oggi else 'scaduto'
+        except Exception:
+            print(f"[ERRORE DATA] Errore nel parsing di '{document_date}': {e}")
+            validita_documento = 'scaduto'  # fallback se data malformata
+
+        candidati.append({
+            "first_name": first_name,
+            "last_name": last_name,
+            "document_number": document_number,
+            "checkin_effettuato": checkin_effettuato,
+            "validita_documento": validita_documento,
+        })
+
+    return render_template("frammenti/tabella_candidati.html", candidati=candidati)
 
 
 

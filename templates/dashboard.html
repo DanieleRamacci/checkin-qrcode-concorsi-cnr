@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-italia@2.6.1/dist/css/bootstrap-italia.min.css">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap-italia@2.6.1/dist/js/bootstrap-italia.bundle.min.js" defer></script>
 </head>
+
 <body>
   {% include 'header.html' %}
 
@@ -43,5 +44,33 @@
       </table>
     </div>
   </div>
+  <!-- Modale per dispositivi mobili -->
+<div class="modal fade" id="mobileScannerModal" tabindex="-1" aria-labelledby="mobileScannerModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content p-3">
+      <div class="modal-header">
+        <h5 class="modal-title" id="mobileScannerModalLabel">Accesso rapido</h5>
+      </div>
+      <div class="modal-body">
+        Vuoi passare allo scanner per la scansione dei QR code?
+      </div>
+      <div class="modal-footer">
+        <a href="/scanner" class="btn btn-primary">Vai allo Scanner</a>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Chiudi</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isMobile) {
+      const modal = new bootstrap.Modal(document.getElementById('mobileScannerModal'));
+      modal.show();
+    }
+  });
+</script>
+
 </body>
 </html>
