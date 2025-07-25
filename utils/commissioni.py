@@ -8,6 +8,7 @@ BASE_URL = os.environ.get('BASE_URL', 'https://cool-jconon.test.si.cnr.it')
 
 def get_commissioni_sincronizzate(access_token, user_email):
     try:
+        
         api_url = f"{BASE_URL}/openapi/v1/call/commissions"
         headers = {
             'Authorization': f'Bearer {access_token}',
