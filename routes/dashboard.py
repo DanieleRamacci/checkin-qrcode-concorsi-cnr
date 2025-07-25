@@ -60,3 +60,20 @@ def sessioni():
 
 
 
+
+####api di test per react 
+@dashboard_bp.route('/api/commissioni')
+@login_required
+def api_commissioni():
+    user_email = session.get('user_email')
+    access_token = session.get('access_token')
+
+    if not access_token or not user_email:
+        return {"error": "Unauthorized"}, 401
+
+    commissioni = get_commissioni_sincronizzate(access_token, user_email)
+
+    if commissioni is None:
+        return {"error": "Errore nel recupero delle commissioni"}, 500
+
+    return {"commissioni": commissioni}

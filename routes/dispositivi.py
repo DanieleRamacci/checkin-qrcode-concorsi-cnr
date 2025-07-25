@@ -43,6 +43,7 @@ def registra_dispositivo():
         return jsonify(success=False, message="Errore interno"), 500
 
 
+
 @dispositivi_bp.route("/dispositivi/<session_id>")
 @login_required
 def pagina_dispositivi(session_id):
@@ -80,3 +81,26 @@ def pagina_dispositivi(session_id):
         print("❌ Errore:", e)
         traceback.print_exc()
         abort(500)
+
+
+
+@dispositivi_bp.route("/frammenti/dispositivi/<session_id>")
+@login_required
+def frammento_dispositivi(session_id):
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                cursor.execute("""
+                    SELECT timestamp, nome_dispositivo, user_agent, ip_address
+                    FROM dispositivi
+                    WHERE session_id = %s
+                    ORDER BY timestamp DESC
+                """, (session_id,))
+                dispositivi = cursor.fetchall()
+
+
+        return render_template("frammenti/dispositivi_tabella.html", dispositivi=dispositivi, sessione_id=session_id)
+
+    except Exception as e:
+        print("❌ Errore nel frammento dispositivi:", e)
+        return "Errore caricamento tabella", 500

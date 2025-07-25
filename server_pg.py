@@ -14,6 +14,11 @@ from routes.auth import login_required  # è un decoratore deve essere importato
 # === FLASK APP ===
 app = Flask(__name__, static_folder='static')
 register_blueprints(app)  # registra auth_bp (e in futuro altri blueprint)
+from utils.liste import  get_ultima_lista_generata
+
+from flask_jwt_extended import JWTManager
+
+app.jinja_env.globals.update(get_ultima_lista_generata=get_ultima_lista_generata)
 
 
 
@@ -88,6 +93,8 @@ def debug_session():
         "access_token": session.get("access_token"),
         "user_info": session.get("user_info")
     })
+
+
 
 
 
