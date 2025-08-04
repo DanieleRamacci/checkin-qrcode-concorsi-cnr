@@ -12,8 +12,13 @@ services:
       - .env
     depends_on:
       - db
-    command: sh -c "until pg_isready -h db -U $POSTGRES_USER; do sleep 2; done && python init_db.py && gunicorn -b 0.0.0.0:5050 server_pg:app"
-    restart: always
+    command: >
+    sh -c "echo 'DB user: $POSTGRES_USER'; \
+          until pg_isready -h db -U \"$POSTGRES_USER\"; \
+          do echo 'Waiting for PostgreSQL...'; sleep 2; done && \
+          python init_db.py && \
+          gunicorn -b 0.0.0.0:5050 server_pg:app"
+
 
   db:
     image: postgres:15
