@@ -1,3 +1,4 @@
+version: "3.9"
 services:
   web:
     build: .
@@ -6,24 +7,15 @@ services:
       - "5050:5050"
     volumes:
       - .:/app
-      - ./instance:/app/instance  
+      - ./instance:/app/instance  # Mantiene le sessioni persistenti
 
     env_file:
       - .env
     depends_on:
       - db
-    command: >
-    sh -c "echo 'DB user: $POSTGRES_USER'; \
-          until pg_isready -h db -U \"$POSTGRES_USER\"; \
-          do echo 'Waiting for PostgreSQL...'; sleep 2; done && \
-          python init_db.py && \
-          gunicorn -b 0.0.0.0:5050 server_pg:app"
-
 
   db:
     image: postgres:15
-    container_name: checkin-db
-    restart: always
     env_file:
       - .env
     volumes:
