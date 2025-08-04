@@ -1,22 +1,18 @@
-from flask import Flask, request, abort, jsonify, send_from_directory, session, redirect, url_for, render_template
+from flask import Flask, jsonify, session
 from flask_session import Session
-from urllib.parse import urlencode
-from functools import wraps
 from datetime import datetime, timezone
 import os
-from urllib.parse import quote
 from flask import send_file
 import qrcode
 import io
 from psycopg2.extras import RealDictCursor
 from routes import register_blueprints  # importa la funzione dal __init__.py
-from routes.auth import login_required  # è un decoratore deve essere importato 
+from routes.auth import login_required  
+
 # === FLASK APP ===
 app = Flask(__name__, static_folder='static')
-register_blueprints(app)  # registra auth_bp (e in futuro altri blueprint)
+register_blueprints(app)  
 from utils.liste import  get_ultima_lista_generata
-
-from flask_jwt_extended import JWTManager
 
 app.jinja_env.globals.update(get_ultima_lista_generata=get_ultima_lista_generata)
 
@@ -27,8 +23,13 @@ app.jinja_env.globals.update(get_ultima_lista_generata=get_ultima_lista_generata
 from dotenv import load_dotenv
 load_dotenv()
 
+
+# === ENVIRONMENT CONFIGURATION ===
+version = os.getenv("APP_VERSION", "test")
+app.jinja_env.globals.update(current_year=datetime.now().year)
 app.secret_key = os.getenv('SECRET_KEY', 'fallback')
 app.config['SESSION_TYPE'] = 'filesystem'
+
 # Assicura che la cartella 'instance/flask_session' esista
 session_dir = os.path.join(app.instance_path, 'flask_session')
 os.makedirs(session_dir, exist_ok=True)
@@ -96,7 +97,13 @@ def debug_session():
 
 
 
-
+@app.context_processor
+def inject_version():
+    return dict(version=version)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5050, debug=True)
+    app.run(
+        host='0.0.0.0',
+        port=5050,
+        debug=app.config["DEBUG"]
+    )
