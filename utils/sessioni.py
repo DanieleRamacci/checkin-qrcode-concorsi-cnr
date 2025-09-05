@@ -3,11 +3,16 @@ import hashlib
 from datetime import datetime
 import os
 from db import get_db_connection 
+import hashlib
+from routes.sessioni import parse_session_string  # riusa il parser già cretao 
+from datetime import datetime
+
 BASE_URL = os.environ.get('BASE_URL', 'https://cool-jconon.test.si.cnr.it')
 
 
 def get_sessioni_internamente(commission_id, access_token, user_email):
     try:
+        # 1) Autorizzazione utente sulla commissione
         with get_db_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
@@ -16,37 +21,27 @@ def get_sessioni_internamente(commission_id, access_token, user_email):
                 """, (commission_id, user_email))
                 if not cursor.fetchone():
                     print(f"[DEBUG] Nessuna autorizzazione per commission_id={commission_id}")
-                    return None
+                    return 0
 
+        # 2) Chiamata API remota
         api_url = f"{BASE_URL}/openapi/v1/call/exam-sessions/{commission_id}"
-        headers = {
-            'Authorization': f'Bearer {access_token}',
-            'Accept': 'application/json'
-        }
-
+        headers = {'Authorization': f'Bearer {access_token}', 'Accept': 'application/json'}
         response = requests.get(api_url, headers=headers)
         if response.status_code == 401:
             print("[DEBUG] Token scaduto")
-            return None
-
+            return 0
         response.raise_for_status()
         sessioni_data = response.json()
 
-        now = datetime.now().isoformat()
+        # 3) Inserimento in DB (parser robusto + tipi corretti)
+        now = datetime.now()      # TIMESTAMP vero
+        inserted = 0
+
         with get_db_connection() as conn:
             with conn.cursor() as cursor:
                 for session_string, candidati in sessioni_data.items():
                     try:
-                        parts = session_string.split(' - ')
-                        if len(parts) != 2:
-                            continue
-
-                        luogo = parts[0].strip()
-                        giorno_str, ora_str = parts[1].strip().split(' ')
-                        giorno = giorno_str.strip()
-                        ora = ora_str.strip()
-                        data_esame_iso = datetime.strptime(f"{giorno} {ora}", "%d/%m/%Y %H:%M").isoformat()
-
+                        p = parse_session_string(session_string)  # gestisce 3 pezzi o 2 pezzi
                         raw_key = f"{commission_id}::{session_string}"
                         session_id = hashlib.md5(raw_key.encode()).hexdigest()
 
@@ -55,23 +50,27 @@ def get_sessioni_internamente(commission_id, access_token, user_email):
                                 session_id, commission_id, user_email, session_string,
                                 nome, giorno, ora, luogo, data_esame,
                                 attiva, candidati_importati, sync_user_email, data_sync
-                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            )
+                            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                             ON CONFLICT (session_id) DO NOTHING
                         """, (
                             session_id, commission_id, user_email, session_string,
-                            session_string, giorno, ora, luogo, data_esame_iso,
+                            p["nome"], p["giorno"], p["ora"], p["luogo"], p["data_esame"],
                             False, False, user_email, now
                         ))
+                        if cursor.rowcount > 0:
+                            inserted += 1
                     except Exception as e:
                         print(f"[ERRORE PARSING] {session_string}: {e}")
                         continue
 
-        return True
+            conn.commit()  # visibilità immediata per la pagina
+
+        return inserted
 
     except Exception as e:
         print(f"[ERRORE GENERICO get_sessioni] {e}")
-        return None
-
+        return 0
 
 
 def get_sessioni_per_commissione(commission_id):

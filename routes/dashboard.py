@@ -47,10 +47,13 @@ def sessioni():
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 cursor.execute("""
-                    SELECT session_id, nome, giorno, ora, luogo, attiva
-                    FROM sessioni
-                    WHERE commission_id = %s AND user_email = %s
-                    ORDER BY giorno, ora
+                    SELECT s.session_id, s.nome, s.giorno, s.ora, s.luogo, s.attiva
+                    FROM sessioni s
+                    JOIN commissions c
+                    ON c.commission_id = s.commission_id
+                    WHERE s.commission_id = %s
+                    AND c.user_email   = %s            -- utente corrente autorizzato
+                    ORDER BY s.data_esame
                 """, (commission_id, user_email))
                 sessioni = cursor.fetchall()
     except Exception as e:
