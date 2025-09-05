@@ -5,6 +5,7 @@ import os
 from datetime import datetime
 from db import get_db_connection  # se hai una funzione centralizzata
 from routes.auth import login_required  # è un decoratore deve essere importato 
+import re
 
 sessioni_bp = Blueprint('sessioni', __name__)
 
@@ -79,23 +80,15 @@ def get_sessioni(commission_id):
         print(f"[DEBUG] Sessioni trovate: {list(sessioni_data.keys())}")
 
         result = []
-        now = datetime.now().isoformat()
+        now = datetime.now()
 
         with get_db_connection() as conn:
             with conn.cursor() as cursor:
                 for session_string, candidati in sessioni_data.items():
                     print(f"[DEBUG] Parsing session_string: {session_string}")
                     try:
-                        parts = session_string.split(' - ')
-                        if len(parts) != 2:
-                            raise ValueError("Formato session_string non valido")
-
-                        luogo = parts[0].strip()
-                        data_ora_str = parts[1].strip()
-                        giorno_str, ora_str = data_ora_str.split(' ')
-                        giorno = giorno_str.strip()
-                        ora = ora_str.strip()
-                        data_esame_iso = datetime.strptime(f"{giorno} {ora}", "%d/%m/%Y %H:%M").isoformat()
+                
+                        p = parse_session_string(session_string)
 
                         raw_key = f"{commission_id}::{session_string}"
                         session_id = hashlib.md5(raw_key.encode()).hexdigest()
@@ -106,31 +99,36 @@ def get_sessioni(commission_id):
                                 nome, giorno, ora, luogo, data_esame,
                                 attiva, candidati_importati, sync_user_email, data_sync
                             )
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 0, 0, %s, %s)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                             ON CONFLICT (session_id) DO NOTHING
                         """, (
                             session_id,
                             commission_id,
                             user_email,
                             session_string,
-                            session_string,
-                            giorno,
-                            ora,
-                            luogo,
-                            data_esame_iso,
+                            p["nome"],
+                            p["giorno"],
+                            p["ora"],
+                            p["luogo"],
+                            p["data_esame"],   # datetime oggetto
+                            False,             # <-- boolean (NON 0/1)
+                            False,             # <-- boolean (NON 0/1)
                             user_email,
-                            now
+                            now                # datetime oggetto
                         ))
+
+
 
                         print(f"[DEBUG] Sessione inserita: {session_id}")
 
                         result.append({
                             "session_id": session_id,
                             "session_string": session_string,
-                            "luogo": luogo,
-                            "giorno": giorno,
-                            "ora": ora
+                            "luogo": p["luogo"],
+                            "giorno": p["giorno"],
+                            "ora": p["ora"]
                         })
+
 
                     except Exception as e:
                         print(f"[ERRORE PARSING] session_string: {session_string} -> {e}")
@@ -165,8 +163,22 @@ def get_sessioni(commission_id):
 @login_required
 def get_session(session_id):
     try:
+        user_email = session.get('user_email')
+
         with get_db_connection() as conn:
             with conn.cursor() as cursor:
+                # ✅ check autorizzazione (utente deve essere nella commissions della stessa commissione)
+                cursor.execute("""
+                    SELECT 1
+                    FROM sessioni s
+                    JOIN commissions c ON c.commission_id = s.commission_id
+                    WHERE s.session_id = %s
+                      AND c.user_email  = %s
+                """, (session_id, user_email))
+                if not cursor.fetchone():
+                    return jsonify(success=False, message="Utente non autorizzato per questa sessione."), 403
+
+                # ↓ lettura dettagli come già facevi
                 cursor.execute("""
                     SELECT nome, giorno, ora, luogo, attiva
                     FROM sessioni WHERE session_id = %s
@@ -202,7 +214,6 @@ def get_session(session_id):
                 })
     except Exception as e:
         return jsonify(success=False, message=str(e)), 500
-    
 
 
 @sessioni_bp.route("/session-check", methods=["GET"])
