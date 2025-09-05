@@ -10,6 +10,35 @@ sessioni_bp = Blueprint('sessioni', __name__)
 
 BASE_URL = os.environ.get('BASE_URL', 'https://cool-jconon.test.si.cnr.it')
 
+# --- PARSER ROBUSTO PER session_string ---
+# Supporta:
+#  1) "NOME - LUOGO - gg/mm/aaaa hh:mm"
+#  2) "LUOGO - gg/mm/aaaa hh:mm"
+_PATTERNS = [
+    r"^(?P<nome>.+?)\s*-\s*(?P<luogo>.+?)\s*-\s*(?P<data>\d{2}/\d{2}/\d{4})\s+(?P<ora>\d{2}:\d{2})$",
+    r"^(?P<luogo>.+?)\s*-\s*(?P<data>\d{2}/\d{2}/\d{4})\s+(?P<ora>\d{2}:\d{2})$",
+]
+
+def parse_session_string(s: str):
+    s = (s or "").strip()
+    for pat in _PATTERNS:
+        m = re.match(pat, s)
+        if m:
+            d = m.groupdict()
+            nome = (d.get("nome") or d.get("luogo") or s).strip()
+            luogo = (d.get("luogo") or "").strip() or None
+            giorno = d["data"].strip()
+            ora = d["ora"].strip()
+            dt = datetime.strptime(f"{giorno} {ora}", "%d/%m/%Y %H:%M")
+            return {
+                "nome": nome,
+                "luogo": luogo,
+                "giorno": giorno,
+                "ora": ora,
+                "data_esame": dt,   # datetime Python (verrà serializzato correttamente da psycopg2)
+            }
+    raise ValueError("Formato session_string non valido")
+
 
 @sessioni_bp.route('/get-sessioni/<commission_id>')
 @login_required
