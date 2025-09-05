@@ -13,6 +13,11 @@ auth_bp = Blueprint('auth', __name__)
 # === CONFIG OIDC ===
 import os
 
+from dotenv import load_dotenv; load_dotenv()
+import os, sys
+print("DEBUG OIDC:", os.getenv("OIDC_CLIENT_ID"), os.getenv("OIDC_AUTH_URL"), os.getenv("OIDC_REDIRECT_URI"), file=sys.stderr)
+
+
 OIDC_CLIENT_ID = os.getenv("OIDC_CLIENT_ID")
 OIDC_CLIENT_SECRET = os.getenv("OIDC_CLIENT_SECRET")
 OIDC_REDIRECT_URI = os.getenv("OIDC_REDIRECT_URI")
