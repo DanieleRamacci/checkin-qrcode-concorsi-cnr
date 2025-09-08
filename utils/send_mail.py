@@ -23,6 +23,15 @@ def send_notification_email(to_emails, subject, body, attachments=None):
         with smtplib.SMTP_SSL(os.environ.get('SMTP_SERVER'), int(os.environ.get('SMTP_PORT'))) as smtp:
             smtp.login(os.environ.get('MAIL_USERNAME'), os.environ.get('MAIL_PASSWORD'))
             smtp.send_message(msg)
-            print("Email inviata con successo.")
+        return True, None
     except Exception as e:
-        print("Errore durante l'invio dell'email:", str(e))
+        return False, str(e)
+
+#serve inserire i dati del server smtp dentro le variabili di ambiente
+#SMTP_SERVER=smtp.gmail.com
+#SMTP_PORT=465
+#MAIL_USERNAME=tuo_account@gmail.com
+#MAIL_PASSWORD=la_tua_password_o_app_password
+#MAIL_SENDER=tuo_account@gmail.com
+
+#ESPERTO_EMAIL=esperto.informatico@ente.it"

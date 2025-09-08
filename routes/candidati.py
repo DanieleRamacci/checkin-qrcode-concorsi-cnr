@@ -101,7 +101,7 @@ def frammento_tabella_candidati(session_id):
             data_doc = datetime.strptime(document_date, "%d/%m/%Y").date()
             validita_documento = 'valido' if data_doc >= oggi else 'scaduto'
         except Exception:
-            print(f"[ERRORE DATA] Errore nel parsing di '{document_date}': {e}")
+            print(f"[ERRORE DATA] Errore nel parsing di '{document_date}'")
             validita_documento = 'scaduto'  # fallback se data malformata
 
         candidati.append({
