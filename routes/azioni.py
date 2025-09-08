@@ -468,7 +468,7 @@ def invia_lista_esame(session_id):
         sessione=get_sessione_by_id(session_id),
         stato_corrente=stato,
         messaggio=msg,
-        numero_dispositivi_connessi=conta_dispositivi(session_id),
+        numero_dispositivi_connessi=0,
         get_ultima_lista_generata=get_ultima_lista_generata,
         get_liste_generate=get_liste_generate  # se usi la select
     )
