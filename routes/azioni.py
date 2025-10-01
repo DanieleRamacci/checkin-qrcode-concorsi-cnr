@@ -12,9 +12,304 @@ from db import get_db_connection
 from utils.liste import get_candidati_by_sessione_checkin, get_ultima_lista_generata, genera_liste_excel_csv, get_lista_by_id, get_liste_generate
 from utils.send_mail import send_notification_email
 from urllib.parse import quote
+from utils.oidc import ensure_fresh_access_token, seconds_left
 
 
 azioni_bp = Blueprint("azioni", __name__)
+
+def _abs_path(name: str) -> str:
+    """
+    Converte il 'leafname' salvato nel DB in un path assoluto dentro FILES_BASE_DIR.
+    Accetta anche path già assoluti o con prefisso 'files_liste/'.
+    """
+    if not name:
+        return ""
+    base = current_app.config.get("FILES_BASE_DIR") or os.path.join(current_app.root_path, "files_liste")
+    os.makedirs(base, exist_ok=True)
+
+    # Path assoluto: restituisci com'è
+    if os.path.isabs(name):
+        return name
+
+    # Normalizza eventuale prefisso 'files_liste/'
+    norm = name.replace("\\", "/")
+    if norm.startswith("files_liste/"):
+        norm = norm.split("files_liste/", 1)[1]
+
+    return os.path.join(base, norm)
+
+@azioni_bp.get("/sessione/<session_id>/download")
+@login_required
+def download_file(session_id):
+    user_email = session.get("user_email")
+    if not _check_auth_for_session(session_id, user_email):
+        abort(403)
+
+    file_type = request.args.get("type", "").strip()  # xlsx | moodle_csv
+    if file_type not in ("xlsx", "moodle_csv"):
+        return Response("Tipo file non valido.", status=400)
+
+    with get_db_connection() as conn, conn.cursor() as cur:
+        cur.execute("""
+            SELECT file_xlsx, file_csv_moodle
+            FROM liste_generate
+            WHERE session_id = %s
+            ORDER BY timestamp_creazione DESC
+            LIMIT 1
+        """, (session_id,))
+        row = cur.fetchone()
+
+    if not row:
+        return Response("Nessuna lista generata per questa sessione.", status=404)
+
+    file_xlsx, file_csv_moodle = row
+    selected = file_xlsx if file_type == "xlsx" else file_csv_moodle
+    abs_path = _abs_path(selected)
+    if (not abs_path) or (not os.path.exists(abs_path)):
+        return Response("File non trovato sul server.", status=404)
+
+    return send_file(abs_path, as_attachment=True, download_name=os.path.basename(abs_path))
+
+
+@azioni_bp.route("/sessione/<session_id>/genera_liste", methods=["POST"])
+@login_required
+def genera_liste(session_id):
+    user_email = session.get("user_email")
+    if not user_email:
+        return jsonify({"success": False, "message": "Utente non autenticato"}), 401
+
+    # Stato minimo richiesto
+    stato_corrente = get_stato_corrente(session_id)
+    if stato_corrente != "checkin_concluso":
+        sessione = get_sessione_by_id(session_id)
+        messaggio = "Il check-in non è ancora concluso. Non puoi generare le liste."
+        return render_template("frammenti/azioni.html", sessione=sessione, stato_corrente=stato_corrente, messaggio=messaggio)
+
+    # Presenti
+    candidati = get_candidati_by_sessione_checkin(session_id)
+    if not candidati:
+        sessione = get_sessione_by_id(session_id)
+        messaggio = "Nessun candidato ha ancora effettuato il check-in. Non è possibile generare le liste."
+        return render_template("frammenti/azioni.html", sessione=sessione, stato_corrente=stato_corrente, messaggio=messaggio)
+
+    try:
+        # 1) Genera XLSX presenti su disco
+        risultati_x = genera_liste_excel_csv(session_id, candidati)  # restituisce xlsx_name, csv_name (uid), num_presenti
+
+        # 2) Genera CSV Moodle su disco (formato “storico”)
+        risultati_m = genera_moodle_csv_su_disco(session_id)         # restituisce file_csv_moodle, num_presenti
+
+        # Salva/aggiorna riga "liste_generate"
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO liste_generate (session_id, file_xlsx, file_csv_moodle, num_presenti, generato_da)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (
+            session_id,
+            risultati_x["file_xlsx"],
+            risultati_m["file_csv_moodle"],   # <-- QUI salviamo il Moodle CSV “giusto”
+            risultati_m["num_presenti"],      # usa il conteggio dei presenti (coerente col Moodle)
+            user_email
+        ))
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        # Stato
+        try:
+            set_stato_corrente(session_id, "liste_generate", utente=user_email)
+        except Exception:
+            pass
+
+        # Refresh del frammento con i pulsanti download/invio
+        sessione = get_sessione_by_id(session_id)
+        stato_corrente = get_stato_corrente(session_id)
+        return render_template("frammenti/azioni.html", sessione=sessione, stato_corrente=stato_corrente)
+
+    except Exception as e:
+        sessione = get_sessione_by_id(session_id)
+        return render_template("frammenti/azioni.html",
+                               sessione=sessione,
+                               stato_corrente=stato_corrente,
+                               messaggio=f"Errore generazione liste: {e}"), 500
+
+
+def genera_moodle_csv_su_disco(session_id) -> dict:
+    """
+    Genera il CSV Moodle aggiornato con i presenti e lo salva su disco.
+    Ritorna: {"file_csv_moodle": <leafname>, "num_presenti": <int>}
+    """
+    # -- Autorizzazione e contesto --
+    user_email = session.get("user_email")
+    if not _check_auth_for_session(session_id, user_email):
+        raise PermissionError("Utente non autorizzato sulla sessione.")
+
+    # -- Access token fresco (se serve) --
+    access_token = ensure_fresh_access_token(skew_sec=60)
+    if not access_token:
+        raise RuntimeError("Autenticazione scaduta o mancante.")
+
+    # -- Dati sessione + titolo bando (per course2) --
+    with get_db_connection() as conn, conn.cursor() as cur:
+        cur.execute("""
+            SELECT s.commission_id, s.session_string, COALESCE(c.titolo, s.commission_id) AS titolo_bando
+            FROM sessioni s
+            LEFT JOIN commissions c ON c.commission_id = s.commission_id AND c.user_email = %s
+            WHERE s.session_id = %s
+        """, (user_email, session_id))
+        row = cur.fetchone()
+
+    if not row:
+        raise ValueError("Sessione non trovata.")
+
+    commission_id, session_string, titolo_bando = row
+    session_string = (session_string or "").strip()
+    if not session_string:
+        raise ValueError("Sessione senza session_string.")
+
+    # -- 1) Candidati da API esterna --
+    base_url = os.environ.get("BASE_URL", "https://cool-jconon.test.si.cnr.it")
+    api_url  = f"{base_url}/openapi/v1/call/exam-sessions/{commission_id}"
+    headers  = {
+        "Authorization": f"Bearer {access_token}",
+        "Accept": "application/json",
+        "User-Agent": "checkin-app/1.0",
+    }
+    params = {"session": session_string}
+
+    API_CONNECT_TIMEOUT = 5
+    API_READ_TIMEOUT_1  = 45
+    API_READ_TIMEOUT_2  = 120
+
+    try:
+        res = requests.get(api_url, headers=headers, params=params,
+                           timeout=(API_CONNECT_TIMEOUT, API_READ_TIMEOUT_1))
+    except requests.ReadTimeout:
+        try:
+            res = requests.get(api_url, headers=headers, params=params,
+                               timeout=(API_CONNECT_TIMEOUT, API_READ_TIMEOUT_2))
+        except requests.ReadTimeout:
+            raise TimeoutError(f"L'API impiega troppo a rispondere (timeout {API_READ_TIMEOUT_2}s).")
+        except requests.RequestException as e:
+            raise ConnectionError(f"Errore di rete verso Selezioni Online: {e}")
+    except requests.RequestException as e:
+        raise ConnectionError(f"Errore di rete verso Selezioni Online: {e}")
+
+    if res.status_code == 401:
+        new_at = ensure_fresh_access_token(skew_sec=60)
+        if not new_at:
+            raise PermissionError("Autenticazione scaduta.")
+        headers["Authorization"] = f"Bearer {new_at}"
+        res = requests.get(api_url, headers=headers, params=params,
+                           timeout=(API_CONNECT_TIMEOUT, API_READ_TIMEOUT_1))
+
+    if res.status_code != 200:
+        raise RuntimeError(f"Errore chiamata API Selezioni Online: {res.status_code} - {res.text[:300]}")
+
+    try:
+        json_data = res.json()
+    except Exception:
+        raise RuntimeError("La risposta non è JSON valido.")
+
+    candidati_raw = json_data.get(session_string)
+    if not candidati_raw:
+        raise RuntimeError("Nessun candidato trovato nella sessione indicata.")
+
+    # -- 2) Presenti dal DB per enrolstatus2 --
+    presenti = get_candidati_by_sessione_checkin(session_id)
+    present_usernames = {(c.get("uid") or "").strip().lower() for c in presenti if c.get("uid")}
+
+    # -- 3) Righe CSV (stesso formato tua funzione) --
+    fieldnames = ["username","firstname","lastname","password","course1","role1","course2","role2","enrolstatus2","email"]
+    rows = []
+    course1 = "esercitazione"
+    role1   = "esercitazione"
+    course2 = str(titolo_bando)
+    password = "esercitazione"
+
+    def _split_name_from_email(email: str):
+        local = (email or '').split('@', 1)[0]
+        if '.' in local:
+            first, last = local.split('.', 1)
+        else:
+            first, last = local, ''
+        return (first or '').upper(), (last or '').upper()
+
+    for c in candidati_raw:
+        uid   = (c.get("uid") or c.get("username") or "").strip()
+        email = (c.get("email") or "").strip()
+        first = (c.get("first_name") or c.get("firstname") or c.get("firstName") or "").strip()
+        last  = (c.get("last_name")  or c.get("lastname")  or c.get("lastName")  or "").strip()
+
+        if not (first or last):
+            if email:
+                first, last = _split_name_from_email(email)
+            elif uid:
+                if '.' in uid:
+                    f, l = uid.split('.', 1)
+                    first, last = (f or '').upper(), (l or '').upper()
+                else:
+                    first, last = uid.upper(), ""
+
+        username = uid or (email.split('@', 1)[0] if email else "")
+        enrolstatus2 = "0" if (username or "").lower() in present_usernames else "1"
+
+        rows.append({
+            "username": username,
+            "firstname": first or "",
+            "lastname":  last or "",
+            "password":  password,
+            "course1":   course1,
+            "role1":     role1,
+            "course2":   course2,
+            "role2":     "candidato",
+            "enrolstatus2": enrolstatus2,
+            "email":     email,
+        })
+
+    # -- 4) Valutatori --
+    with get_db_connection() as conn, conn.cursor() as cur:
+        cur.execute("SELECT DISTINCT user_email FROM commissions WHERE commission_id = %s", (commission_id,))
+        valutatori_emails = [r[0] for r in cur.fetchall()]
+
+    for vmail in valutatori_emails:
+        if not vmail:
+            continue
+        username = vmail.split('@', 1)[0]
+        f, l = _split_name_from_email(vmail)
+        rows.append({
+            "username": username,
+            "firstname": f,
+            "lastname":  l,
+            "password":  password,
+            "course1":   course1,
+            "role1":     role1,
+            "course2":   course2,
+            "role2":     "valutatore",
+            "enrolstatus2": "1",
+            "email":     vmail,
+        })
+
+    # -- 5) Scrivi su disco (come fai per l’XLSX) --
+    base_dir = current_app.config.get("FILES_BASE_DIR") or os.path.join(current_app.root_path, "files_liste")
+    os.makedirs(base_dir, exist_ok=True)
+
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    csv_name = f"lista_moodle_{session_id}_{ts}.csv"
+    csv_path = os.path.join(base_dir, csv_name)
+
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for r in rows:
+            writer.writerow(r)
+
+    return {
+        "file_csv_moodle": csv_name,
+        "num_presenti": len(presenti),
+    }
+
 
 def _check_auth_for_session(session_id, user_email) -> bool:
     with get_db_connection() as conn, conn.cursor() as cur:
@@ -41,6 +336,11 @@ def _split_name_from_email(email: str):
         first, last = local, ''
     return (first or '').upper(), (last or '').upper()
 
+
+##funzioni oper gestire il download 
+
+
+
 @login_required
 @azioni_bp.route("/sessione/<session_id>/moodle-csv", methods=["POST"])
 def genera_moodle_csv(session_id):
@@ -49,9 +349,10 @@ def genera_moodle_csv(session_id):
     if not _check_auth_for_session(session_id, user_email):
         abort(403)
 
-    access_token = session.get("access_token")
+    # -- Access token fresco (usa il refresh se sta per scadere) --
+    access_token = ensure_fresh_access_token(skew_sec=60)
     if not access_token:
-        return Response("Autenticazione mancante.", status=401)
+        return Response("Autenticazione scaduta o mancante. Effettua di nuovo il login.", status=401)
 
     # -- Dati sessione + titolo bando (per course2) --
     with get_db_connection() as conn, conn.cursor() as cur:
@@ -64,19 +365,52 @@ def genera_moodle_csv(session_id):
         row = cur.fetchone()
     if not row:
         return Response("Sessione non trovata.", status=404)
+
     commission_id, session_string, titolo_bando = row
     session_string = (session_string or "").strip()
+    if not session_string:
+        return Response("Sessione senza session_string.", status=400)
 
-    # -- 1) PRNDI CANDIDATI dalla API JSON con Bearer --
+    # -- 1) Prendi CANDIDATI dalla API JSON con Bearer --
     base_url = os.environ.get("BASE_URL", "https://cool-jconon.test.si.cnr.it")
-    encoded_session = quote(session_string, safe='')
-    api_url = f"{base_url}/openapi/v1/call/exam-sessions/{commission_id}?session={encoded_session}"
-    headers = {"Authorization": f"Bearer {access_token}", "Accept": "*/*"}
+    api_url = f"{base_url}/openapi/v1/call/exam-sessions/{commission_id}"
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Accept": "application/json",
+        "User-Agent": "checkin-app/1.0",
+    }
+    params = {"session": session_string}
+
+    # timeout: (conn, read) + 1 retry manuale solo su ReadTimeout
+    API_CONNECT_TIMEOUT = 5
+    API_READ_TIMEOUT_1  = 45
+    API_READ_TIMEOUT_2  = 120
 
     try:
-        res = requests.get(api_url, headers=headers, timeout=30)
+        res = requests.get(api_url, headers=headers, params=params,
+                           timeout=(API_CONNECT_TIMEOUT, API_READ_TIMEOUT_1))
+    except requests.ReadTimeout:
+        # secondo tentativo con finestra di lettura più ampia
+        try:
+            res = requests.get(api_url, headers=headers, params=params,
+                               timeout=(API_CONNECT_TIMEOUT, API_READ_TIMEOUT_2))
+        except requests.ReadTimeout:
+            return Response(f"L'API impiega troppo a rispondere (timeout {API_READ_TIMEOUT_2}s).", status=504)
+        except requests.RequestException as e:
+            return Response(f"Errore di rete verso Selezioni Online: {e}", status=502)
     except requests.RequestException as e:
         return Response(f"Errore di rete verso Selezioni Online: {e}", status=502)
+
+    # retry cortese se 401 (token scaduto al millisecondo)
+    if res.status_code == 401:
+        new_at = ensure_fresh_access_token(skew_sec=60)
+        if new_at:
+            headers["Authorization"] = f"Bearer {new_at}"
+            try:
+                res = requests.get(api_url, headers=headers, params=params,
+                                   timeout=(API_CONNECT_TIMEOUT, API_READ_TIMEOUT_1))
+            except requests.RequestException as e:
+                return Response(f"Errore di rete verso Selezioni Online: {e}", status=502)
 
     if res.status_code != 200:
         return Response(f"Errore chiamata API Selezioni Online: {res.status_code} - {res.text[:300]}", status=502)
@@ -92,56 +426,49 @@ def genera_moodle_csv(session_id):
 
     # -- 2) Mappa PRESENTI dal DB per settare enrolstatus2=0 --
     presenti = get_candidati_by_sessione_checkin(session_id)  # [{'uid':..., ...}]
-    present_usernames = { (c.get("uid") or "").strip().lower() for c in presenti if c.get("uid") }
+    present_usernames = {(c.get("uid") or "").strip().lower() for c in presenti if c.get("uid")}
 
     # -- 3) Prepara righe CSV per candidati --
-    # Colonne Moodle richieste
     fieldnames = ["username","firstname","lastname","password","course1","role1","course2","role2","enrolstatus2","email"]
 
     rows = []
     course1 = "esercitazione"
     role1   = "esercitazione"
-    course2 = str(titolo_bando)  # es: "Bando999.999" (se il titolo non è già così, va bene anche il titolo intero)
+    course2 = str(titolo_bando)
     password = "esercitazione"
 
     for c in candidati_raw:
-        # l'API può dare diverse chiavi; gestiamo varianti comuni
         uid   = (c.get("uid") or c.get("username") or "").strip()
         email = (c.get("email") or "").strip()
-        # nomi: se non ci sono, prova a derivarli
         first = (c.get("first_name") or c.get("firstname") or c.get("firstName") or "").strip()
         last  = (c.get("last_name")  or c.get("lastname")  or c.get("lastName")  or "").strip()
         if not (first or last):
-            # fallback: prova da email
             if email:
                 first, last = _split_name_from_email(email)
             elif uid:
-                # ultimo fallback: deriviamo i nomi dall'uid
                 if '.' in uid:
                     f, l = uid.split('.', 1)
                     first, last = (f or '').upper(), (l or '').upper()
                 else:
                     first, last = uid.upper(), ""
 
-        username = uid or (email.split('@',1)[0] if email else "")
-        username_l = username.lower()
-        enrolstatus2 = "0" if username_l in present_usernames else "1"
+        username = uid or (email.split('@', 1)[0] if email else "")
+        enrolstatus2 = "0" if (username or "").lower() in present_usernames else "1"
 
         rows.append({
             "username": username,
-            "firstname": first if first else "",
-            "lastname":  last if last else "",
-            "password": password,
-            "course1":  course1,
-            "role1":    role1,
-            "course2":  course2,
-            "role2":    "candidato",
+            "firstname": first or "",
+            "lastname":  last or "",
+            "password":  password,
+            "course1":   course1,
+            "role1":     role1,
+            "course2":   course2,
+            "role2":     "candidato",
             "enrolstatus2": enrolstatus2,
-            "email":    email
+            "email":     email,
         })
 
-    # -- 4) Aggiungi VALUTATORI (tutti gli user_email della commissione) --
-    #      Se hai una tabella ruoli, filtra qui; altrimenti tutti come 'valutatore'.
+    # -- 4) Aggiungi VALUTATORI --
     with get_db_connection() as conn, conn.cursor() as cur:
         cur.execute("SELECT DISTINCT user_email FROM commissions WHERE commission_id = %s", (commission_id,))
         valutatori_emails = [r[0] for r in cur.fetchall()]
@@ -149,7 +476,7 @@ def genera_moodle_csv(session_id):
     for vmail in valutatori_emails:
         if not vmail:
             continue
-        username = vmail.split('@',1)[0]
+        username = vmail.split('@', 1)[0]
         first, last = _split_name_from_email(vmail)
         rows.append({
             "username": username,
@@ -160,11 +487,11 @@ def genera_moodle_csv(session_id):
             "role1":     role1,
             "course2":   course2,
             "role2":     "valutatore",
-            "enrolstatus2": "1",   
-            "email":     vmail
+            "enrolstatus2": "1",
+            "email":     vmail,
         })
 
-    # -- 5) Scrivi CSV in memoria e invia come download --
+    # -- 5) Scrivi CSV e invia --
     out_io = io.StringIO()
     writer = csv.DictWriter(out_io, fieldnames=fieldnames)
     writer.writeheader()
@@ -179,31 +506,42 @@ def genera_moodle_csv(session_id):
         download_name=filename
     )
 
+
 @azioni_bp.route("/sessione/<session_id>/scarica_candidati", methods=["POST"])
 @login_required
 def scarica_candidati(session_id):
     try:
         user_email = session.get('user_email')
-        access_token = session.get('token')
 
+        # 1) Ottieni un access token valido (auto-refresh se mancano <= 60s)
+        access_token = ensure_fresh_access_token(skew_sec=60)
         if not user_email or not access_token:
             return render_template("error_fragment.html", message="Autenticazione mancante"), 401
 
+        # (facoltativo) log diagnostico
+        secs = seconds_left(access_token) or -1
+        current_app.logger.info("[importa] token secs_left=%s", secs)
+
+        # 2) Prima chiamata all'API
         risultato = importa_candidati_da_api(session_id, user_email, access_token)
 
-        if risultato["success"]:
+        # 3) Se 401, fai UN solo refresh + retry
+        if (not risultato.get("success")) and ("401" in (risultato.get("message") or "")):
+            current_app.logger.info("[importa] 401: provo refresh e retry")
+            access_token = ensure_fresh_access_token(skew_sec=60)
+            if access_token:
+                risultato = importa_candidati_da_api(session_id, user_email, access_token)
+
+        # 4) Esito
+        if risultato.get("success"):
             set_stato_corrente(session_id, "candidati_scaricati", utente=user_email)
             sessione = get_sessione_by_id(session_id)
             return render_template("frammenti/azioni.html", sessione=sessione, stato_corrente="candidati_scaricati")
-                
         else:
-            return render_template("error_fragment.html", message=risultato["message"]), 400
+            return render_template("error_fragment.html", message=risultato.get("message", "Errore sconosciuto")), 400
 
     except Exception as e:
         return render_template("error_fragment.html", message=str(e)), 500
-
-
-
 
 
 @azioni_bp.route("/sessione/<session_id>/azioni", methods=["GET"])
@@ -327,155 +665,121 @@ def timeline_frammento(session_id):
 
 
 
-@azioni_bp.route("/sessione/<session_id>/genera_liste", methods=["POST"])
-@login_required
-def genera_liste(session_id):
-    user_email = session.get("user_email")
-    if not user_email:
-        return jsonify({"success": False, "message": "Utente non autenticato"}), 401
-    # Verifica che il check-in sia stato concluso
-    stato_corrente = get_stato_corrente(session_id)
-    if stato_corrente != "checkin_concluso":
-        messaggio = "Il check-in non è ancora concluso. Non puoi generare le liste."
-        sessione = get_sessione_by_id(session_id)
-        return render_template("frammenti/azioni.html", sessione=sessione, stato_corrente=stato_corrente, messaggio=messaggio)
-
-
-    # Recupera i candidati che hanno fatto il check-in
-    candidati = get_candidati_by_sessione_checkin(session_id)
-
-    if not candidati:
-        messaggio = "Nessun candidato ha ancora effettuato il check-in. Non è possibile generare le liste."
-        sessione = get_sessione_by_id(session_id)
-        stato_corrente = get_stato_corrente(session_id)
-        return render_template("frammenti/azioni.html", sessione=sessione, stato_corrente=stato_corrente, messaggio=messaggio)
-
-
-    # Genera i file
-    risultati = genera_liste_excel_csv(session_id, candidati)
-
-    # Salva nel DB
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute(
-        """
-        INSERT INTO liste_generate (session_id, file_xlsx, file_csv_moodle, num_presenti, generato_da)
-        VALUES (%s, %s, %s, %s, %s)
-        """,
-        (
-            session_id,
-            risultati["file_xlsx"],
-            risultati["file_csv_moodle"],
-            risultati["num_presenti"],
-            user_email
-        )
-    )
-    conn.commit()
-    cur.close()
-    conn.close()
-
-    # Usa la funzione centralizzata per aggiornare lo stato
-    try:
-        set_stato_corrente(session_id, "liste_generate", utente=user_email)
-    except Exception as e:
-        return jsonify({"success": False, "message": str(e)}), 400
-
-
-    # Ritorna il frammento aggiornato
-    sessione = get_sessione_by_id(session_id)
-    stato_corrente = get_stato_corrente(session_id)
-    return render_template("frammenti/azioni.html", sessione=sessione, stato_corrente=stato_corrente)
-
-
-
 
 @azioni_bp.route("/sessione/<session_id>/invia-lista-esame", methods=["POST"])
 @login_required
 def invia_lista_esame(session_id):
-    # 1) Leggi quale lista inviare
-    lista_id = request.form.get("lista_id")
-    if not lista_id:
-        # fallback: puoi rifiutare o usare l’ultima lista
-        return render_template(
-            "frammenti/azioni.html",
-            sessione=get_sessione_by_id(session_id),
-            stato_corrente="liste_generate",
-            messaggio="Seleziona una lista da inviare."
-        ), 400
+    # opzionale: tieni fresco il token, anche se l’invio SMTP non lo usa
+    _ = ensure_fresh_access_token(skew_sec=60)
 
-    # 2) Recupera e valida che la lista appartenga alla sessione
-    lista = get_lista_by_id(session_id, lista_id)   # implementa/usa questa funzione
-    if not lista:
-        return render_template(
-            "frammenti/azioni.html",
-            sessione=get_sessione_by_id(session_id),
-            stato_corrente="liste_generate",
-            messaggio="Lista non trovata per questa sessione."
-        ), 404
-
-    # 3) Costruisci il percorso del CSV da allegare
-    if not getattr(lista, "file_csv_moodle", None):
-        return render_template(
-            "frammenti/azioni.html",
-            sessione=get_sessione_by_id(session_id),
-            stato_corrente="liste_generate",
-            messaggio="File CSV Moodle non disponibile per la lista selezionata."
-        ), 400
-
-    file_path = os.path.join(current_app.static_folder, lista.file_csv_moodle)
-    if not os.path.exists(file_path):
-        return render_template(
-            "frammenti/azioni.html",
-            sessione=get_sessione_by_id(session_id),
-            stato_corrente="liste_generate",
-            messaggio=f"File non trovato: {lista.file_csv_moodle}"
-        ), 400
-
-    # 4) Invia email all’esperto
-    destinatario = os.environ.get("ESPERTO_EMAIL")
-    if not destinatario:
-        return render_template(
-            "frammenti/azioni.html",
-            sessione=get_sessione_by_id(session_id),
-            stato_corrente="liste_generate",
-            messaggio="Configurare ESPERTO_EMAIL nelle variabili d'ambiente."
-        ), 500
-
-    try:
-        send_notification_email(
-            to_emails=[destinatario],
-            subject=f"Lista candidati – sessione {session_id} (lista {lista.id})",
-            body=(
-                f"Gentile esperto,\n"
-                f"in allegato la lista dei candidati per la sessione {session_id}.\n"
-                f"Presenti: {getattr(lista, 'num_presenti', 'N/D')}.\n"
-            ),
-            attachments=[file_path]
+    # 1) Recupera l’ultima lista generata per la sessione
+    with get_db_connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT file_xlsx, file_csv_moodle, num_presenti, generato_da, timestamp_creazione
+            FROM liste_generate
+            WHERE session_id = %s
+            ORDER BY timestamp_creazione DESC
+            LIMIT 1
+            """,
+            (session_id,),
         )
-        # 5) Solo se ok → aggiorno stato
-        set_stato_corrente(session_id, "liste_inviate", utente=session.get("user_email"))
-        stato = "liste_inviate"
-        msg = None
-        status_code = 200
-    except Exception as e:
-        stato = "liste_generate"
-        msg = f"Errore invio email: {e}"
-        status_code = 400
+        row = cur.fetchone()
 
-    # 6) Rendi di nuovo il frammento + trigger per ricaricare timeline
-    html = render_template(
-        "frammenti/azioni.html",
-        sessione=get_sessione_by_id(session_id),
-        stato_corrente=stato,
-        messaggio=msg,
-        numero_dispositivi_connessi=0,
-        get_ultima_lista_generata=get_ultima_lista_generata,
-        get_liste_generate=get_liste_generate  # se usi la select
+    if not row:
+        # nessuna lista generata -> messaggio chiaro nel frammento
+        return render_template(
+            "frammenti/azioni.html",
+            sessione=get_sessione_by_id(session_id),
+            stato_corrente="liste_generate",
+            messaggio="Nessuna lista generata per questa sessione: crea prima la lista e riprova."
+        )
+
+    file_xlsx, file_csv, num_presenti, generato_da, ts = row
+
+    # 2) Prepara allegati (solo quelli che esistono)
+    attachments = []
+    abs_xlsx = _abs_path(file_xlsx)
+    abs_csv  = _abs_path(file_csv)
+
+    # DIAGNOSTICA: mostra base, realpath e listing della cartella
+    base = current_app.config.get("FILES_BASE_DIR") or os.path.join(current_app.root_path, "files_liste")
+    try:
+        listing = ", ".join(sorted(os.listdir(base))[:10])
+    except Exception:
+        listing = "<impossibile leggere la directory>"
+
+    current_app.logger.warning(
+        "[invia-lista] base=%s | xlsx=%s (real=%s exists=%s) | csv=%s (real=%s exists=%s) | primi file in base=[%s]",
+        base,
+        abs_xlsx, os.path.realpath(abs_xlsx), os.path.exists(abs_xlsx),
+        abs_csv,  os.path.realpath(abs_csv),  os.path.exists(abs_csv),
+        listing
     )
-    resp = make_response(html, status_code)
-    resp.headers["HX-Trigger"] = "azioniAggiornate"
-    return resp
 
 
+    print("percorso_xls:",abs_xlsx)
+    print("percorso_csv:",abs_csv)
+    if abs_xlsx and os.path.exists(abs_xlsx):
+        attachments.append(abs_xlsx)
+    if abs_csv and os.path.exists(abs_csv):
+        attachments.append(abs_csv)
 
+    if not attachments:
+        return render_template(
+            "frammenti/azioni.html",
+            sessione=get_sessione_by_id(session_id),
+            stato_corrente="liste_generate",
+            messaggio="La lista risulta generata ma i file non sono più presenti sul server."
+        )
 
+    # 3) Destinatari: ENV o override da form (opzionale)
+    to_emails = []
+    to_override = (request.form.get("to") or "").strip()
+
+    if to_override:
+        to_emails = [e.strip() for e in to_override.split(",") if e.strip()]
+    else:
+        esperto_email = os.getenv("ESPERTO_EMAIL") or current_app.config.get("ESPERTO_EMAIL")
+        if esperto_email and esperto_email.strip():
+            to_emails = [esperto_email.strip()]
+
+    if not to_emails:
+        return render_template(
+            "frammenti/azioni.html",
+            sessione=get_sessione_by_id(session_id),
+            stato_corrente="liste_generate",
+            messaggio="Destinatario mancante: imposta ESPERTO_EMAIL oppure invia il campo 'to' nel form."
+        )
+
+    # 4) Oggetto e corpo
+    sessione = get_sessione_by_id(session_id)
+    titolo = getattr(sessione, "nome", None) or getattr(sessione, "session_string", None) or session_id
+    subject = f"[Check-in] Lista esame – {titolo}"
+    body = (
+        f"Ciao,\n\nin allegato la lista esame per la sessione {titolo}.\n"
+        f"Presenti: {num_presenti}\nGenerata da: {generato_da}\nData: {ts}\n\n"
+        "Cordiali saluti,\nSistema Check-in"
+    )
+
+    # 5) Invia email (senza autenticazione, come configurato nel tuo helper)
+    ok, err = send_notification_email(to_emails, subject, body, attachments=attachments)
+    if not ok:
+        current_app.logger.warning("[invia-lista-esame] invio KO: %s", err)
+        return render_template(
+            "frammenti/azioni.html",
+            sessione=sessione,
+            stato_corrente="liste_generate",
+            messaggio=f"Invio email fallito: {err}"
+        )
+
+    # (opzionale) aggiorna stato workflow
+    set_stato_corrente(session_id, "liste_inviate", utente=session.get("user_email"))
+
+    # 6) Ritorna il frammento con messaggio di successo
+    return render_template(
+        "frammenti/azioni.html",
+        sessione=sessione,
+        stato_corrente="lista_inviata",
+        messaggio="Lista inviata all'esperto informatico."
+    )

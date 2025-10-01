@@ -110,11 +110,11 @@ def get_sessioni(commission_id):
                             p["giorno"],
                             p["ora"],
                             p["luogo"],
-                            p["data_esame"],   # datetime oggetto
-                            False,             # <-- boolean (NON 0/1)
-                            False,             # <-- boolean (NON 0/1)
+                            p["data_esame"],   
+                            False,             
+                            False,            
                             user_email,
-                            now                # datetime oggetto
+                            now                
                         ))
 
 
@@ -167,7 +167,7 @@ def get_session(session_id):
 
         with get_db_connection() as conn:
             with conn.cursor() as cursor:
-                # ✅ check autorizzazione (utente deve essere nella commissions della stessa commissione)
+                # check autorizzazione (utente deve essere nella commissions della stessa commissione)
                 cursor.execute("""
                     SELECT 1
                     FROM sessioni s

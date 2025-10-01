@@ -12,15 +12,17 @@
             <h5 class="mb-2">Scarica Lista Candidati</h5>
             <p class="mb-3 text-muted">Scarica i candidati registrati per questa sessione.</p>
           </div>
-          <button 
-            class="btn btn-primary"
-            hx-post="/sessione/{{ sessione.session_id }}/scarica_candidati"
-            hx-trigger="click"
-            hx-target="#azioni-wrapper"
-            hx-swap="innerHTML"
-            hx-on::afterOnLoad="this.dispatchEvent(new CustomEvent('candidatiScaricati'))">
-            Scarica Candidati
-          </button>
+            <button 
+              class="btn btn-primary"
+              data-block-ui="true"             
+              hx-post="/sessione/{{ sessione.session_id }}/scarica_candidati"
+              hx-trigger="click"
+              hx-target="#azioni-wrapper"
+              hx-swap="innerHTML"
+              hx-disabled-elt="button, a, input, [role='button']"
+              hx-on::afterOnLoad="this.dispatchEvent(new CustomEvent('candidatiScaricati'))">
+              Scarica Candidati
+            </button>
 
         </div>
       </div>
@@ -112,21 +114,22 @@
     </div>
     {% endif %}
 
-    {% if stato_corrente == 'checkin_concluso' %}
+{% if stato_corrente == 'checkin_concluso' %}
 <div class="it-card-wrapper mb-3">
-  <div class="it-card shadow-sm p-3 bg-light">
+  <div class="it-card shadow-sm p-3 bg-light" data-block-ui="true">
     <div class="d-flex justify-content-between align-items-start">
       <div>
         <h5 class="mb-2">Genera Liste</h5>
-        <p class="mb-3 text-muted">Genera le liste di candidati per l’esame.</p>
+        <p class="mb-3 text-muted">Genera i file necessari (XLSX presenti + CSV Moodle aggiornato).</p>
       </div>
+
       <button
         class="btn btn-primary"
         hx-post="{{ url_for('azioni.genera_liste', session_id=sessione.session_id) }}"
         hx-target="#azioni-wrapper"
         hx-swap="innerHTML"
-        hx-on::afterRequest="document.body.dispatchEvent(new Event('azioniAggiornate'))"
-      >
+        hx-disabled-elt="this"
+        hx-on::afterRequest="document.body.dispatchEvent(new Event('azioniAggiornate'))">
         Genera Liste
       </button>
     </div>
@@ -134,65 +137,56 @@
 </div>
 {% endif %}
 
+
 {% if stato_corrente in ['liste_generate', 'liste_inviate'] %}
-  <div class="it-card-wrapper mb-3">
-    <div class="it-card shadow-sm p-3 bg-light">
-      <div class="d-flex justify-content-between align-items-start">
-        <div>
-          <h5 class="mb-2">Liste Generate</h5>
-          <p class="mb-2 text-muted">
-            Le liste sono state generate correttamente.
-          </p>
+<div class="it-card-wrapper mb-3">
+  <div class="it-card shadow-sm p-3 bg-light" data-block-ui="true">
+    <div class="d-flex justify-content-between align-items-start">
+      <div class="me-3">
+        <h5 class="mb-2">Liste Generate</h5>
+        <p class="mb-2 text-muted">I file sono pronti. Puoi scaricarli o inviarli all’esperto informatico.</p>
 
-          {% set lista = get_ultima_lista_generata(sessione.session_id) %}
-          {% if lista %}
-            <ul class="mb-3">
-              <li><strong>Presenti:</strong> {{ lista.num_presenti }}</li>
-            </ul>
+        {% set lista = get_ultima_lista_generata(sessione.session_id) %}
+        {% if lista %}
+          <ul class="mb-3">
+            <li><strong>Presenti:</strong> {{ lista.num_presenti }}</li>
+          </ul>
 
-            <!-- Link download esistenti + nuovo bottone POST per CSV Moodle aggiornato -->
-            <div class="d-flex flex-column gap-2 mb-3">
-              <div class="d-flex gap-2 flex-wrap">
-                <a class="btn btn-outline-primary"
-                   href="{{ url_for('static', filename=lista.file_xlsx) }}"
-                   download>
-                  Scarica Lista Candidati (XLSX)
-                </a>
-                <a class="btn btn-outline-secondary"
-                   href="{{ url_for('static', filename=lista.file_csv_moodle) }}"
-                   download>
-                  Scarica per Esperto Informatico (CSV)
-                </a>
-              </div>
+          <div class="d-flex flex-column gap-2 mb-3">
+            <!-- Download diretto: nessun prompt di “lasciare il sito” -->
+            <a class="btn btn-outline-primary"
+               href="{{ url_for('azioni.download_file', session_id=sessione.session_id, type='xlsx') }}">
+              Scarica lista presenti (XLSX)
+            </a>
 
-              <!-- NUOVO: genera e scarica CSV Moodle con presenti attivi (enrolstatus2=0) -->
-              <form method="post"
-                    action="{{ url_for('azioni.genera_moodle_csv', session_id=sessione.session_id) }}"
-                    class="d-inline">
-                <button class="btn btn-primary" type="submit">
-                  Genera CSV Moodle (presenti = attivi)
-                </button>
-              </form>
-            </div>
-          {% else %}
-            <div class="alert alert-warning">Nessuna lista trovata.</div>
-          {% endif %}
-        </div>
-        <form
-          hx-post="{{ url_for('azioni.invia_lista_esame', session_id=sessione.session_id) }}"
-          hx-target="#azioni-wrapper"
-          hx-swap="innerHTML"
-        >
-          <input type="hidden" name="lista_id" value="{{ lista.id }}">
-          <button class="btn btn-success" type="submit">
-            Invia lista ad esperto informatico
-          </button>
-        </form>
-
+            <a class="btn btn-primary"
+               href="{{ url_for('azioni.download_file', session_id=sessione.session_id, type='moodle_csv') }}">
+              Scarica lista per Moodle (CSV)
+            </a>
+          </div>
+        {% else %}
+          <div class="alert alert-warning">Nessuna lista trovata.</div>
+        {% endif %}
       </div>
+
+      <!-- Invio email via HTMX (con overlay) -->
+      <form
+        hx-post="{{ url_for('azioni.invia_lista_esame', session_id=sessione.session_id) }}"
+        hx-target="#azioni-wrapper"
+        hx-swap="innerHTML">
+        {% if lista %}
+          <input type="hidden" name="lista_id" value="{{ lista.id }}">
+        {% endif %}
+        <button class="btn btn-success" type="submit" hx-disabled-elt="this">
+          Invia lista ad esperto informatico
+        </button>
+      </form>
     </div>
   </div>
+</div>
 {% endif %}
+
+
 
   {% if stato_corrente == "liste_inviate" %}
     <div class="alert alert-warning d-flex align-items-center" role="alert">

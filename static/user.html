@@ -1,37 +1,100 @@
-<!DOCTYPE html>
-<html lang="it">
-<head>
-    <meta charset="UTF-8">
-    <title>Dati Utente</title>
-    <style>
-        body { font-family: sans-serif; margin: 2rem; }
-        pre { background: #f0f0f0; padding: 1rem; border-radius: 5px; }
-        button { padding: 10px 20px; margin-top: 20px; cursor: pointer; }
-    </style>
-</head>
-<body>
-    <h1>Dati utente (dal JWT decodificato)</h1>
-    <div id="user_info">Caricamento...</div>
-    <button onclick="logout()">Logout</button>
+<div style="margin:1rem 0; font:14px system-ui" id="session-box">
+  <strong>Sessione:</strong>
+  <span id="session-countdown">…</span>
+  <button id="refresh-btn" style="margin-left:.5rem">Rinnova ora</button>
+  <small id="session-hint" style="margin-left:.5rem; opacity:.7"></small>
+</div>
 
-    <script>
-        fetch('/me')
-            .then(res => res.json())
-            .then(data => {
-                const info = data.user_info || {};
-                document.getElementById('user_info').innerHTML = '<pre>' + JSON.stringify(info, null, 2) + '</pre>';
-            })
-            .catch(err => {
-                document.getElementById('user_info').innerText = 'Errore nel recupero dati utente';
-                console.error(err);
-            });
+<script>
+(async () => {
+  const el = {
+    cd: document.getElementById('session-countdown'),
+    hint: document.getElementById('session-hint'),
+    btn: document.getElementById('refresh-btn'),
+  };
 
-        function logout() {
-            fetch('/logout')
-                .then(() => {
-                    window.location.href = '/';
-                });
+  async function getStatus() {
+    const r = await fetch('/user/session/status', {credentials: 'same-origin'});
+    if (!r.ok) throw new Error('status ' + r.status);
+    return r.json();
+  }
+  async function doRefresh() {
+    const r = await fetch('/user/session/refresh', {method:'POST', credentials:'same-origin'});
+    return r.json();
+  }
+
+  function fmt(seconds) {
+    if (seconds == null) return 'sconosciuto';
+    seconds = Math.max(0, Math.floor(seconds));
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return (m>0 ? m+'m ' : '') + s + 's';
+  }
+
+  let left = null;
+  let timer = null;
+
+  async function bootstrap() {
+    try {
+      const st = await getStatus();
+      left = st.seconds_left;
+      el.hint.textContent = st.can_refresh ? '(auto-refresh abilitato)' : '(serve rifare il login alla scadenza)';
+      tick();
+      timer = setInterval(tick, 1000);
+    } catch (e) {
+      el.cd.textContent = 'errore nel recupero stato';
+    }
+  }
+
+  async function tick() {
+    if (left == null) {
+      el.cd.textContent = 'sconosciuto';
+      return;
+    }
+    el.cd.textContent = fmt(left);
+
+    // refresh automatico se < 20s e possibile
+    if (left <= 20) {
+      clearInterval(timer);
+      try {
+        const res = await doRefresh();
+        if (res.ok) {
+          // ricarica stato e riparti
+          const st = await getStatus();
+          left = st.seconds_left;
+          timer = setInterval(tick, 1000);
+          el.cd.textContent = fmt(left);
+          return;
+        } else {
+          el.cd.textContent = 'scaduta: accedi di nuovo';
+          return;
         }
-    </script>
-</body>
-</html>
+      } catch {
+        el.cd.textContent = 'errore refresh: accedi di nuovo';
+        return;
+      }
+    }
+
+    left -= 1;
+  }
+
+  el.btn.addEventListener('click', async () => {
+    try {
+      const res = await doRefresh();
+      if (res.ok) {
+        const st = await getStatus();
+        left = st.seconds_left;
+        if (timer) clearInterval(timer);
+        timer = setInterval(tick, 1000);
+        el.cd.textContent = fmt(left);
+      } else {
+        el.cd.textContent = 'scaduta: accedi di nuovo';
+      }
+    } catch {
+      el.cd.textContent = 'errore refresh';
+    }
+  });
+
+  bootstrap();
+})();
+</script>

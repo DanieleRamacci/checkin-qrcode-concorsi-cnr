@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, session
 from flask_session import Session
 from datetime import datetime, timezone
+from pathlib import Path
 import os
 from flask import send_file
 import qrcode
@@ -16,12 +17,21 @@ from utils.liste import  get_ultima_lista_generata
 
 app.jinja_env.globals.update(get_ultima_lista_generata=get_ultima_lista_generata)
 
-
+# Base directory dove salvi/leggi le liste
+FILES_BASE_DIR = os.getenv("FILES_BASE_DIR", os.path.join(app.root_path, "files_liste"))
+Path(FILES_BASE_DIR).mkdir(parents=True, exist_ok=True)
+app.config.update(FILES_BASE_DIR=FILES_BASE_DIR)
 
 
 # === CONFIGURAZIONE SESSIONE ===
 from dotenv import load_dotenv
 load_dotenv()
+
+app.config.update(
+    OIDC_TOKEN_URL=os.getenv("OIDC_TOKEN_URL"),
+    OIDC_CLIENT_ID=os.getenv("OIDC_CLIENT_ID"),
+    OIDC_CLIENT_SECRET=os.getenv("OIDC_CLIENT_SECRET"),  # opzionale
+)
 
 
 # === ENVIRONMENT CONFIGURATION ===

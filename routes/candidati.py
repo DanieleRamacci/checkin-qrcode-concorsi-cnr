@@ -6,6 +6,7 @@ from db import get_db_connection  # se hai una funzione centralizzata
 from routes.auth import login_required  # è un decoratore deve essere importato 
 from urllib.parse import quote
 from utils.candidati import importa_candidati_da_api 
+from utils.commissioni import  now_iso_utc
 
 BASE_URL = os.environ.get('BASE_URL', 'https://cool-jconon.test.si.cnr.it')
 
@@ -207,12 +208,12 @@ def get_candidati():
 
                 # Aggiorna stato sessione
                 cursor.execute("""
-                    UPDATE sessioni
-                    SET candidati_importati = TRUE,
-                        sync_user_email = %s,
-                        data_sync = CURRENT_TIMESTAMP
-                    WHERE session_id = %s
-                """, (user_email, session_id))
+                        UPDATE sessioni
+                        SET candidati_importati = TRUE,
+                            sync_user_email = %s,
+                            data_sync = %s
+                        WHERE session_id = %s
+                    """, (user_email, now_iso_utc(), session_id))
 
                 conn.commit()
 

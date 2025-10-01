@@ -2,32 +2,32 @@ from openpyxl import Workbook
 from datetime import datetime
 from flask import current_app
 import csv, os
+
 from db import get_db_connection
 
 
 
 
-def genera_liste_excel_csv(session_id, candidati, subdir="files_liste"):
-    # directory fisica sotto static: <app>/static/files_liste
-    static_dir = current_app.static_folder
-    output_dir = os.path.join(static_dir, subdir)
-    os.makedirs(output_dir, exist_ok=True)
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    base_filename = f"lista_{session_id}_{timestamp}"
+def genera_liste_excel_csv(session_id, candidati):
+    base_dir = current_app.config.get("FILES_BASE_DIR") or os.path.join(current_app.root_path, "files_liste")
+    os.makedirs(base_dir, exist_ok=True)
 
-    # percorsi RELATIVI per i link (quelli che passiamo al template)
-    xlsx_rel = f"{subdir}/{base_filename}.xlsx"
-    csv_rel  = f"{subdir}/{base_filename}.csv"
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    base_filename = f"lista_{session_id}_{ts}"
 
-    # percorsi ASSOLUTI per scrivere su disco
-    xlsx_path = os.path.join(static_dir, xlsx_rel)
-    csv_path  = os.path.join(static_dir, csv_rel)
+    # nomi file (solo leaf)
+    xlsx_name = f"{base_filename}.xlsx"
+    csv_name  = f"{base_filename}.csv"
+
+    # percorsi assoluti per scrivere su disco
+    xlsx_path = os.path.join(base_dir, xlsx_name)
+    csv_path  = os.path.join(base_dir, csv_name)
 
     # XLSX
     wb = Workbook()
     ws = wb.active
-    ws.append(["uid", "first_name", "last_name", "document_number", "document_date", "fiscal_code", "stato"])
+    ws.append(["uid","first_name","last_name","document_number","document_date","fiscal_code","stato"])
     for c in candidati:
         ws.append([
             c.get("uid"), c.get("first_name"), c.get("last_name"),
@@ -36,20 +36,19 @@ def genera_liste_excel_csv(session_id, candidati, subdir="files_liste"):
         ])
     wb.save(xlsx_path)
 
-    # CSV per esperto
-    with open(csv_path, mode="w", newline="", encoding="utf-8") as file:
-        writer = csv.writer(file)
-        writer.writerow(["uid"])
+    # CSV
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["uid"])
         for c in candidati:
-            writer.writerow([c.get("uid")])
+            w.writerow([c.get("uid")])
 
+    # RITORNA SOLO I NOMI (salvali così nel DB)
     return {
-        "file_xlsx": xlsx_rel,          
-        "file_csv_moodle": csv_rel,     
-        "num_presenti": len(candidati)
+        "file_xlsx": xlsx_name,
+        "file_csv_moodle": csv_name,
+        "num_presenti": len(candidati),
     }
-
-
 
 
 def get_ultima_lista_generata(session_id):

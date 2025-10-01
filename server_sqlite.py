@@ -12,8 +12,6 @@ import jwt
 import csv
 from urllib.parse import quote
 from flask import request, jsonify
-
-from flask import jsonify
 import hashlib
 from flask import send_file
 import qrcode

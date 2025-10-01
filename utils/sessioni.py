@@ -6,11 +6,17 @@ from db import get_db_connection
 import hashlib
 from routes.sessioni import parse_session_string  # riusa il parser già cretao 
 from datetime import datetime
+from flask import current_app
+import time
 
 BASE_URL = os.environ.get('BASE_URL', 'https://cool-jconon.test.si.cnr.it')
 
-
-def get_sessioni_internamente(commission_id, access_token, user_email):
+def get_sessioni_internamente(commission_id, access_token, user_email, timeout_s=(3.05, 20), retries: int = 1):
+    """
+    Sincronizza le sessioni di una commissione.
+    Ritorna il numero di sessioni inserite (int).
+    Non solleva eccezioni: in caso di problemi ritorna 0.
+    """
     try:
         # 1) Autorizzazione utente sulla commissione
         with get_db_connection() as conn:
@@ -20,28 +26,63 @@ def get_sessioni_internamente(commission_id, access_token, user_email):
                     WHERE commission_id = %s AND user_email = %s
                 """, (commission_id, user_email))
                 if not cursor.fetchone():
-                    print(f"[DEBUG] Nessuna autorizzazione per commission_id={commission_id}")
+                    current_app.logger.debug(f"[sessioni] no auth commission_id={commission_id} user={user_email}")
                     return 0
 
-        # 2) Chiamata API remota
+        # 2) Chiamata API remota con timeout e (opzionale) retry leggero
         api_url = f"{BASE_URL}/openapi/v1/call/exam-sessions/{commission_id}"
         headers = {'Authorization': f'Bearer {access_token}', 'Accept': 'application/json'}
-        response = requests.get(api_url, headers=headers)
-        if response.status_code == 401:
-            print("[DEBUG] Token scaduto")
+
+        attempt = 0
+        sessioni_data = None
+        last_err = None
+        while attempt <= retries:
+            attempt += 1
+            t0 = time.time()
+            try:
+                current_app.logger.debug(f"[sessioni] GET {api_url} (try {attempt}/{retries+1})")
+                resp = requests.get(api_url, headers=headers, timeout=timeout_s)
+                dt = time.time() - t0
+                current_app.logger.debug(f"[sessioni] -> {resp.status_code} in {dt:.2f}s")
+
+                if resp.status_code == 401:
+                    current_app.logger.warning("[sessioni] token scaduto o non valido (401)")
+                    return "UNAUTHORIZED"
+
+
+                resp.raise_for_status()
+
+                sessioni_data = resp.json()
+                break  # ok
+            except (requests.Timeout, requests.ConnectionError) as e:
+                last_err = e
+                current_app.logger.warning(f"[sessioni] timeout/conn error {api_url} try {attempt}: {e}")
+                if attempt > retries:
+                    return 0
+            except requests.HTTPError as e:
+                # errori HTTP non transitori: non retry
+                body_preview = e.response.text[:300] if e.response is not None else ""
+                current_app.logger.error(f"[sessioni] HTTP {getattr(e.response,'status_code', '?')}: {body_preview}")
+                return 0
+            except Exception as e:
+                last_err = e
+                current_app.logger.exception(f"[sessioni] errore generico chiamata API: {e}")
+                return 0
+
+        if sessioni_data is None:
+            # non dovremmo arrivare qui, ma per sicurezza
+            current_app.logger.warning(f"[sessioni] API non ha restituito dati: {last_err}")
             return 0
-        response.raise_for_status()
-        sessioni_data = response.json()
 
         # 3) Inserimento in DB (parser robusto + tipi corretti)
-        now = datetime.now()      # TIMESTAMP vero
+        now = datetime.now()
         inserted = 0
 
         with get_db_connection() as conn:
             with conn.cursor() as cursor:
                 for session_string, candidati in sessioni_data.items():
                     try:
-                        p = parse_session_string(session_string)  # gestisce 3 pezzi o 2 pezzi
+                        p = parse_session_string(session_string)  # deve produrre p["data_esame"] (date/datetime)
                         raw_key = f"{commission_id}::{session_string}"
                         session_id = hashlib.md5(raw_key.encode()).hexdigest()
 
@@ -55,21 +96,22 @@ def get_sessioni_internamente(commission_id, access_token, user_email):
                             ON CONFLICT (session_id) DO NOTHING
                         """, (
                             session_id, commission_id, user_email, session_string,
-                            p["nome"], p["giorno"], p["ora"], p["luogo"], p["data_esame"],
+                            p.get("nome"), p.get("giorno"), p.get("ora"), p.get("luogo"),
+                            p.get("data_esame"),  # date/datetime
                             False, False, user_email, now
                         ))
                         if cursor.rowcount > 0:
                             inserted += 1
                     except Exception as e:
-                        print(f"[ERRORE PARSING] {session_string}: {e}")
+                        current_app.logger.warning(f"[sessioni] PARSE FAIL '{session_string}': {e}")
                         continue
 
-            conn.commit()  # visibilità immediata per la pagina
+            conn.commit()
 
         return inserted
 
     except Exception as e:
-        print(f"[ERRORE GENERICO get_sessioni] {e}")
+        current_app.logger.exception(f"[sessioni] errore generale get_sessioni_internamente: {e}")
         return 0
 
 

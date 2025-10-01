@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import json
 import jwt
 from flask import Blueprint
-
+import time
 auth_bp = Blueprint('auth', __name__)
 
 
@@ -80,13 +80,21 @@ def oidc_callback():
 
         tokens = token_response.json()
         access_token = tokens['access_token']
+        refresh_token = tokens.get('refresh_token')  
+        expires_in    = int(tokens.get('expires_in', 300))
+        refresh_expires_in = int(tokens.get('refresh_expires_in', 0))  # opzionale
+
         id_token = tokens.get('id_token')
         session['token']= access_token
-
+        session['refresh_token'] = refresh_token          
+        session['expires_at']    = int(time.time()) + expires_in      # opzionale
+        session['refresh_expires_at'] = int(time.time()) + refresh_expires_in  # opzionale
 
         # DEBUG: stampa il token completo
         print("TOKEN:", json.dumps(tokens, indent=2))
         print("Access token:", access_token)
+        print("refresh_token:", session['refresh_token'])
+        print("expire:in: ", session['expires_at'])
 
 
         # Decodifica JWT senza verifica (solo per visualizzazione interna)

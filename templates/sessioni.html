@@ -6,58 +6,74 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-italia@2.6.1/dist/css/bootstrap-italia.min.css">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap-italia@2.6.1/dist/js/bootstrap-italia.bundle.min.js" defer></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+  <style>
+    /* di default lo nascondo SEMPRE */
+    #spinner-sessioni { display: none !important; }
+    /* quando HTMX mette la classe htmx-request sullo spinner, lo mostro */
+    #spinner-sessioni.htmx-request { display: inline-flex !important; align-items: center; }
+  </style>
 </head>
-<body>
 
+<body>
   {% include 'header.html' %}
 
-      {% if sessioni %}
-        <!-- mostra le sessioni -->
-    {% else %}
-        <p>⏳ Caricamento in corso... Nessuna sessione disponibile al momento.</p>
-    {% endif %}
-
   <div class="container my-5">
-    <h1 class="mb-4">Sessioni del Concorso</h1>
-    <p class="lead">Elenco delle sessioni collegate al concorso selezionato.</p>
+    <h1 class="mb-1">Sessioni – {{ concorso_titolo }}</h1>
+    <p class="text-muted">Elenco delle sessioni collegate al concorso selezionato.</p>
 
-    {% if sessioni %}
-    <div class="table-responsive">
-      <table class="table table-striped table-hover">
-        <thead class="table-light">
-          <tr>
-            <th>#</th>
-            <th>Nome Sessione</th>
-            <th>Luogo</th>
-            <th>Data</th>
-            <th>Ora</th>
-            <th>Azioni</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for s in sessioni %}
-          <tr>
-            <th scope="row">{{ loop.index }}</th>
-            <td>{{ s.nome }}</td>
-            <td>{{ s.luogo }}</td>
-            <td>{{ s.giorno }}</td>
-            <td>{{ s.ora }}</td>
-            <td>
-            <a href="/gestione-concorso/{{ s.session_id }}" class="btn btn-sm btn-primary">Gestisci</a>
+    <!-- Controlli -->
+    <div class="d-flex gap-2 align-items-center mb-3">
+      <button id="btn-aggiorna"
+              class="btn btn-outline-primary btn-sm"
+              hx-get="/sessioni/{{ commission_id }}/frammento"
+              hx-target="#tabella-sessioni"
+              hx-swap="innerHTML"
+              hx-indicator="#spinner-sessioni"
+              hx-sync="#tabella-sessioni:queue"
+              hx-request='{"timeout":95000}'
+              hx-on:htmx:beforeRequest="this.disabled=true"
+              hx-on:htmx:afterRequest="this.disabled=false">
+        Aggiorna
+      </button>
 
-              </a>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      <!-- Spinner: parte nascosto, htmx lo mostra tramite hx-indicator -->
+      <div id="spinner-sessioni"
+           class="d-flex align-items-center"
+           style="display:none">
+        <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
+        <span class="small">Caricamento…</span>
+      </div>
     </div>
-    {% else %}
-    <div class="alert alert-warning" role="alert">
-      Nessuna sessione disponibile per questa commissione.
+
+    <!-- Wrapper che carica il frammento al load -->
+    <div id="tabella-sessioni"
+         hx-get="/sessioni/{{ commission_id }}/frammento"
+         hx-trigger="load, refresh"
+         hx-swap="innerHTML"
+         hx-indicator="#spinner-sessioni"
+         hx-sync="this:queue"
+         hx-disabled-elt="#btn-aggiorna"
+         hx-request='{"timeout":95000}'>
+      <div class="d-flex align-items-center text-muted">
+        <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
+        Caricamento sessioni…
+      </div>
     </div>
-    {% endif %}
   </div>
 
+  <script>
+    // Auto-refresh se il frammento non contiene ancora righe (prima sync a DB)
+    document.addEventListener('htmx:afterSwap', function (evt) {
+      if (evt.detail.target.id === 'tabella-sessioni') {
+        const hasRows = evt.detail.target.querySelector('tbody tr');
+        if (!hasRows) {
+          setTimeout(() => {
+            htmx.trigger('#tabella-sessioni', 'refresh');
+          }, 5000);
+        }
+      }
+    });
+  </script>
 </body>
 </html>
