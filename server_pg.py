@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, session
+from flask import Flask, jsonify, session, current_app, request, Response
 from flask_session import Session
 from datetime import datetime, timezone
 from pathlib import Path
@@ -9,6 +9,8 @@ import io
 from psycopg2.extras import RealDictCursor
 from routes import register_blueprints  # importa la funzione dal __init__.py
 from routes.auth import login_required  
+from utils.logging_setup import setup_logging
+
 
 # === FLASK APP ===
 app = Flask(__name__, static_folder='static')
@@ -47,6 +49,8 @@ app.config['SESSION_FILE_DIR'] = session_dir
 print(">>> Session directory:", session_dir)
 Session(app)
 
+setup_logging(app)
+app.logger.debug("Logging inizializzato")
 
 
 
@@ -98,6 +102,7 @@ def genera_qr_pdf(session_id):
 
 
 
+
 @app.route('/debug-session')
 def debug_session():
     return jsonify({
@@ -106,6 +111,29 @@ def debug_session():
     })
 
 
+
+def _tail(path, n=500):
+    # tail efficiente
+    with open(path, "rb") as f:
+        f.seek(0, os.SEEK_END)
+        size = f.tell()
+        block = -1024
+        data = b""
+        while -block < size and data.count(b"\n") <= n:
+            f.seek(block, os.SEEK_END)
+            data = f.read(-block) + data
+            block *= 2
+    return b"\n".join(data.splitlines()[-n:]).decode("utf-8", errors="replace")
+
+@app.route("/log")
+def view_log():
+    log_path = current_app.config.get("APP_LOG_FILE")
+    if not log_path or not os.path.exists(log_path):
+        return Response("Log non disponibile", status=404)
+    n = int(request.args.get("n", 500))
+    tail_txt = _tail(log_path, n=n)
+    # È JSONL (una riga = un JSON). Lo mostriamo come testo grezzo.
+    return Response(tail_txt, mimetype="text/plain; charset=utf-8")
 
 @app.context_processor
 def inject_version():

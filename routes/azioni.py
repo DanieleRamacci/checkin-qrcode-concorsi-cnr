@@ -507,6 +507,7 @@ def genera_moodle_csv(session_id):
     )
 
 
+
 @azioni_bp.route("/sessione/<session_id>/scarica_candidati", methods=["POST"])
 @login_required
 def scarica_candidati(session_id):

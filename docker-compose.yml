@@ -13,8 +13,9 @@ services:
       - .env
     environment:
       WEB_CONCURRENCY: "2"             
-      GUNICORN_TIMEOUT: "120"           
-      GUNICORN_EXTRA: "--worker-class gthread --threads 4 --keep-alive 10 --graceful-timeout 120 --max-requests 500 --max-requests-jitter 50"
+      GUNICORN_TIMEOUT: "120"  
+      PYTHONUNBUFFERED: "1"         
+      GUNICORN_EXTRA: "--worker-class gthread --threads 4 --keep-alive 10 --graceful-timeout 120 --max-requests 500 --max-requests-jitter 50 --capture-output --access-logfile - --error-logfile -"
       FILES_BASE_DIR: "/app/files_liste"   
     depends_on:
       - db

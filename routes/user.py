@@ -59,6 +59,7 @@ def session_status():
         "can_refresh": bool(session.get("refresh_token")),
     })
 
+
 # --- NUOVO: refresh on-demand (usato dal countdown) ---
 @user_bp.route('/user/session/refresh', methods=['POST'])
 @login_required
@@ -71,6 +72,7 @@ def session_refresh():
         "seconds_left": seconds_left(at),
     })
 
+
 @user_bp.route('/user/session/debug')
 @login_required
 def session_debug():
@@ -81,3 +83,6 @@ def session_debug():
         "OIDC_CLIENT_ID": bool(current_app.config.get("OIDC_CLIENT_ID")),
         "OIDC_CLIENT_SECRET": bool(current_app.config.get("OIDC_CLIENT_SECRET")),
     })
+
+
+

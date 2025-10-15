@@ -1,9 +1,10 @@
-from flask import Blueprint, render_template, request, session, redirect, url_for, current_app
+from flask import Blueprint, make_response, render_template, request, session, redirect, url_for, current_app
 from psycopg2.extras import RealDictCursor
 from routes.auth import login_required
 from db import get_db_connection 
 from utils.commissioni import get_commissioni_sincronizzate
 from utils.sessioni import get_sessioni_internamente
+from utils.oidc import ensure_fresh_access_token
 from datetime import datetime, timezone
 import time
 from utils.commissioni import now_iso_utc
@@ -75,8 +76,19 @@ def _parse_iso_or_none(s: str):
 @dashboard_bp.route('/sessioni/<commission_id>/frammento')
 @login_required
 def sessioni_frammento(commission_id):
-    access_token = session.get('access_token')
+    # ★ 0) Access token fresco (auto-refresh se mancano <=60s)
+    access_token = ensure_fresh_access_token(skew_sec=60)
     user_email   = session.get('user_email')
+
+    # Se non riesco ad avere un AT valido → re-login
+    if not user_email or not access_token:
+        # Se è richiesta HTMX: 401 + HX-Redirect (redireziona senza “sporcare” il DOM)
+        if request.headers.get('HX-Request') == 'true':
+            resp = make_response("", 401)
+            resp.headers['HX-Redirect'] = url_for('auth.login')
+            return resp
+        # Altrimenti redirect classico
+        return redirect(url_for('auth.login'))
 
     # 1) Lettura IMMEDIATA dal DB (pagina reattiva)
     with get_db_connection() as conn:
@@ -125,25 +137,45 @@ def sessioni_frammento(commission_id):
             if (now_utc - last_sync_dt).total_seconds() >= SYNC_COOLDOWN_SECONDS:
                 should_sync = True
 
-    # 3) >>> TEST: sync BLOCCANTE (niente thread) con timeout più alto <<<
+    # 3) Sync BLOCCANTE con gestione 401 (refresh+retry UNA volta)
     sync_msg = None
     if should_sync:
         current_app.logger.info("[sessioni] SYNC BLOCCANTE avviata commission_id=%s", commission_id)
         t0 = time.monotonic()
         try:
+            # ★ 3a) PRIMA chiamata con AT fresco
             esito = get_sessioni_internamente(
                 commission_id,
                 access_token,
                 user_email,
-                timeout_s=(5, 90),   # <--- aumenta solo per il test
+                timeout_s=(5, 90),
                 retries=0
             )
             dt_ms = (time.monotonic() - t0) * 1000
             current_app.logger.info("[sessioni] SYNC BLOCCANTE finita in %.0fms (esito=%s)", dt_ms, esito)
 
+            # ★ 3b) Se 401 dall’API, prova un refresh+retry UNA sola volta
             if esito == "UNAUTHORIZED":
-                sync_msg = "Sessione scaduta: effettua di nuovo l’accesso."
-                current_app.logger.warning("[sessioni] 401 durante sync bloccante")
+                current_app.logger.info("[sessioni] 401: provo refresh+retry")
+                access_token = ensure_fresh_access_token(skew_sec=60)
+                if access_token:
+                    esito = get_sessioni_internamente(
+                        commission_id,
+                        access_token,
+                        user_email,
+                        timeout_s=(5, 90),
+                        retries=0
+                    )
+
+            # ★ 3c) Esito finale dopo eventuale retry
+            if esito == "UNAUTHORIZED":
+                # Token non rinnovabile o revocato → chiedi re-login
+                if request.headers.get('HX-Request') == 'true':
+                    resp = make_response("", 401)
+                    resp.headers['HX-Redirect'] = url_for('auth.login')
+                    return resp
+                return redirect(url_for('auth.login'))
+
             elif isinstance(esito, int) and esito >= 0:
                 # aggiorna last sync
                 with get_db_connection() as conn:
@@ -155,7 +187,7 @@ def sessioni_frammento(commission_id):
                         """, ( now_iso_utc() , commission_id, user_email))
                         conn.commit()
             else:
-                # es. "read_timeout" o altri messaggi dalla tua funzione
+                # es. "read_timeout" o messaggi custom
                 sync_msg = f"Sincronizzazione non riuscita: {esito}"
 
         except Exception as e:
@@ -198,6 +230,7 @@ def sessioni_frammento(commission_id):
     )
 
 
+
 ####api di test per react 
 @dashboard_bp.route('/api/commissioni')
 @login_required
@@ -214,3 +247,6 @@ def api_commissioni():
         return {"error": "Errore nel recupero delle commissioni"}, 500
 
     return {"commissioni": commissioni}
+
+
+

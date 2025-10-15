@@ -18,10 +18,12 @@
     if (!r.ok) throw new Error('status ' + r.status);
     return r.json();
   }
+  
   async function doRefresh() {
     const r = await fetch('/user/session/refresh', {method:'POST', credentials:'same-origin'});
     return r.json();
   }
+
 
   function fmt(seconds) {
     if (seconds == null) return 'sconosciuto';
