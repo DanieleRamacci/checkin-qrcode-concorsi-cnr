@@ -10,5 +10,7 @@
             "username": "postgres",
             "password": ""
         }
-    ]
+    ],
+    "python-envs.pythonProjects": [],
+    "python-envs.defaultEnvManager": "ms-python.python:system"
 }

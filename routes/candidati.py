@@ -1,4 +1,4 @@
-from flask import Blueprint, Flask, request, abort, jsonify, send_from_directory, session, redirect, url_for, render_template
+from flask import Blueprint, Flask, make_response, request, abort, jsonify, send_from_directory, session, redirect, url_for, render_template
 import requests
 import os
 from datetime import datetime
@@ -12,6 +12,7 @@ BASE_URL = os.environ.get('BASE_URL', 'https://cool-jconon.test.si.cnr.it')
 
 
 candidati_bp = Blueprint('candidati', __name__)
+
 
 
 @candidati_bp.route("/checkin-candidato", methods=["POST"])
@@ -78,42 +79,96 @@ def verifica_candidato():
     except Exception as e:
         return jsonify(success=False, message=f"Errore server: {str(e)}"), 500
 
-
 @candidati_bp.route("/sessione/<session_id>/tabella_candidati", methods=["GET"])
 @login_required
 def frammento_tabella_candidati(session_id):
     from datetime import datetime
+    from psycopg2.extras import RealDictCursor
+
+    # --- querystring ---
+    q            = (request.args.get('q') or '').strip()
+    sort         = request.args.get('sort', 'alpha')       # alpha | checkin_no | checkin_yes
+    checkin_f    = request.args.get('checkin', 'all')      # all | yes | no
+    expired_only = request.args.get('expired_only') == '1'  # True/False
+
+    # --- build WHERE dinamico ---
+    where   = ["c.session_id = %s"]
+    params  = [session_id]
+
+    if q:
+        like = f"%{q.lower()}%"
+        where.append("(LOWER(c.first_name) LIKE %s OR LOWER(c.last_name) LIKE %s OR LOWER(c.document_number) LIKE %s)")
+        params += [like, like, like]
+
+    if checkin_f == 'yes':
+        where.append("c.checkin_effettuato = TRUE")
+    elif checkin_f == 'no':
+        where.append("c.checkin_effettuato = FALSE")
+
+    # --- ORDER BY ---
+    if sort == 'checkin_no':
+        order_by = "c.checkin_effettuato ASC, c.last_name ASC, c.first_name ASC"   # prima non effettuati
+    elif sort == 'checkin_yes':
+        order_by = "c.checkin_effettuato DESC, c.last_name ASC, c.first_name ASC"  # prima effettuati
+    else:
+        order_by = "c.last_name ASC, c.first_name ASC"  # default A→Z
+
+    sql = f"""
+        SELECT
+            c.uid AS candidato_id,            
+            c.first_name,
+            c.last_name,
+            c.document_number,
+            c.document_date,                
+            c.checkin_effettuato
+        FROM candidati c
+        WHERE {" AND ".join(where)}
+        ORDER BY {order_by}
+    """
 
     with get_db_connection() as conn:
-        with conn.cursor() as cursor:
-            cursor.execute("""
-                SELECT first_name, last_name, document_number, document_date, checkin_effettuato
-                FROM candidati
-                WHERE session_id = %s
-            """, (session_id,))
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(sql, params)
             righe = cursor.fetchall()
 
+    # --- arricchimento: validità documento (in Python perché document_date è testo) ---
     candidati = []
     oggi = datetime.now().date()
+    for r in righe:
+        doc_str = r.get("document_date")
+        validita_documento = 'scaduto'
+        if doc_str:
+            try:
+                data_doc = datetime.strptime(doc_str, "%d/%m/%Y").date()
+                validita_documento = 'valido' if data_doc >= oggi else 'scaduto'
+            except Exception:
+                # parsing fallito => consideriamo scaduto
+                validita_documento = 'scaduto'
 
-    for row in righe:
-        first_name, last_name, document_number, document_date, checkin_effettuato = row
-        try:
-            data_doc = datetime.strptime(document_date, "%d/%m/%Y").date()
-            validita_documento = 'valido' if data_doc >= oggi else 'scaduto'
-        except Exception:
-            print(f"[ERRORE DATA] Errore nel parsing di '{document_date}'")
-            validita_documento = 'scaduto'  # fallback se data malformata
+        # filtro "solo scaduti"
+        if expired_only and validita_documento == 'valido':
+            continue
 
         candidati.append({
-            "first_name": first_name,
-            "last_name": last_name,
-            "document_number": document_number,
-            "checkin_effettuato": checkin_effettuato,
+            "candidato_id": r["candidato_id"],
+            "first_name": r["first_name"],
+            "last_name": r["last_name"],
+            "document_number": r["document_number"],
+            "checkin_effettuato": r["checkin_effettuato"],
             "validita_documento": validita_documento,
         })
 
-    return render_template("frammenti/tabella_candidati.html", candidati=candidati)
+    return render_template(
+        "frammenti/tabella_candidati.html",
+        sessione_id=session_id,          # per i pulsanti/toggle
+        candidati=candidati,
+        # stato filtri per mantenerli nel form
+        q=q,
+        sort=sort,
+        checkin=checkin_f,
+        expired_only=expired_only
+    )
+
 
 
 
@@ -203,8 +258,15 @@ def get_candidati():
                     ))
                     inseriti += cursor.rowcount
 
-                if inseriti == 0:
-                    return jsonify({"success": False, "message": "Nessun candidato è stato importato dal file JSON."}), 500
+                # Verifica completezza import: i candidati nel DB devono combaciare con quelli ricevuti.
+                cursor.execute("SELECT COUNT(*) FROM candidati WHERE session_id = %s", (session_id,))
+                db_count = cursor.fetchone()[0]
+                expected = len(candidati)
+                if db_count != expected:
+                    return jsonify({
+                        "success": False,
+                        "message": f"Import parziale: attesi {expected}, presenti {db_count}."
+                    }), 500
 
                 # Aggiorna stato sessione
                 cursor.execute("""
@@ -227,3 +289,35 @@ def get_candidati():
 
 
 
+# routes/candidati.py
+
+@candidati_bp.route('/sessione/<session_id>/candidato/<candidato_uid>/toggle_checkin', methods=['POST'])
+@login_required
+def toggle_checkin(session_id, candidato_uid):
+    from psycopg2.extras import RealDictCursor
+
+    with get_db_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # 1) esiste ed è della sessione?
+            cur.execute("""
+                SELECT uid, COALESCE(checkin_effettuato, FALSE) AS checkin_effettuato
+                FROM candidati
+                WHERE uid = %s AND session_id = %s
+                LIMIT 1
+            """, (candidato_uid, session_id))
+            row = cur.fetchone()
+            if not row:
+                return ("Candidato non trovato nella sessione", 404)
+
+            # 2) toggle
+            cur.execute("""
+                UPDATE candidati
+                   SET checkin_effettuato = NOT COALESCE(checkin_effettuato, FALSE)
+                 WHERE uid = %s AND session_id = %s
+            """, (candidato_uid, session_id))
+            conn.commit()
+
+    # 3) risposta HTMX: ricarica tabella con i filtri correnti
+    resp = make_response("", 204)
+    resp.headers['HX-Trigger'] = 'candidatiAggiornati'
+    return resp

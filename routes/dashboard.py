@@ -11,7 +11,7 @@ from utils.commissioni import now_iso_utc
 
 
 
-SYNC_COOLDOWN_SECONDS = 120 # throttle: non risincronizzare se fatta < 90s fa
+SYNC_COOLDOWN_SECONDS = 24 * 60 * 60 # throttle: non risincronizzare se fatta < 90s fa
 
 
 dashboard_bp = Blueprint('dashboard', __name__)
@@ -38,9 +38,7 @@ def index():
 
 
 
-
-
-@dashboard_bp.route('/sessioni')
+@dashboard_bp.route('/sessioni') 
 @login_required
 def sessioni():
     commission_id = request.args.get('commission_id')
@@ -76,36 +74,34 @@ def _parse_iso_or_none(s: str):
 @dashboard_bp.route('/sessioni/<commission_id>/frammento')
 @login_required
 def sessioni_frammento(commission_id):
-    # ★ 0) Access token fresco (auto-refresh se mancano <=60s)
+    from datetime import datetime, timezone  # assicurati di avere questi import
+
     access_token = ensure_fresh_access_token(skew_sec=60)
     user_email   = session.get('user_email')
 
-    # Se non riesco ad avere un AT valido → re-login
     if not user_email or not access_token:
-        # Se è richiesta HTMX: 401 + HX-Redirect (redireziona senza “sporcare” il DOM)
         if request.headers.get('HX-Request') == 'true':
             resp = make_response("", 401)
             resp.headers['HX-Redirect'] = url_for('auth.login')
             return resp
-        # Altrimenti redirect classico
         return redirect(url_for('auth.login'))
 
-    # 1) Lettura IMMEDIATA dal DB (pagina reattiva)
+    # 1) Lettura IMMEDIATA dal DB (titolo + sessioni + ultimo sync SOLO da tabella sessioni)
     with get_db_connection() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # titolo
             cur.execute("""
-                SELECT titolo, data_sync
+                SELECT titolo
                 FROM commissions
                 WHERE commission_id = %s AND user_email = %s
                 LIMIT 1
             """, (commission_id, user_email))
             row = cur.fetchone()
             concorso_titolo = row["titolo"] if row else None
-            last_sync_text  = row["data_sync"] if row else None
-            last_sync_dt    = _parse_iso_or_none(last_sync_text)
 
+            # sessioni per la tabella
             cur.execute("""
-                SELECT s.session_id, s.nome, s.luogo, s.giorno, s.ora, s.attiva, s.data_esame
+                SELECT s.session_id, s.nome, s.luogo, s.giorno, s.ora, s.attiva, s.data_esame, s.data_sync
                 FROM sessioni s
                 JOIN commissions c ON c.commission_id = s.commission_id
                 WHERE s.commission_id = %s AND c.user_email = %s
@@ -122,28 +118,49 @@ def sessioni_frammento(commission_id):
             """, (commission_id, user_email))
             sessioni = cur.fetchall()
 
+            # ultimo sync SOLO da sessioni (MAX data_sync)
+            cur.execute("""
+                SELECT MAX(s.data_sync) AS max_session_sync
+                FROM sessioni s
+                JOIN commissions c ON c.commission_id = s.commission_id
+                WHERE s.commission_id = %s AND c.user_email = %s
+            """, (commission_id, user_email))
+            row2 = cur.fetchone()
+            sess_last_sync_raw = row2["max_session_sync"] if row2 else None
+
+    # Normalizza last_sync_dt (TEXT ISO → datetime tz-aware)
+    def _norm(dt_raw):
+        if isinstance(dt_raw, datetime):
+            return dt_raw if dt_raw.tzinfo else dt_raw.replace(tzinfo=timezone.utc)
+        if isinstance(dt_raw, str):
+            dt = _parse_iso_or_none(dt_raw)
+            if dt and dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
+        return None
+
+    last_sync_dt = _norm(sess_last_sync_raw)
+
     # 2) Decidi se lanciare la sync
-    should_sync = False
     now_utc = datetime.now(timezone.utc)
-
-    if len(sessioni) == 0:
-        should_sync = True
+    if last_sync_dt is None:
+        # Nessuna riga con data_sync → DB effettivamente vuoto (o mai sync riuscita)
+        should_sync = (len(sessioni) == 0)
     else:
-        if last_sync_dt is None:
-            should_sync = True
-        else:
-            if last_sync_dt.tzinfo is None:
-                last_sync_dt = last_sync_dt.replace(tzinfo=timezone.utc)
-            if (now_utc - last_sync_dt).total_seconds() >= SYNC_COOLDOWN_SECONDS:
-                should_sync = True
+        # DB con dati → rispetta il cooldown
+        should_sync = (now_utc - last_sync_dt).total_seconds() >= SYNC_COOLDOWN_SECONDS
 
-    # 3) Sync BLOCCANTE con gestione 401 (refresh+retry UNA volta)
+    current_app.logger.debug(
+        "[frammento] should_sync=%s len(sessioni)=%d last_sync_dt=%s cooldown=%s",
+        should_sync, len(sessioni), last_sync_dt, SYNC_COOLDOWN_SECONDS
+    )
+
+    # 3) Sync BLOCCANTE con gestione 401 (retry 1 volta)
     sync_msg = None
     if should_sync:
         current_app.logger.info("[sessioni] SYNC BLOCCANTE avviata commission_id=%s", commission_id)
         t0 = time.monotonic()
         try:
-            # ★ 3a) PRIMA chiamata con AT fresco
             esito = get_sessioni_internamente(
                 commission_id,
                 access_token,
@@ -152,9 +169,8 @@ def sessioni_frammento(commission_id):
                 retries=0
             )
             dt_ms = (time.monotonic() - t0) * 1000
-            current_app.logger.info("[sessioni] SYNC BLOCCANTE finita in %.0fms (esito=%s)", dt_ms, esito)
+            current_app.logger.info("[sessioni] SYNC BLOCCANTE finita in %.0fms (esito=%r)", dt_ms, esito)
 
-            # ★ 3b) Se 401 dall’API, prova un refresh+retry UNA sola volta
             if esito == "UNAUTHORIZED":
                 current_app.logger.info("[sessioni] 401: provo refresh+retry")
                 access_token = ensure_fresh_access_token(skew_sec=60)
@@ -167,9 +183,7 @@ def sessioni_frammento(commission_id):
                         retries=0
                     )
 
-            # ★ 3c) Esito finale dopo eventuale retry
             if esito == "UNAUTHORIZED":
-                # Token non rinnovabile o revocato → chiedi re-login
                 if request.headers.get('HX-Request') == 'true':
                     resp = make_response("", 401)
                     resp.headers['HX-Redirect'] = url_for('auth.login')
@@ -177,28 +191,20 @@ def sessioni_frammento(commission_id):
                 return redirect(url_for('auth.login'))
 
             elif isinstance(esito, int) and esito >= 0:
-                # aggiorna last sync
-                with get_db_connection() as conn:
-                    with conn.cursor() as cur:
-                        cur.execute("""
-                            UPDATE commissions
-                            SET data_sync = %s
-                            WHERE commission_id = %s AND user_email = %s
-                        """, ( now_iso_utc() , commission_id, user_email))
-                        conn.commit()
+                # SUCCESSO (anche 0 insert). Non aggiorniamo commissions.data_sync
+                pass
             else:
-                # es. "read_timeout" o messaggi custom
-                sync_msg = f"Sincronizzazione non riuscita: {esito}"
+                sync_msg = "Sincronizzazione non riuscita"
 
         except Exception as e:
             sync_msg = f"Errore durante la sincronizzazione: {e}"
-            current_app.logger.warning(f"[sessioni] SYNC BLOCCANTE eccezione {commission_id}: {e}")
+            current_app.logger.warning("[sessioni] SYNC BLOCCANTE eccezione %s: %s", commission_id, e)
 
-        # ricarica le sessioni dopo la sync (sia ok che ko)
+        # ricarica le sessioni dopo la sync
         with get_db_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
-                    SELECT s.session_id, s.nome, s.luogo, s.giorno, s.ora, s.attiva, s.data_esame
+                    SELECT s.session_id, s.nome, s.luogo, s.giorno, s.ora, s.attiva, s.data_esame, s.data_sync
                     FROM sessioni s
                     JOIN commissions c ON c.commission_id = s.commission_id
                     WHERE s.commission_id = %s AND c.user_email = %s
@@ -216,20 +222,13 @@ def sessioni_frammento(commission_id):
                 sessioni = cur.fetchall()
 
     # 4) Render del frammento
-    messaggio = None
-    if sync_msg:
-        messaggio = sync_msg
-    elif len(sessioni) == 0:
-        messaggio = "Nessuna sessione disponibile in archivio locale."
-
+    messaggio = sync_msg if sync_msg else None
     return render_template(
         "frammenti/sessioni_tabella.html",
         sessioni=sessioni,
         concorso_titolo=concorso_titolo,
         messaggio=messaggio
     )
-
-
 
 ####api di test per react 
 @dashboard_bp.route('/api/commissioni')

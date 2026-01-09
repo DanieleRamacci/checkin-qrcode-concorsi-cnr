@@ -121,8 +121,12 @@ def importa_candidati_da_api(session_id, user_email, access_token):
 
                 print(f"[importa] inseriti in DB: {inseriti}", flush=True)
 
-                if inseriti == 0:
-                    msg = "Nessun candidato è stato importato dal file JSON."
+                # Verifica completezza import: i candidati nel DB devono combaciare con quelli ricevuti.
+                cursor.execute("SELECT COUNT(*) FROM candidati WHERE session_id = %s", (session_id,))
+                db_count = cursor.fetchone()[0]
+                expected = len(candidati)
+                if db_count != expected:
+                    msg = f"Import parziale: attesi {expected}, presenti {db_count}."
                     print(f"[importa] {msg}", flush=True)
                     return {"success": False, "message": msg}
 

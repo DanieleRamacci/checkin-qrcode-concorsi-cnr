@@ -1,6 +1,7 @@
-from flask import Flask, jsonify, session, current_app, request, Response
+from flask import Flask, jsonify, session, current_app, request, Response, url_for
 from flask_session import Session
-from datetime import datetime, timezone
+import redis
+from datetime import datetime
 from pathlib import Path
 import os
 from flask import send_file
@@ -10,6 +11,9 @@ from psycopg2.extras import RealDictCursor
 from routes import register_blueprints  # importa la funzione dal __init__.py
 from routes.auth import login_required  
 from utils.logging_setup import setup_logging
+from datetime import datetime, timedelta
+from utils.device_tokens import make_reg_token
+
 
 
 # === FLASK APP ===
@@ -39,14 +43,34 @@ app.config.update(
 # === ENVIRONMENT CONFIGURATION ===
 version = os.getenv("APP_VERSION", "test")
 app.jinja_env.globals.update(current_year=datetime.now().year)
+# === SESSIONI SU REDIS ===
 app.secret_key = os.getenv('SECRET_KEY', 'fallback')
-app.config['SESSION_TYPE'] = 'filesystem'
 
-# Assicura che la cartella 'instance/flask_session' esista
-session_dir = os.path.join(app.instance_path, 'flask_session')
-os.makedirs(session_dir, exist_ok=True)
-app.config['SESSION_FILE_DIR'] = session_dir
-print(">>> Session directory:", session_dir)
+SESSION_TYPE = os.getenv('SESSION_TYPE', 'filesystem').lower()
+app.config['SESSION_TYPE'] = SESSION_TYPE
+
+if SESSION_TYPE == 'redis':
+    redis_url = os.getenv('REDIS_URL', 'redis://redis:6379/0')
+    # Se usi requirepass:
+    # es: redis://:password@redis:6379/0
+    app.config['SESSION_REDIS'] = redis.from_url(redis_url, decode_responses=False)
+    app.config['SESSION_PERMANENT'] = True
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
+    app.config['SESSION_USE_SIGNER'] = True
+    app.config['SESSION_KEY_PREFIX'] = 'flask_sess:'
+    # Cookie hardening
+    app.config['SESSION_COOKIE_NAME'] = 'sid'
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['SESSION_COOKIE_SECURE'] = os.getenv('COOKIE_SECURE', '0') == '1'
+else:
+    # Fallback: filesystem (dev)
+    from pathlib import Path
+    session_dir = os.path.join(app.instance_path, 'flask_session')
+    Path(session_dir).mkdir(parents=True, exist_ok=True)
+    app.config['SESSION_FILE_DIR'] = session_dir
+    app.config['SESSION_PERMANENT'] = True
+
 Session(app)
 
 setup_logging(app)
@@ -57,9 +81,11 @@ app.logger.debug("Logging inizializzato")
 @app.route("/qr-code/<session_id>")
 @login_required
 def genera_qr_code(session_id):
-    import json
-    data = json.dumps({"session_id": session_id})
-    img = qrcode.make(data)
+    token = request.args.get("token")
+    if not token:
+        token = make_reg_token(session_id, app.secret_key)
+    link = url_for("scanner.device_link", session_id=session_id, token=token, _external=True)
+    img = qrcode.make(link)
     buffer = io.BytesIO()
     img.save(buffer, format='PNG')
     buffer.seek(0)
@@ -96,9 +122,6 @@ def genera_qr_pdf(session_id):
     pdf_output.seek(0)
 
     return send_file(pdf_output, mimetype='application/pdf', download_name=f"qr_sessione_{session_id}.pdf")
-
-
-
 
 
 

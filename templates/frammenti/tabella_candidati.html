@@ -1,9 +1,10 @@
-<h5 class="mb-3" >Elenco candidati</h5>
-  
+<h5 class="mb-3">Elenco candidati</h5>
+
+
 
 {% if candidati|length == 0 %}
   <div class="alert alert-warning" role="alert">
-    Nessun candidato presente. Clicca su <strong>"Scarica candidati da Selezioni Online"</strong> per importarli.
+    Nessun candidato presente.
   </div>
 {% else %}
   <div class="table-responsive">
@@ -16,6 +17,7 @@
           <th>Documento</th>
           <th>Validità</th>
           <th>Check-in</th>
+          <th style="width:1%"></th>
         </tr>
       </thead>
       <tbody>
@@ -25,29 +27,37 @@
             <td>{{ c.first_name }}</td>
             <td>{{ c.last_name }}</td>
             <td>{{ c.document_number }}</td>
+
             <td>
               {% if c.validita_documento == 'valido' %}
-                <svg class="icon icon-success" aria-label="Check-in effettuato">
-                  <use href="/static/svg/sprites.svg#it-check-circle" xlink:href="/bootstrap-italia/dist/svg/sprites.svg#it-check-circle"></use>
+                <svg class="icon icon-success" aria-label="Documento valido">
+                  <use href="/static/svg/sprites.svg#it-check-circle"></use>
                 </svg>
               {% else %}
-                <svg class="icon icon-danger" aria-label="Check-in non effettuato">
-                  <use href="/static/svg/sprites.svg#it-close-circle" xlink:href="/bootstrap-italia/dist/svg/sprites.svg#it-close-circle"></use>
-                </svg>
+                <span class="badge bg-danger">Scaduto</span>
               {% endif %}
             </td>
-           
+
             <td>
               {% if c.checkin_effettuato %}
-                <svg class="icon icon-success" aria-label="Check-in effettuato">
-                  <use href="/static/svg/sprites.svg#it-check-circle" xlink:href="/bootstrap-italia/dist/svg/sprites.svg#it-check-circle"></use>
-                </svg>
+                <span class="badge bg-success">Effettuato</span>
               {% else %}
-                <svg class="icon icon-danger" aria-label="Check-in non effettuato">
-                  <use href="/static/svg/sprites.svg#it-close-circle" xlink:href="/bootstrap-italia/dist/svg/sprites.svg#it-close-circle"></use>
-                </svg>
+                <span class="badge bg-secondary">Non effettuato</span>
               {% endif %}
             </td>
+
+             <td class="text-nowrap">
+            <button
+              class="btn btn-sm {{ 'btn-outline-danger' if c.checkin_effettuato else 'btn-outline-success' }}"
+              hx-post="/sessione/{{ sessione_id }}/candidato/{{ c.candidato_id }}/toggle_checkin"
+              hx-headers='{"X-CSRFToken":"{{ csrf_token() if csrf_token is defined else "" }}"}'
+              hx-trigger="click"
+              hx-target="body"
+              hx-swap="none"
+              data-block-ui>
+              {{ 'Disabilita' if c.checkin_effettuato else 'Conferma' }}
+            </button>
+          </td>
 
           </tr>
         {% endfor %}

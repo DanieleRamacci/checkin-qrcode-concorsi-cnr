@@ -107,12 +107,48 @@
               hx-swap="innerHTML">
               Aggiorna
             </button>
-        <div id="tabella-candidati"
-            hx-get="/sessione/{{ sessione.session_id }}/tabella_candidati"
-            hx-trigger="load, candidatiScaricati from:body"
-            hx-swap="innerHTML">
-          <!-- HTMX caricherà qui il frammento -->
-        </div>
+      <form id="filtri-candidati"
+      class="row g-2 mb-3"
+      hx-get="/sessione/{{ sessione.session_id }}/tabella_candidati"
+      hx-target="#tabella-candidati"
+      hx-swap="innerHTML"
+      hx-trigger="load, change, keyup delay:300ms from:#search, candidatiScaricati from:body, candidatiAggiornati from:body">
+
+  <div class="col-md-4">
+    <input id="search" name="q" class="form-control"
+           placeholder="Cerca nome, cognome o documento"
+           value="{{ q or '' }}">
+  </div>
+
+  <div class="col-md-3">
+    <select name="sort" class="form-select">
+      <option value="alpha"      {{ 'selected' if sort=='alpha'      else '' }}>Ordina A→Z (Cognome)</option>
+      <option value="checkin_no" {{ 'selected' if sort=='checkin_no' else '' }}>Prima non effettuati</option>
+      <option value="checkin_yes"{{ 'selected' if sort=='checkin_yes' else '' }}>Prima effettuati</option>
+    </select>
+  </div>
+
+  <div class="col-md-3">
+    <select name="checkin" class="form-select">
+      <option value="all" {{ 'selected' if checkin=='all' else '' }}>Tutti i check-in</option>
+      <option value="yes" {{ 'selected' if checkin=='yes' else '' }}>Solo effettuati</option>
+      <option value="no"  {{ 'selected' if checkin=='no'  else '' }}>Solo non effettuati</option>
+    </select>
+  </div>
+
+  <div class="col-md-2 d-flex align-items-center">
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox"
+             id="expired_only" name="expired_only" value="1"
+             {% if expired_only %}checked{% endif %}>
+      <label class="form-check-label" for="expired_only">Documento scaduto</label>
+    </div>
+  </div>
+</form>
+
+<!-- Il DIV è SOLO target, non fa richieste -->
+<div id="tabella-candidati"></div>
+
       {% endif %}
 
 

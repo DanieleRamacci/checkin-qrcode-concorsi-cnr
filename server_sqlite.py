@@ -4,7 +4,7 @@ from urllib.parse import urlencode
 from functools import wraps
 import sqlite3
 import requests
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 import json
 import random
@@ -16,7 +16,6 @@ import hashlib
 from flask import send_file
 import qrcode
 import io
-
 
 # === FLASK APP ===
 app = Flask(__name__, static_folder='static')
@@ -938,7 +937,16 @@ def get_commissioni_sincronizzate(access_token, user_email):
 
 
 def get_sessioni_internamente(commission_id, access_token, user_email):
+    """
+    Sincronizza le sessioni di una commissione.
+
+    Ritorni:
+      - int >= 0  : numero di sessioni inserite (successo)
+      - "UNAUTHORIZED": token scaduto/invalid (401)
+      - -1        : errore (rete/HTTP/DB/parsing ecc.)
+    """
     try:
+        # 1) Autorizzazione utente sulla commissione
         with sqlite3.connect('checkin.db') as conn:
             cursor = conn.cursor()
             cursor.execute("""
@@ -947,40 +955,74 @@ def get_sessioni_internamente(commission_id, access_token, user_email):
             """, (commission_id, user_email))
             if not cursor.fetchone():
                 print(f"[DEBUG] Nessuna autorizzazione per commission_id={commission_id}")
-                return None
+                return -1  # non "successo": impedisce update del data_sync
 
+        # 2) Chiamata API remota (con timeout)
         api_url = f'https://cool-jconon.test.si.cnr.it/openapi/v1/call/exam-sessions/{commission_id}'
         headers = {
             'Authorization': f'Bearer {access_token}',
             'Accept': 'application/json'
         }
 
-        response = requests.get(api_url, headers=headers)
+        try:
+            response = requests.get(api_url, headers=headers, timeout=(3.05, 20))
+        except Exception as e:
+            print(f"[DEBUG] Errore rete chiamando API: {e}")
+            return -1
+
         print(f"[DEBUG] Status code API: {response.status_code}")
         if response.status_code == 401:
             print("[DEBUG] Token scaduto")
-            return None
+            return "UNAUTHORIZED"
 
-        response.raise_for_status()
-        sessioni_data = response.json()
+        try:
+            response.raise_for_status()
+        except Exception as e:
+            print(f"[DEBUG] HTTP error: {e}")
+            return -1
 
-        result = []
-        now = datetime.now().isoformat()
+        try:
+            sessioni_data = response.json()
+        except Exception as e:
+            print(f"[DEBUG] JSON parse error: {e}")
+            return -1
+
+        # 3) Inserimento in DB
+        inserted = 0
+        now_iso_utc = datetime.now(timezone.utc).isoformat()
 
         with sqlite3.connect('checkin.db') as conn:
             cursor = conn.cursor()
 
             for session_string, candidati in sessioni_data.items():
                 try:
-                    parts = session_string.split(' - ')
+                    # Formato atteso: "Luogo - dd/mm/YYYY HH:MM"
+                    parts = session_string.split(' - ', 1)
                     if len(parts) != 2:
+                        # formato inatteso: salta la riga ma non fallire l'intera sync
+                        print(f"[PARSE WARN] formato inatteso: {session_string}")
                         continue
 
                     luogo = parts[0].strip()
-                    giorno_str, ora_str = parts[1].strip().split(' ')
+                    right = parts[1].strip()
+
+                    # split una sola volta su spazio tra data e ora
+                    try:
+                        giorno_str, ora_str = right.split(' ', 1)
+                    except ValueError:
+                        print(f"[PARSE WARN] data/ora mancanti: {session_string}")
+                        continue
+
                     giorno = giorno_str.strip()
                     ora = ora_str.strip()
-                    data_esame_iso = datetime.strptime(f"{giorno} {ora}", "%d/%m/%Y %H:%M").isoformat()
+
+                    try:
+                        data_esame_iso = datetime.strptime(
+                            f"{giorno} {ora}", "%d/%m/%Y %H:%M"
+                        ).isoformat()
+                    except Exception as e:
+                        print(f"[PARSE WARN] data_esame non parsabile '{giorno} {ora}': {e}")
+                        continue
 
                     raw_key = f"{commission_id}::{session_string}"
                     session_id = hashlib.md5(raw_key.encode()).hexdigest()
@@ -990,29 +1032,30 @@ def get_sessioni_internamente(commission_id, access_token, user_email):
                             session_id, commission_id, user_email, session_string,
                             nome, giorno, ora, luogo, data_esame,
                             attiva, candidati_importati, sync_user_email, data_sync
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)
                     """, (
                         session_id, commission_id, user_email, session_string,
                         session_string, giorno, ora, luogo, data_esame_iso,
-                        user_email, now
+                        user_email, now_iso_utc
                     ))
 
-                    result.append({
-                        "session_id": session_id,
-                        "session_string": session_string,
-                        "luogo": luogo,
-                        "giorno": giorno,
-                        "ora": ora
-                    })
+                    if cursor.rowcount > 0:
+                        inserted += 1
+
                 except Exception as e:
+                    # non far fallire tutta la sync per un record problematico
                     print(f"[ERRORE PARSING] {session_string}: {e}")
                     continue
 
-        return result
+            conn.commit()
+
+        return inserted  # successo (anche 0)
 
     except Exception as e:
         print(f"[ERRORE GENERICO get_sessioni] {e}")
-        return None
+        return -1
+
 
 
 def is_document_valid(date_str):
