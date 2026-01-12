@@ -41,6 +41,61 @@ Session(app)
 DB_PATH = os.getenv('DATABASE_FILE', 'checkin.db')
 print(f">>> DB_PATH = {DB_PATH}")
 
+# Ensure basic SQLite schema exists (helps tests and local dev)
+# Tables are created with 'IF NOT EXISTS' so this is idempotent and safe.
+try:
+    with sqlite3.connect(DB_PATH) as _conn:
+        _cur = _conn.cursor()
+        _cur.execute("""
+            CREATE TABLE IF NOT EXISTS sessioni (
+                session_id TEXT PRIMARY KEY,
+                commission_id TEXT,
+                user_email TEXT,
+                session_string TEXT,
+                nome TEXT,
+                giorno TEXT,
+                ora TEXT,
+                luogo TEXT,
+                data_esame TEXT,
+                attiva INTEGER DEFAULT 0,
+                candidati_importati INTEGER DEFAULT 0,
+                stato_corrente TEXT DEFAULT 'iniziale'
+            );
+        """)
+        _cur.execute("""
+            CREATE TABLE IF NOT EXISTS candidati (
+                uid TEXT,
+                session_id TEXT,
+                first_name TEXT,
+                last_name TEXT,
+                birthdate TEXT,
+                fiscal_code TEXT,
+                document_type TEXT,
+                document_number TEXT,
+                document_date TEXT,
+                document_issued_by TEXT,
+                checkin_effettuato INTEGER DEFAULT 0,
+                documento_scaduto INTEGER DEFAULT 0,
+                PRIMARY KEY (uid, session_id)
+            );
+        """)
+        _cur.execute("""
+            CREATE TABLE IF NOT EXISTS dispositivi (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ip_address TEXT,
+                user_agent TEXT,
+                session_id TEXT,
+                nome_dispositivo TEXT,
+                device_token TEXT,
+                last_seen TIMESTAMP,
+                disconnected_at TIMESTAMP,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        _conn.commit()
+except Exception as exc:
+    print(f"[WARN] Impossibile assicurare schema SQLite: {exc}")
+
 
 # === CONFIG OIDC ===
 OIDC_CLIENT_ID = 'selezioni'
