@@ -37,7 +37,9 @@ print(f">>> CHECKIN_STATE_ENFORCEMENT = {app.config['CHECKIN_STATE_ENFORCEMENT']
 
 # Inizializza la sessione
 Session(app)
-DB_PATH = 'checkin.db'
+# Path al database SQLite (si può sovrascrivere tramite la variabile d'ambiente DATABASE_FILE nei test)
+DB_PATH = os.getenv('DATABASE_FILE', 'checkin.db')
+print(f">>> DB_PATH = {DB_PATH}")
 
 
 # === CONFIG OIDC ===
