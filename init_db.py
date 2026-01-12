@@ -110,8 +110,15 @@ try:
         user_agent TEXT,
         session_id TEXT,
         nome_dispositivo TEXT,
+        device_token TEXT,
+        last_seen TIMESTAMP,
+        disconnected_at TIMESTAMP,
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+    """)
+    cursor.execute("""
+    CREATE UNIQUE INDEX IF NOT EXISTS dispositivi_device_token_uq
+    ON dispositivi (device_token);
     """)
     # Tabella liste generate
     cursor.execute("""

@@ -13,6 +13,19 @@ BASE_URL = os.environ.get('BASE_URL', 'https://cool-jconon.test.si.cnr.it')
 
 candidati_bp = Blueprint('candidati', __name__)
 
+def _device_authorized(session_id: str, device_token: str) -> bool:
+    if not session_id or not device_token:
+        return False
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT 1
+                FROM dispositivi
+                WHERE session_id = %s AND device_token = %s
+                LIMIT 1
+            """, (session_id, device_token))
+            return cursor.fetchone() is not None
+
 
 
 @candidati_bp.route("/checkin-candidato", methods=["POST"])
@@ -20,9 +33,12 @@ def checkin_candidato():
     data = request.json
     uid = data.get("uid")
     session_id = data.get("session_id")
+    device_token = data.get("device_token")
 
-    if not uid or not session_id:
+    if not uid or not session_id or not device_token:
         return jsonify(success=False, message="Parametri mancanti."), 400
+    if not _device_authorized(session_id, device_token):
+        return jsonify(success=False, message="Dispositivo non autorizzato."), 403
 
     try:
         with get_db_connection() as conn:
@@ -48,15 +64,18 @@ def verifica_candidato():
     data = request.json
     uid = data.get("uid")
     session_id = data.get("session_id")
+    device_token = data.get("device_token")
 
-    if not uid or not session_id:
+    if not uid or not session_id or not device_token:
         return jsonify(success=False, message="Parametri mancanti."), 400
+    if not _device_authorized(session_id, device_token):
+        return jsonify(success=False, message="Dispositivo non autorizzato."), 403
 
     try:
         with get_db_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
-                    SELECT first_name, last_name, document_number, checkin_effettuato
+                    SELECT first_name, last_name, document_number, document_date, checkin_effettuato
                     FROM candidati 
                     WHERE uid = %s AND session_id = %s
                 """, (uid, session_id))
@@ -65,7 +84,17 @@ def verifica_candidato():
                 if not candidato:
                     return jsonify(success=False, message="Candidato non trovato o non appartiene alla sessione."), 404
 
-                nome, cognome, numero_documento, checkin_effettuato = candidato
+                nome, cognome, numero_documento, document_date, checkin_effettuato = candidato
+
+                # Calcola se il documento è scaduto (formato dd/mm/YYYY)
+                documento_scaduto = False
+                if document_date:
+                    try:
+                        from datetime import datetime, date
+                        data_doc = datetime.strptime(document_date, "%d/%m/%Y").date()
+                        documento_scaduto = data_doc < date.today()
+                    except Exception:
+                        documento_scaduto = True  # se parsing fallisce consideralo scaduto
 
                 if checkin_effettuato:
                     return jsonify(success=False, message="Candidato già registrato al check-in."), 409
@@ -74,6 +103,7 @@ def verifica_candidato():
                     "nome": nome,
                     "cognome": cognome,
                     "numero_documento": numero_documento,
+                    "documento_scaduto": documento_scaduto,
                     "session_id": session_id
                 })
     except Exception as e:

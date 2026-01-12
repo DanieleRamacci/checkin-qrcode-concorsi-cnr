@@ -12,6 +12,7 @@ from utils.device_tokens import make_reg_token, verify_reg_token
 
 dispositivi_bp = Blueprint('dispositivi', __name__)
 REG_TOKEN_MAX_AGE_SECONDS = 30 * 60
+PING_ACTIVE_SECONDS = 90
 
 
 @dispositivi_bp.route("/api/dispositivo/registrazione", methods=["POST"])
@@ -44,10 +45,10 @@ def registra_dispositivo():
                 device_token = secrets.token_urlsafe(32)
                 cursor.execute(
                     """
-                    INSERT INTO dispositivi (ip_address, user_agent, session_id, timestamp, device_token)
-                    VALUES (%s, %s, %s, %s, %s)
+                    INSERT INTO dispositivi (ip_address, user_agent, session_id, timestamp, device_token, last_seen, disconnected_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, NULL)
                     """,
-                    (ip_address, user_agent, session_id, timestamp, device_token)
+                    (ip_address, user_agent, session_id, timestamp, device_token, timestamp)
                 )
             conn.commit()
 
@@ -72,15 +73,6 @@ def pagina_dispositivi(session_id):
                 if not sessione:
                     abort(404, description="Sessione non trovata")
 
-                # Recupera dispositivi associati
-                cursor.execute("""
-                    SELECT timestamp, nome_dispositivo, user_agent, ip_address
-                    FROM dispositivi
-                    WHERE session_id = %s
-                    ORDER BY timestamp DESC
-                """, (session_id,))
-                dispositivi = cursor.fetchall()
-
         # Costruzione QR code e link con token firmato
         secret_key = current_app.secret_key
         if not secret_key:
@@ -89,6 +81,7 @@ def pagina_dispositivi(session_id):
         qr_url = url_for("genera_qr_code", session_id=session_id, token=reg_token)
         qr_url_text = url_for("scanner.device_link", session_id=session_id, token=reg_token, _external=True)
 
+        dispositivi = _load_dispositivi_with_status(session_id)
         return render_template(
             "dispositivi.html",
             sessione=sessione,
@@ -108,19 +101,91 @@ def pagina_dispositivi(session_id):
 @login_required
 def frammento_dispositivi(session_id):
     try:
-        with get_db_connection() as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                cursor.execute("""
-                    SELECT timestamp, nome_dispositivo, user_agent, ip_address
-                    FROM dispositivi
-                    WHERE session_id = %s
-                    ORDER BY timestamp DESC
-                """, (session_id,))
-                dispositivi = cursor.fetchall()
-
-
+        dispositivi = _load_dispositivi_with_status(session_id)
         return render_template("frammenti/dispositivi_tabella.html", dispositivi=dispositivi, sessione_id=session_id)
 
     except Exception as e:
         print("❌ Errore nel frammento dispositivi:", e)
         return "Errore caricamento tabella", 500
+
+
+@dispositivi_bp.route("/api/dispositivo/ping", methods=["POST"])
+def ping_dispositivo():
+    data = request.get_json()
+    session_id = data.get("session_id")
+    device_token = data.get("device_token")
+    if not session_id or not device_token:
+        return jsonify(success=False, message="Parametri mancanti"), 400
+
+    now = datetime.now(timezone.utc)
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                UPDATE dispositivi
+                   SET last_seen = %s,
+                       disconnected_at = NULL
+                 WHERE session_id = %s AND device_token = %s
+            """, (now, session_id, device_token))
+        conn.commit()
+
+    return jsonify(success=True)
+
+
+@dispositivi_bp.route("/api/dispositivo/disconnetti", methods=["POST"])
+def disconnetti_dispositivo():
+    data = request.get_json()
+    session_id = data.get("session_id")
+    device_token = data.get("device_token")
+    if not session_id or not device_token:
+        return jsonify(success=False, message="Parametri mancanti"), 400
+
+    now = datetime.now(timezone.utc)
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                UPDATE dispositivi
+                   SET disconnected_at = %s
+                 WHERE session_id = %s AND device_token = %s
+            """, (now, session_id, device_token))
+        conn.commit()
+
+    return jsonify(success=True)
+
+
+def _load_dispositivi_with_status(session_id):
+    now = datetime.now(timezone.utc)
+    cutoff = now.timestamp() - PING_ACTIVE_SECONDS
+    dispositivi = []
+
+    with get_db_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute("""
+                SELECT timestamp, nome_dispositivo, user_agent, ip_address, last_seen, disconnected_at
+                FROM dispositivi
+                WHERE session_id = %s
+            """, (session_id,))
+            rows = cursor.fetchall()
+
+    for d in rows:
+        last_seen = d.get("last_seen")
+        disconnected_at = d.get("disconnected_at")
+        if disconnected_at:
+            status = "disconnected"
+            status_label = "disconnesso"
+        elif last_seen and last_seen.timestamp() >= cutoff:
+            status = "online"
+            status_label = "connesso"
+        else:
+            status = "offline"
+            status_label = "offline"
+
+        d["status"] = status
+        d["status_label"] = status_label
+        dispositivi.append(d)
+
+    rank = {"online": 0, "offline": 1, "disconnected": 2}
+    def _sort_key(row):
+        ts = row.get("last_seen") or row.get("timestamp") or datetime.min.replace(tzinfo=timezone.utc)
+        return (rank.get(row["status"], 9), -ts.timestamp())
+    dispositivi.sort(key=_sort_key)
+    return dispositivi

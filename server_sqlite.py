@@ -553,7 +553,7 @@ def verifica_candidato():
 
             # Verifica che il candidato esista per questa sessione
             cursor.execute("""
-                SELECT first_name, last_name, document_number, checkin_effettuato
+                SELECT first_name, last_name, document_number, document_date, checkin_effettuato
                 FROM candidati 
                 WHERE uid = ? AND session_id = ?
             """, (uid, session_id))
@@ -562,7 +562,17 @@ def verifica_candidato():
             if not candidato:
                 return jsonify(success=False, message="Candidato non trovato o non appartiene alla sessione."), 404
 
-            nome, cognome, numero_documento, checkin_effettuato = candidato
+            nome, cognome, numero_documento, document_date, checkin_effettuato = candidato
+
+            # Calcola se il documento è scaduto (formato dd/mm/YYYY)
+            documento_scaduto = False
+            if document_date:
+                try:
+                    from datetime import datetime, date
+                    data_doc = datetime.strptime(document_date, "%d/%m/%Y").date()
+                    documento_scaduto = data_doc < date.today()
+                except Exception:
+                    documento_scaduto = True
 
             if checkin_effettuato == 1:
                 return jsonify(success=False, message="Candidato già registrato al check-in."), 409
@@ -571,6 +581,7 @@ def verifica_candidato():
                 "nome": nome,
                 "cognome": cognome,
                 "numero_documento": numero_documento,
+                "documento_scaduto": documento_scaduto,
                 "session_id": session_id
             })
     except Exception as e:

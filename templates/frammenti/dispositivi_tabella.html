@@ -10,6 +10,8 @@
   <thead>
     <tr>
       <th>Ora di collegamento</th>
+      <th>Stato</th>
+      <th>Ultimo ping</th>
       <th>Nome dispositivo</th>
       <th>Browser / Sistema</th>
       <th>IP</th>
@@ -19,12 +21,28 @@
     {% for d in dispositivi %}
       <tr>
         <td>{{ d.timestamp }}</td>
+        <td>
+          {% if d.status == 'online' %}
+            <span class="badge bg-success">{{ d.status_label }}</span>
+          {% elif d.status == 'offline' %}
+            <span class="badge bg-warning text-dark">{{ d.status_label }}</span>
+          {% else %}
+            <span class="badge bg-secondary">{{ d.status_label }}</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if d.status == 'disconnected' %}
+            {{ d.disconnected_at or '-' }}
+          {% else %}
+            {{ d.last_seen or '-' }}
+          {% endif %}
+        </td>
         <td>{{ d.nome_dispositivo }}</td>
         <td>{{ d.user_agent }}</td>
         <td>{{ d.ip_address }}</td>
       </tr>
     {% else %}
-      <tr><td colspan="4" class="text-center text-muted">Nessun dispositivo collegato.</td></tr>
+      <tr><td colspan="6" class="text-center text-muted">Nessun dispositivo collegato.</td></tr>
     {% endfor %}
   </tbody>
 </table>

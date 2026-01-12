@@ -6,7 +6,7 @@ def registra_checkin(uid, session_id):
     conn = get_db_connection()
     try:
         conn.execute(
-            "UPDATE candidati SET checkin = TRUE WHERE uid = %s AND sessione_id = %s",
+            "UPDATE candidati SET checkin_effettuato = TRUE WHERE uid = %s AND session_id = %s",
             (uid, session_id)
         )
         conn.commit()

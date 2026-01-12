@@ -32,6 +32,15 @@
     #candidate-info p {
       margin-bottom: 4px;
     }
+
+    /* Banner documento scaduto */
+    .alert-danger {
+      background: #dc3545;
+      color: white;
+      padding: 10px;
+      border-radius: 6px;
+      margin-top: 8px;
+    }
   </style>
 </head>
 <body>
@@ -70,6 +79,50 @@
     let html5QrCode;
     let scanning = false;
     let ultimoCandidato = null;
+    let initialSessionId = "{{ session_id or '' }}";
+    let initialRegToken = "{{ reg_token or '' }}";
+    let heartbeatId = null;
+    const HEARTBEAT_MS = 30000;
+
+    function getDeviceToken() {
+      return localStorage.getItem("device_token");
+    }
+
+    function setDeviceToken(token) {
+      if (token) {
+        localStorage.setItem("device_token", token);
+      }
+    }
+
+    function getUrlParam(name) {
+      const params = new URLSearchParams(window.location.search);
+      return params.get(name);
+    }
+
+    function parseQrPayload(decodedText) {
+      try {
+        const url = new URL(decodedText);
+        const sessionId = url.searchParams.get("session_id");
+        const token = url.searchParams.get("token");
+        if (sessionId && token) {
+          return { session_id: sessionId, token };
+        }
+      } catch (e) {
+        // Not a URL, continue with JSON.
+      }
+      try {
+        const parsed = JSON.parse(decodedText);
+        if (parsed.session_id && parsed.token) {
+          return { session_id: parsed.session_id, token: parsed.token };
+        }
+        if (parsed.session_id) {
+          return { session_id: parsed.session_id };
+        }
+      } catch (e) {
+        return null;
+      }
+      return null;
+    }
 
     function scannerSessione() {
       const reader = new Html5Qrcode("reader");
@@ -79,35 +132,20 @@
             { facingMode: "environment" },
             { fps: 10, qrbox: 250 },
             (decodedText) => {
-              try {
-              console.log("QR letto:", decodedText);
-let parsed;
-try {
-  parsed = JSON.parse(decodedText);
-} catch (err) {
-  document.getElementById("status").textContent = "❌ QR non in formato JSON.";
-  console.log("Errore parsing JSON:", err);
-  return;
-}
-
-const session_id = parsed.session_id;
-if (!session_id) {
-  document.getElementById("status").textContent = "❌ QR code non contiene session_id.";
-  console.log("QR privo di session_id:", parsed);
-  return;
-}
-
-console.log("Session ID trovato:", session_id);
-document.getElementById("status").innerHTML = `📄 Session ID: <code>${session_id}</code><br>Verifica in corso...`;
-
-reader.stop().then(() => {
-  localStorage.setItem("session_id", session_id);
-  verificaSessione(session_id);
-});
-
-              } catch (err) {
+              const payload = parseQrPayload(decodedText);
+              if (!payload || !payload.session_id) {
                 document.getElementById("status").textContent = "QR code non valido.";
+                return;
               }
+
+              const session_id = payload.session_id;
+              const reg_token = payload.token || null;
+              document.getElementById("status").textContent = `Session ID: ${session_id}. Verifica in corso...`;
+
+              reader.stop().then(() => {
+                localStorage.setItem("session_id", session_id);
+                verificaSessione(session_id, reg_token);
+              });
             }
           ).catch(err => {
             document.getElementById("status").textContent = "Errore scanner sessione: " + err;
@@ -118,7 +156,7 @@ reader.stop().then(() => {
       });
     }
 
-async function verificaSessione(session_id) {
+async function verificaSessione(session_id, reg_token) {
   try {
     const now = new Date();
     const localISO = now.toISOString().slice(0, 16);
@@ -132,35 +170,10 @@ if (data.success) {
   document.getElementById("session-setup").style.display = "none";
   document.getElementById("clear-session-btn").classList.remove("d-none");
 
-  // 👉 REGISTRA DISPOSITIVO QUI
-  const userAgent = navigator.userAgent;
-  try {
-    const ipRes = await fetch("https://api.ipify.org?format=json");
-    const ipData = await ipRes.json();
-    const ip = ipData.ip;
-
-    await fetch("/api/dispositivo/registrazione", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ip_address: ip,
-        user_agent: userAgent,
-        session_id: session_id
-      })
-    });
-    console.log("✅ Dispositivo registrato.");
-    await fetch(`/sessione/${session_id}/verifica_dispositivi`, {
-    method: "POST"
-    }).then(data=>{
-      if(data.success){
-
-      }
-    });
-  } catch (err) {
-    console.warn("⚠️ Errore nella registrazione del dispositivo:", err);
+  if (reg_token) {
+    await registraDispositivo(session_id, reg_token);
   }
-
-  // Dopo la registrazione, avvia lo scanner
+  notifyDispositivi(session_id);
   startScanner();
 }
  else {
@@ -174,8 +187,18 @@ if (data.success) {
 
 
     function cancellaSessione() {
+      const sessionId = localStorage.getItem("session_id");
+      const deviceToken = getDeviceToken();
+      if (sessionId && deviceToken) {
+        disconnectDevice(sessionId, deviceToken);
+      }
+      stopHeartbeat();
+      localStorage.removeItem("device_token");
       localStorage.removeItem("session_id");
-      location.reload();
+      initialSessionId = "";
+      initialRegToken = "";
+      resetUiForSessionScan();
+      scannerSessione();
     }
 
     function resetScanner() {
@@ -190,6 +213,117 @@ if (data.success) {
       document.getElementById("reset-btn").classList.add("d-none");
       scanning = true;
       ultimoCandidato = null;
+    }
+
+    function resetUiForSessionScan() {
+      document.getElementById("status").textContent = "📷 Scansiona un QR code...";
+      document.getElementById("reader-wrapper").style.display = "block";
+      document.getElementById("candidate-card").style.display = "none";
+      document.getElementById("candidate-info").innerHTML = "";
+      document.getElementById("confirm-btn").classList.add("d-none");
+      document.getElementById("reset-btn").classList.add("d-none");
+      document.getElementById("session-setup").style.display = "block";
+      document.getElementById("clear-session-btn").classList.add("d-none");
+      scanning = false;
+      ultimoCandidato = null;
+    }
+
+    async function registraDispositivo(session_id, reg_token) {
+      const userAgent = navigator.userAgent;
+      let ip = null;
+      try {
+        const ipRes = await fetch("https://api.ipify.org?format=json");
+        const ipData = await ipRes.json();
+        ip = ipData.ip;
+      } catch (err) {
+        console.warn("Errore lettura IP pubblico:", err);
+      }
+
+      try {
+        const res = await fetch("/api/dispositivo/registrazione", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ip_address: ip,
+            user_agent: userAgent,
+            session_id: session_id,
+            token: reg_token
+          })
+        });
+        const data = await res.json();
+        if (data && data.success && data.device_token) {
+          setDeviceToken(data.device_token);
+          console.log("Dispositivo registrato.");
+          startHeartbeat(session_id);
+        } else {
+          document.getElementById("status").textContent = "Errore registrazione dispositivo.";
+        }
+      } catch (err) {
+        console.warn("Errore registrazione dispositivo:", err);
+        document.getElementById("status").textContent = "Errore registrazione dispositivo.";
+      }
+    }
+
+    function startHeartbeat(session_id) {
+      const deviceToken = getDeviceToken();
+      if (!deviceToken) return;
+      stopHeartbeat();
+      heartbeatId = setInterval(() => {
+        pingDevice(session_id, deviceToken);
+      }, HEARTBEAT_MS);
+      pingDevice(session_id, deviceToken);
+    }
+
+    function stopHeartbeat() {
+      if (heartbeatId) {
+        clearInterval(heartbeatId);
+        heartbeatId = null;
+      }
+    }
+
+    async function pingDevice(session_id, device_token) {
+      try {
+        await fetch("/api/dispositivo/ping", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id, device_token })
+        });
+      } catch (err) {
+        // ignore ping errors
+      }
+    }
+
+    function disconnectDevice(session_id, device_token) {
+      try {
+        if (navigator.sendBeacon) {
+          const blob = new Blob(
+            [JSON.stringify({ session_id, device_token })],
+            { type: "application/json" }
+          );
+          navigator.sendBeacon("/api/dispositivo/disconnetti", blob);
+          return;
+        }
+      } catch (err) {
+        // ignore and fallback
+      }
+      fetch("/api/dispositivo/disconnetti", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id, device_token })
+      }).catch(() => {});
+    }
+
+    async function notifyDispositivi(session_id) {
+      try {
+        const res = await fetch(`/sessione/${session_id}/verifica_dispositivi`, {
+          method: "POST"
+        });
+        if (res.ok) {
+          await res.json();
+        }
+      } catch (err) {
+        // Ignore when not authenticated.
+      }
     }
 
     function startScanner() {
@@ -234,13 +368,21 @@ if (data.success) {
         return;
       }
 
+      const device_token = getDeviceToken();
+      if (!device_token) {
+        document.getElementById("status").textContent = "Dispositivo non registrato.";
+        document.getElementById("reset-btn").classList.remove("d-none");
+        return;
+      }
+
       fetch("/verifica-candidato", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uid, session_id })
+        body: JSON.stringify({ uid, session_id, device_token })
       })
         .then(res => res.json())
         .then(data => {
+          console.log("verifica-candidato response:", data);
           if (!data.success) {
             document.getElementById("status").textContent = "❌ " + data.message;
             document.getElementById("reset-btn").classList.remove("d-none");
@@ -251,10 +393,12 @@ if (data.success) {
           document.getElementById("status").textContent = "✅ Candidato trovato. Conferma il check-in.";
           document.getElementById("reader-wrapper").style.display = "none";
           document.getElementById("candidate-card").style.display = "block";
+          const documentoScaduto = !!data.candidato.documento_scaduto;
           document.getElementById("candidate-info").innerHTML = `
             <p><strong>Nome:</strong> ${data.candidato.nome}</p>
             <p><strong>Cognome:</strong> ${data.candidato.cognome}</p>
             <p><strong>Numero documento:</strong> ${data.candidato.numero_documento}</p>
+            ${documentoScaduto ? '<div class="alert-danger">Documento scaduto</div>' : ''}
           `;
           document.getElementById("confirm-btn").classList.remove("d-none");
           document.getElementById("reset-btn").classList.remove("d-none");
@@ -267,12 +411,19 @@ if (data.success) {
     function confermaCheckin() {
       if (!ultimoCandidato) return;
 
+      const device_token = getDeviceToken();
+      if (!device_token) {
+        document.getElementById("status").textContent = "Dispositivo non registrato.";
+        return;
+      }
+
       fetch("/checkin-candidato", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           uid: ultimoCandidato.uid,
-          session_id: ultimoCandidato.session_id
+          session_id: ultimoCandidato.session_id,
+          device_token
         })
       })
         .then(res => res.json())
@@ -287,10 +438,30 @@ if (data.success) {
 
     window.addEventListener("load", () => {
       const storedSession = localStorage.getItem("session_id");
+      const sessionIdFromQuery = initialSessionId || getUrlParam("session_id");
+      const tokenFromQuery = initialRegToken || getUrlParam("token");
+
+      if (sessionIdFromQuery && tokenFromQuery) {
+        localStorage.setItem("session_id", sessionIdFromQuery);
+        document.getElementById("clear-session-btn").classList.remove("d-none");
+        verificaSessione(sessionIdFromQuery, tokenFromQuery);
+        return;
+      }
+
       if (storedSession) {
-        verificaSessione(storedSession);
+        document.getElementById("clear-session-btn").classList.remove("d-none");
+        verificaSessione(storedSession, null);
+        startHeartbeat(storedSession);
       } else {
         scannerSessione();
+      }
+    });
+
+    window.addEventListener("beforeunload", () => {
+      const sessionId = localStorage.getItem("session_id");
+      const deviceToken = getDeviceToken();
+      if (sessionId && deviceToken) {
+        disconnectDevice(sessionId, deviceToken);
       }
     });
   </script>
