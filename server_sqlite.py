@@ -31,6 +31,10 @@ app.config['SESSION_FILE_DIR'] = session_dir
 # Stampa per debug (opzionale ma utile)
 print(">>> Session directory:", session_dir)
 
+# Feature flag: CHECKIN_STATE_ENFORCEMENT
+app.config['CHECKIN_STATE_ENFORCEMENT'] = os.getenv('CHECKIN_STATE_ENFORCEMENT', '0') == '1'
+print(f">>> CHECKIN_STATE_ENFORCEMENT = {app.config['CHECKIN_STATE_ENFORCEMENT']}")
+
 # Inizializza la sessione
 Session(app)
 DB_PATH = 'checkin.db'
@@ -526,11 +530,24 @@ def checkin_candidato():
             if not cursor.fetchone():
                 return jsonify(success=False, message="Candidato non trovato."), 404
 
-            cursor.execute("""
-                UPDATE candidati
-                SET checkin_effettuato = 1
-                WHERE uid = ? AND session_id = ?
-            """, (uid, session_id))
+            if app.config.get('CHECKIN_STATE_ENFORCEMENT'):
+                cursor.execute("""
+                    UPDATE candidati
+                    SET checkin_effettuato = 1
+                    WHERE uid = ? AND session_id = ?
+                      AND EXISTS (
+                        SELECT 1 FROM sessioni WHERE session_id = ? AND stato_corrente = 'checkin_avviato'
+                      )
+                """, (uid, session_id, session_id))
+                if cursor.rowcount == 0:
+                    conn.rollback()
+                    return jsonify(success=False, message="Check-in non avviato o sessione non attiva."), 409
+            else:
+                cursor.execute("""
+                    UPDATE candidati
+                    SET checkin_effettuato = 1
+                    WHERE uid = ? AND session_id = ?
+                """, (uid, session_id))
             conn.commit()
 
             return jsonify(success=True, message="Check-in registrato con successo.")
@@ -573,6 +590,15 @@ def verifica_candidato():
                     documento_scaduto = data_doc < date.today()
                 except Exception:
                     documento_scaduto = True
+
+            # Se la feature flag è attiva, blocca la verifica se il checkin non è avviato
+            if app.config.get('CHECKIN_STATE_ENFORCEMENT'):
+                cur2 = conn.cursor()
+                cur2.execute("SELECT stato_corrente FROM sessioni WHERE session_id = ?", (session_id,))
+                row_st = cur2.fetchone()
+                stato_corrente = row_st[0] if row_st else None
+                if stato_corrente != 'checkin_avviato':
+                    return jsonify(success=False, message="Check-in non avviato"), 409
 
             if checkin_effettuato == 1:
                 return jsonify(success=False, message="Candidato già registrato al check-in."), 409

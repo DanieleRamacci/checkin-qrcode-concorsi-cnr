@@ -1,4 +1,4 @@
-from flask import Blueprint, Flask, make_response, request, abort, jsonify, send_from_directory, session, redirect, url_for, render_template
+from flask import Blueprint, Flask, make_response, request, abort, jsonify, send_from_directory, session, redirect, url_for, render_template, current_app
 import requests
 import os
 from datetime import datetime
@@ -7,6 +7,7 @@ from routes.auth import login_required  # è un decoratore deve essere importato
 from urllib.parse import quote
 from utils.candidati import importa_candidati_da_api 
 from utils.commissioni import  now_iso_utc
+from utils.stato import is_checkin_avviato
 
 BASE_URL = os.environ.get('BASE_URL', 'https://cool-jconon.test.si.cnr.it')
 
@@ -47,11 +48,26 @@ def checkin_candidato():
                 if not cursor.fetchone():
                     return jsonify(success=False, message="Candidato non trovato."), 404
 
-                cursor.execute("""
-                    UPDATE candidati
-                    SET checkin_effettuato = TRUE
-                    WHERE uid = %s AND session_id = %s
-                """, (uid, session_id))
+                # Se la feature flag è attiva, proteggi l'update con controllo stato atomico
+                if current_app.config.get('CHECKIN_STATE_ENFORCEMENT'):
+                    cursor.execute("""
+                        UPDATE candidati
+                        SET checkin_effettuato = TRUE
+                        WHERE uid = %s AND session_id = %s
+                          AND EXISTS (
+                              SELECT 1 FROM sessioni WHERE session_id = %s AND stato_corrente = 'checkin_avviato'
+                          )
+                    """, (uid, session_id, session_id))
+                    if cursor.rowcount == 0:
+                        conn.rollback()
+                        return jsonify(success=False, message="Check-in non avviato o sessione non attiva."), 409
+                else:
+                    cursor.execute("""
+                        UPDATE candidati
+                        SET checkin_effettuato = TRUE
+                        WHERE uid = %s AND session_id = %s
+                    """, (uid, session_id))
+
                 conn.commit()
 
         return jsonify(success=True, message="Check-in registrato con successo.")
@@ -95,6 +111,10 @@ def verifica_candidato():
                         documento_scaduto = data_doc < date.today()
                     except Exception:
                         documento_scaduto = True  # se parsing fallisce consideralo scaduto
+
+                # Se la feature flag è attiva, blocca la verifica se il checkin non è avviato
+                if current_app.config.get('CHECKIN_STATE_ENFORCEMENT') and not is_checkin_avviato(session_id):
+                    return jsonify(success=False, message="Check-in non avviato"), 409
 
                 if checkin_effettuato:
                     return jsonify(success=False, message="Candidato già registrato al check-in."), 409

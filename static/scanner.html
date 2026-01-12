@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scanner Check-in</title>
+  <script src="https://unpkg.com/html5-qrcode" defer></script>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    #reader { width: 100%; max-width: 400px; margin-bottom: 20px; }
+    #status { margin-top: 10px; font-weight: bold; }
+    #candidate-info { margin-top: 10px; }
+    #reset-btn, #confirm-btn, #clear-session-btn { margin-top: 10px; display: none; }
+
+    button {
+      padding: 16px 24px;
+      font-size: 18px;
+      width: 100%;
+      margin-bottom: 10px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    #confirm-btn {
+      background-color: #28a745;
+      color: white;
+      display: none;
+    }
+
+    /* Banner documento scaduto */
+    .alert-danger {
+      background: #dc3545;
+      color: white;
+      padding: 10px;
+      border-radius: 6px;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Scanner Check-in</h1>
+
+  <button id="clear-session-btn" onclick="cancellaSessione()">Elimina sessione</button>
+
+  <div id="reader"></div>
+  <div id="status">📷 Scansiona un QR code...</div>
+  <div id="candidate-info"></div>
+
+  <button id="confirm-btn" onclick="confermaCheckin()">Conferma Check-in</button>
+  <button id="reset-btn" onclick="resetScanner()">Nuovo check-in</button>
+
+  <script>
+    let html5QrCode;
+    let scanning = true;
+    let ultimoCandidato = null;
+    let heartbeatId = null;
+    const HEARTBEAT_MS = 30000;
+
+    function getDeviceToken() {
+      return localStorage.getItem("device_token");
+    }
+
+    function setDeviceToken(token) {
+      if (token) {
+        localStorage.setItem("device_token", token);
+      }
+    }
+
+    function parseQrPayload(decodedText) {
+      try {
+        const url = new URL(decodedText);
+        const sessionId = url.searchParams.get("session_id");
+        const token = url.searchParams.get("token");
+        if (sessionId && token) {
+          return { session_id: sessionId, token };
+        }
+      } catch (e) {
+        // Not a URL, continue with JSON.
+      }
+      try {
+        const parsed = JSON.parse(decodedText);
+        if (parsed.session_id && parsed.token) {
+          return { session_id: parsed.session_id, token: parsed.token };
+        }
+        if (parsed.session_id) {
+          return { session_id: parsed.session_id };
+        }
+      } catch (e) {
+        return null;
+      }
+      return null;
+    }
+
+    async function verificaSessione(session_id, reg_token) {
+      try {
+        const now = new Date();
+        const localISO = now.toISOString().slice(0, 16);
+        const res = await fetch(`/session-check?session_id=${session_id}&timestamp=${encodeURIComponent(localISO)}`);
+
+        const data = await res.json();
+        if (data.success) {
+          document.getElementById("status").textContent = `✅ Sessione valida: ${session_id}`;
+          document.getElementById("clear-session-btn").style.display = "inline-block";
+          if (reg_token) {
+            await registraDispositivo(session_id, reg_token);
+          }
+          startHeartbeat(session_id);
+          startScanner();
+        } else {
+          document.getElementById("status").textContent = `❌ ${data.message}`;
+        }
+      } catch (err) {
+        console.error(err);
+        document.getElementById("status").textContent = "Errore nella verifica della sessione.";
+      }
+    }
+
+    function cancellaSessione() {
+      const sessionId = localStorage.getItem("session_id");
+      const deviceToken = getDeviceToken();
+      if (sessionId && deviceToken) {
+        disconnectDevice(sessionId, deviceToken);
+      }
+      stopHeartbeat();
+      localStorage.removeItem("device_token");
+      localStorage.removeItem("session_id");
+      resetUiForSessionScan();
+      startScanner();
+    }
+
+    function resetUiForSessionScan() {
+      document.getElementById("status").textContent = "📷 Scansiona un QR code...";
+      document.getElementById("candidate-info").innerHTML = "";
+      document.getElementById("confirm-btn").style.display = "none";
+      document.getElementById("reset-btn").style.display = "none";
+      document.getElementById("clear-session-btn").style.display = "none";
+      scanning = true;
+      ultimoCandidato = null;
+    }
+
+    function startHeartbeat(session_id) {
+      const deviceToken = getDeviceToken();
+      if (!deviceToken) return;
+      stopHeartbeat();
+      heartbeatId = setInterval(() => {
+        pingDevice(session_id, deviceToken);
+      }, HEARTBEAT_MS);
+      pingDevice(session_id, deviceToken);
+    }
+
+    function stopHeartbeat() {
+      if (heartbeatId) {
+        clearInterval(heartbeatId);
+        heartbeatId = null;
+      }
+    }
+
+    async function pingDevice(session_id, device_token) {
+      try {
+        await fetch("/api/dispositivo/ping", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id, device_token })
+        });
+      } catch (err) {
+        // ignore ping errors
+      }
+    }
+
+    function disconnectDevice(session_id, device_token) {
+      try {
+        if (navigator.sendBeacon) {
+          const blob = new Blob(
+            [JSON.stringify({ session_id, device_token })],
+            { type: "application/json" }
+          );
+          navigator.sendBeacon("/api/dispositivo/disconnetti", blob);
+          return;
+        }
+      } catch (err) {
+        // ignore and fallback
+      }
+      fetch("/api/dispositivo/disconnetti", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id, device_token })
+      }).catch(() => {});
+    }
+
+    function resetScanner() {
+      if (html5QrCode) {
+        html5QrCode.stop().then(startScanner).catch(console.error);
+      }
+      document.getElementById("status").textContent = "📷 Scansiona un QR code...";
+      document.getElementById("candidate-info").innerHTML = "";
+      document.getElementById("confirm-btn").style.display = "none";
+      document.getElementById("reset-btn").style.display = "none";
+      scanning = true;
+      ultimoCandidato = null;
+    }
+
+    function startScanner() {
+      html5QrCode = new Html5Qrcode("reader");
+      Html5Qrcode.getCameras().then(devices => {
+        if (devices && devices.length) {
+          html5QrCode.start(
+            { facingMode: "environment" },
+            { fps: 10, qrbox: 250 },
+            onScanSuccess
+          ).catch(err => {
+            document.getElementById("status").textContent = "Errore avvio scanner: " + err;
+          });
+        } else {
+          document.getElementById("status").textContent = "Nessuna fotocamera trovata.";
+        }
+      }).catch(err => {
+        document.getElementById("status").textContent = "Errore accesso fotocamera.";
+        console.error(err);
+      });
+    }
+
+    function onScanSuccess(decodedText) {
+      if (!scanning) return;
+      scanning = false;
+
+      const session_id = localStorage.getItem("session_id");
+      const payload = parseQrPayload(decodedText);
+      if (!payload || !payload.session_id) {
+        document.getElementById("status").textContent = "QR non valido.";
+        return;
+      }
+
+      const uid = payload.uid || payload.user_id || payload.candidate_id || null;
+      if (!session_id || !uid) {
+        document.getElementById("status").textContent = "Errore: sessione o QR non validi.";
+        return;
+      }
+
+      const device_token = getDeviceToken();
+      if (!device_token) {
+        document.getElementById("status").textContent = "Dispositivo non registrato.";
+        document.getElementById("reset-btn").style.display = "inline-block";
+        return;
+      }
+
+      fetch("/verifica-candidato", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uid, session_id, device_token })
+      })
+        .then(res => res.json())
+        .then(data => {
+          console.log("verifica-candidato response:", data);
+          if (!data.success) {
+            document.getElementById("status").textContent = "❌ " + data.message;
+            document.getElementById("reader").style.display = "none";
+            document.getElementById("candidate-info").innerHTML = `<div class="alert alert-danger">${data.message}</div>`;
+            document.getElementById("reset-btn").style.display = "inline-block";
+            return;
+          }
+
+          ultimoCandidato = { uid, session_id };
+          document.getElementById("status").textContent = "✅ Candidato trovato. Conferma il check-in.";
+          const documentoScaduto = !!data.candidato.documento_scaduto;
+          document.getElementById("candidate-info").innerHTML = `
+            <p><strong>Nome:</strong> ${data.candidato.nome}</p>
+            <p><strong>Cognome:</strong> ${data.candidato.cognome}</p>
+            <p><strong>Numero documento:</strong> ${data.candidato.numero_documento}</p>
+            ${documentoScaduto ? '<div class="alert-danger">Documento scaduto</div>' : ''}
+          `;
+          document.getElementById("confirm-btn").style.display = "inline-block";
+          document.getElementById("reset-btn").style.display = "inline-block";
+        })
+        .catch(err => {
+          console.error(err);
+          document.getElementById("status").textContent = "Errore durante la verifica del QR.";
+        });
+    }
+
+    function confermaCheckin() {
+      if (!ultimoCandidato) return;
+
+      const device_token = getDeviceToken();
+      if (!device_token) {
+        document.getElementById("status").textContent = "Dispositivo non registrato.";
+        return;
+      }
+
+      fetch("/checkin-candidato", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          uid: ultimoCandidato.uid,
+          session_id: ultimoCandidato.session_id,
+          device_token
+        })
+      })
+        .then(res => res.json())
+        .then(data => {
+          document.getElementById("status").textContent = data.success ? "✅ Check-in registrato!" : "❌ " + data.message;
+          document.getElementById("confirm-btn").style.display = "none";
+        })
+        .catch(err => {
+          console.error(err);
+          document.getElementById("status").textContent = "Errore durante la registrazione del check-in.";
+        });
+    }
+
+    window.addEventListener("load", () => {
+      const storedSession = localStorage.getItem("session_id");
+      if (storedSession) {
+        document.getElementById("clear-session-btn").style.display = "inline-block";
+        verificaSessione(storedSession, null);
+      } else {
+        startScanner();
+      }
+    });
+
+    window.addEventListener("beforeunload", () => {
+      const sessionId = localStorage.getItem("session_id");
+      const deviceToken = getDeviceToken();
+      if (sessionId && deviceToken) {
+        disconnectDevice(sessionId, deviceToken);
+      }
+    });
+
+    async function registraDispositivo(session_id, reg_token) {
+      const userAgent = navigator.userAgent;
+      let ip = null;
+      try {
+        const ipRes = await fetch("https://api.ipify.org?format=json");
+        const ipData = await ipRes.json();
+        ip = ipData.ip;
+      } catch (err) {
+        console.warn("Errore lettura IP pubblico:", err);
+      }
+
+      try {
+        const res = await fetch("/api/dispositivo/registrazione", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ip_address: ip,
+            user_agent: userAgent,
+            session_id: session_id,
+            token: reg_token
+          })
+        });
+        const data = await res.json();
+        if (data && data.success && data.device_token) {
+          setDeviceToken(data.device_token);
+          startHeartbeat(session_id);
+        }
+      } catch (err) {
+        console.warn("Errore registrazione dispositivo:", err);
+      }
+    }
+  </script>
+</body>
+</html>

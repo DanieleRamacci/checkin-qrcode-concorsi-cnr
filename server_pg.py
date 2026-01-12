@@ -71,6 +71,10 @@ else:
     app.config['SESSION_FILE_DIR'] = session_dir
     app.config['SESSION_PERMANENT'] = True
 
+# Feature flag: CHECKIN_STATE_ENFORCEMENT
+app.config['CHECKIN_STATE_ENFORCEMENT'] = os.getenv('CHECKIN_STATE_ENFORCEMENT', '0') == '1'
+app.logger.debug(f"CHECKIN_STATE_ENFORCEMENT = {app.config['CHECKIN_STATE_ENFORCEMENT']}")
+
 Session(app)
 
 setup_logging(app)

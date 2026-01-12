@@ -385,6 +385,9 @@ if (data.success) {
           console.log("verifica-candidato response:", data);
           if (!data.success) {
             document.getElementById("status").textContent = "❌ " + data.message;
+            document.getElementById("candidate-card").style.display = "block";
+            document.getElementById("reader-wrapper").style.display = "none";
+            document.getElementById("candidate-info").innerHTML = `<div class="alert alert-danger">${data.message}</div>`;
             document.getElementById("reset-btn").classList.remove("d-none");
             return;
           }

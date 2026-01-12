@@ -110,6 +110,11 @@ def set_stato_corrente(session_id, nuovo_stato, utente=None):
 def is_nello_stato(session_id, stato_atteso):
     return get_stato_corrente(session_id) == stato_atteso
 
+# Specifico: è in stato 'checkin_avviato'?
+def is_checkin_avviato(session_id):
+    """Ritorna True se la sessione è nello stato 'checkin_avviato'."""
+    return is_nello_stato(session_id, 'checkin_avviato')
+
 # Utility per ottenere tutti gli stati raggiunti
 def get_storia_stati(session_id):
     db = get_db_connection()

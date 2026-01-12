@@ -78,6 +78,7 @@ try:
         stato TEXT NOT NULL,
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         utente TEXT,
+        note TEXT,
         FOREIGN KEY (session_id) REFERENCES sessioni(session_id)
     );
     """)
