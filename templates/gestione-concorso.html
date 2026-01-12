@@ -97,6 +97,7 @@
             {% endfor %}
           </div>
         {% endif %}
+        <div id="htmx-alert" class="d-none" role="alert"></div>
 
       <!-- Tabella candidati dinamica -->
       {% if sessione %}
@@ -193,14 +194,30 @@
     }
   });
 
-  document.body.addEventListener('htmx:afterRequest', function () {
+  document.body.addEventListener('htmx:afterRequest', function (evt) {
     if (inFlight > 0) inFlight--;
     if (inFlight === 0) hideOverlay();
+    if (evt.detail && evt.detail.successful) {
+      const alertBox = document.getElementById('htmx-alert');
+      if (alertBox) {
+        alertBox.classList.add('d-none');
+        alertBox.innerHTML = "";
+      }
+    }
   });
 
-  document.body.addEventListener('htmx:responseError', function () {
+  document.body.addEventListener('htmx:responseError', function (evt) {
     if (inFlight > 0) inFlight--;
     if (inFlight === 0) hideOverlay();
+    const xhr = evt.detail && evt.detail.xhr ? evt.detail.xhr : null;
+    if (!xhr) return;
+    if (xhr.status === 403) {
+      const alertBox = document.getElementById('htmx-alert');
+      if (alertBox) {
+        alertBox.innerHTML = xhr.responseText || "Operazione non consentita.";
+        alertBox.classList.remove('d-none');
+      }
+    }
   });
 })();
 

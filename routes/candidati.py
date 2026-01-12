@@ -6,6 +6,7 @@ from db import get_db_connection  # se hai una funzione centralizzata
 from routes.auth import login_required  # è un decoratore deve essere importato 
 from urllib.parse import quote
 from utils.candidati import importa_candidati_da_api 
+from utils.stato import get_stato_corrente
 from utils.commissioni import  now_iso_utc
 
 BASE_URL = os.environ.get('BASE_URL', 'https://cool-jconon.test.si.cnr.it')
@@ -26,6 +27,15 @@ def _device_authorized(session_id: str, device_token: str) -> bool:
             """, (session_id, device_token))
             return cursor.fetchone() is not None
 
+def _checkin_gate(session_id: str):
+    stato_corrente = get_stato_corrente(session_id)
+    if stato_corrente is None:
+        return False, stato_corrente, "Sessione non trovata."
+    if stato_corrente == "checkin_avviato":
+        return True, stato_corrente, None
+    if stato_corrente == "checkin_concluso":
+        return False, stato_corrente, "Check-in concluso: impossibile registrare utenti."
+    return False, stato_corrente, "Check-in non ancora avviato."
 
 
 @candidati_bp.route("/checkin-candidato", methods=["POST"])
@@ -39,6 +49,14 @@ def checkin_candidato():
         return jsonify(success=False, message="Parametri mancanti."), 400
     if not _device_authorized(session_id, device_token):
         return jsonify(success=False, message="Dispositivo non autorizzato."), 403
+    checkin_allowed, stato_corrente, blocco_msg = _checkin_gate(session_id)
+    if not checkin_allowed:
+        return jsonify(
+            success=False,
+            message=blocco_msg,
+            checkin_allowed=False,
+            stato_corrente=stato_corrente
+        ), 403
 
     try:
         with get_db_connection() as conn:
@@ -96,16 +114,45 @@ def verifica_candidato():
                     except Exception:
                         documento_scaduto = True  # se parsing fallisce consideralo scaduto
 
+                checkin_allowed, stato_corrente, blocco_msg = _checkin_gate(session_id)
+
+                candidato_payload = {
+                    "nome": nome,
+                    "cognome": cognome,
+                    "numero_documento": numero_documento,
+                    "documento_scaduto": documento_scaduto,
+                    "checkin_effettuato": bool(checkin_effettuato),
+                    "session_id": session_id
+                }
+
                 if checkin_effettuato:
-                    return jsonify(success=False, message="Candidato già registrato al check-in."), 409
+                    return jsonify(
+                        success=False,
+                        message="Candidato già registrato al check-in.",
+                        candidato=candidato_payload,
+                        checkin_allowed=checkin_allowed,
+                        stato_corrente=stato_corrente,
+                        checkin_block_message=blocco_msg if not checkin_allowed else None
+                    ), 409
+
+                if not checkin_allowed:
+                    return jsonify(
+                        success=False,
+                        message=blocco_msg,
+                        candidato=candidato_payload,
+                        checkin_allowed=False,
+                        stato_corrente=stato_corrente,
+                        checkin_block_message=blocco_msg
+                    ), 403
 
                 return jsonify(success=True, candidato={
                     "nome": nome,
                     "cognome": cognome,
                     "numero_documento": numero_documento,
                     "documento_scaduto": documento_scaduto,
+                    "checkin_effettuato": False,
                     "session_id": session_id
-                })
+                }, checkin_allowed=True, stato_corrente=stato_corrente)
     except Exception as e:
         return jsonify(success=False, message=f"Errore server: {str(e)}"), 500
 
@@ -325,6 +372,10 @@ def get_candidati():
 @login_required
 def toggle_checkin(session_id, candidato_uid):
     from psycopg2.extras import RealDictCursor
+
+    checkin_allowed, stato_corrente, blocco_msg = _checkin_gate(session_id)
+    if not checkin_allowed:
+        return render_template("error_fragment.html", message=blocco_msg), 403
 
     with get_db_connection() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:

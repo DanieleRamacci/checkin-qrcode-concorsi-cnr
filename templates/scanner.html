@@ -47,6 +47,8 @@
   <div class="container my-4">
     <h1 class="text-center">Scanner Check-in</h1>
 
+    <div id="checkin-banner" class="alert alert-warning d-none" role="alert"></div>
+
     <div id="session-setup" class="mb-3 text-center">
       <p class="text-muted">📷 Scansiona il QR code della sessione per iniziare</p>
     </div>
@@ -211,6 +213,7 @@ if (data.success) {
       document.getElementById("candidate-info").innerHTML = "";
       document.getElementById("confirm-btn").classList.add("d-none");
       document.getElementById("reset-btn").classList.add("d-none");
+      hideCheckinBanner();
       scanning = true;
       ultimoCandidato = null;
     }
@@ -224,8 +227,21 @@ if (data.success) {
       document.getElementById("reset-btn").classList.add("d-none");
       document.getElementById("session-setup").style.display = "block";
       document.getElementById("clear-session-btn").classList.add("d-none");
+      hideCheckinBanner();
       scanning = false;
       ultimoCandidato = null;
+    }
+
+    function showCheckinBanner(message) {
+      const banner = document.getElementById("checkin-banner");
+      banner.textContent = message;
+      banner.classList.remove("d-none");
+    }
+
+    function hideCheckinBanner() {
+      const banner = document.getElementById("checkin-banner");
+      banner.textContent = "";
+      banner.classList.add("d-none");
     }
 
     async function registraDispositivo(session_id, reg_token) {
@@ -383,25 +399,47 @@ if (data.success) {
         .then(res => res.json())
         .then(data => {
           console.log("verifica-candidato response:", data);
-          if (!data.success) {
+          if (data.checkin_block_message) {
+            showCheckinBanner(data.checkin_block_message);
+          } else {
+            hideCheckinBanner();
+          }
+
+          if (!data.success && !data.candidato) {
             document.getElementById("status").textContent = "❌ " + data.message;
             document.getElementById("reset-btn").classList.remove("d-none");
             return;
           }
 
-          ultimoCandidato = { uid, session_id };
-          document.getElementById("status").textContent = "✅ Candidato trovato. Conferma il check-in.";
-          document.getElementById("reader-wrapper").style.display = "none";
-          document.getElementById("candidate-card").style.display = "block";
-          const documentoScaduto = !!data.candidato.documento_scaduto;
-          document.getElementById("candidate-info").innerHTML = `
-            <p><strong>Nome:</strong> ${data.candidato.nome}</p>
-            <p><strong>Cognome:</strong> ${data.candidato.cognome}</p>
-            <p><strong>Numero documento:</strong> ${data.candidato.numero_documento}</p>
-            ${documentoScaduto ? '<div class="alert-danger">Documento scaduto</div>' : ''}
-          `;
-          document.getElementById("confirm-btn").classList.remove("d-none");
-          document.getElementById("reset-btn").classList.remove("d-none");
+          if (data.candidato) {
+            ultimoCandidato = { uid, session_id };
+            document.getElementById("reader-wrapper").style.display = "none";
+            document.getElementById("candidate-card").style.display = "block";
+            const documentoScaduto = !!data.candidato.documento_scaduto;
+            const checkinEffettuato = !!data.candidato.checkin_effettuato;
+            document.getElementById("candidate-info").innerHTML = `
+              <p><strong>Nome:</strong> ${data.candidato.nome}</p>
+              <p><strong>Cognome:</strong> ${data.candidato.cognome}</p>
+              <p><strong>Numero documento:</strong> ${data.candidato.numero_documento}</p>
+              <p><strong>Check-in:</strong> ${checkinEffettuato ? "Già registrato" : "Non registrato"}</p>
+              ${documentoScaduto ? '<div class="alert-danger">Documento scaduto</div>' : ''}
+            `;
+
+            if (data.success) {
+              document.getElementById("status").textContent = "✅ Candidato trovato. Conferma il check-in.";
+            } else {
+              document.getElementById("status").textContent = "❌ " + data.message;
+            }
+
+            const canConfirm = data.success && data.checkin_allowed !== false;
+            if (canConfirm) {
+              document.getElementById("confirm-btn").classList.remove("d-none");
+            } else {
+              document.getElementById("confirm-btn").classList.add("d-none");
+            }
+            document.getElementById("reset-btn").classList.remove("d-none");
+            return;
+          }
         })
         .catch(err => {
           document.getElementById("status").textContent = "Errore durante la verifica del QR.";
@@ -429,6 +467,9 @@ if (data.success) {
         .then(res => res.json())
         .then(data => {
           document.getElementById("status").textContent = data.success ? "✅ Check-in registrato!" : "❌ " + data.message;
+          if (!data.success && data.checkin_allowed === false) {
+            showCheckinBanner(data.checkin_block_message || data.message);
+          }
           document.getElementById("confirm-btn").classList.add("d-none");
         })
         .catch(err => {
