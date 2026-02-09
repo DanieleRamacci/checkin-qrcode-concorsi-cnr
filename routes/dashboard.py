@@ -3,6 +3,7 @@ from psycopg2.extras import RealDictCursor
 from routes.auth import login_required
 from db import get_db_connection 
 from utils.commissioni import get_commissioni_sincronizzate
+from utils.roles import get_user_roles, ROLE_ADMIN, ROLE_ESPERTO, has_any_role
 from utils.sessioni import get_sessioni_internamente
 from utils.oidc import ensure_fresh_access_token
 from datetime import datetime, timezone
@@ -19,6 +20,20 @@ dashboard_bp = Blueprint('dashboard', __name__)
 @dashboard_bp.route('/')
 @login_required
 def index():
+    user_email = session.get('user_email')
+    roles = get_user_roles(user_email)
+    return render_template(
+        'home.html',
+        user_email=user_email,
+        is_admin=ROLE_ADMIN in roles,
+        is_esperto=ROLE_ESPERTO in roles,
+        active_page="home"
+    )
+
+
+@dashboard_bp.route('/dashboard/segretario')
+@login_required
+def dashboard_segretario():
     user_email = session.get('user_email')
     access_token = session.get('access_token')
 
@@ -42,10 +57,15 @@ def index():
 @login_required
 def sessioni():
     commission_id = request.args.get('commission_id')
+    mode = request.args.get('mode', 'segretario')
     if not commission_id:
         return "Commission ID mancante", 400
 
     user_email = session.get('user_email')
+    if mode == "esperto" and not has_any_role(user_email, [ROLE_ESPERTO, ROLE_ADMIN]):
+        return "Utente non autorizzato", 403
+    if mode == "sede" and not has_any_role(user_email, [ROLE_ESPERTO, ROLE_ADMIN]):
+        return "Utente non autorizzato", 403
 
     # recupero titolo concorso
     with get_db_connection() as conn:
@@ -59,9 +79,11 @@ def sessioni():
             concorso_titolo = row["titolo"] if row else "(Senza titolo)"
 
     # la tabella NON viene caricata qui: la fa l’endpoint frammento
+    frammento_url = f"/sessioni/{commission_id}/frammento?mode={mode}"
     return render_template('sessioni.html',
                            commission_id=commission_id,
-                           concorso_titolo=concorso_titolo)
+                           concorso_titolo=concorso_titolo,
+                           frammento_url=frammento_url)
 
 def _parse_iso_or_none(s: str):
     if not s:
@@ -75,9 +97,14 @@ def _parse_iso_or_none(s: str):
 @login_required
 def sessioni_frammento(commission_id):
     from datetime import datetime, timezone  # assicurati di avere questi import
+    mode = request.args.get('mode', 'segretario')
 
     access_token = ensure_fresh_access_token(skew_sec=60)
     user_email   = session.get('user_email')
+    if mode == "esperto" and not has_any_role(user_email, [ROLE_ESPERTO, ROLE_ADMIN]):
+        return "Utente non autorizzato", 403
+    if mode == "sede" and not has_any_role(user_email, [ROLE_ESPERTO, ROLE_ADMIN]):
+        return "Utente non autorizzato", 403
 
     if not user_email or not access_token:
         if request.headers.get('HX-Request') == 'true':
@@ -227,7 +254,8 @@ def sessioni_frammento(commission_id):
         "frammenti/sessioni_tabella.html",
         sessioni=sessioni,
         concorso_titolo=concorso_titolo,
-        messaggio=messaggio
+        messaggio=messaggio,
+        gestione_base="/esperto/sessione" if mode == "esperto" else ("/sede/sessione" if mode == "sede" else "/gestione-concorso")
     )
 
 ####api di test per react 
@@ -246,6 +274,4 @@ def api_commissioni():
         return {"error": "Errore nel recupero delle commissioni"}, 500
 
     return {"commissioni": commissioni}
-
-
 

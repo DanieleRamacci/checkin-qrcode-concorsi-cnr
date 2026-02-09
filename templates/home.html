@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Selezione Profilo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-italia@2.6.1/dist/css/bootstrap-italia.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap-italia@2.6.1/dist/js/bootstrap-italia.bundle.min.js" defer></script>
+</head>
+
+<body>
+  {% include 'header.html' %}
+
+  <div class="container my-5">
+    <h1 class="mb-3">Seleziona il profilo</h1>
+    <p class="text-muted">Scegli il flusso di lavoro per continuare.</p>
+
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="card h-100 shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title">Segretario</h5>
+            <p class="card-text">Gestione concorsi e sessioni fino alle liste inviate.</p>
+            <a href="/dashboard/segretario" class="btn btn-primary">Entra come Segretario</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <div class="card h-100 shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title">Esperto informatico</h5>
+            <p class="card-text">Gestione fasi finali, Moodle e stati di esame.</p>
+            {% if is_esperto or is_admin %}
+              <a href="/esperto" class="btn btn-primary">Entra come Esperto</a>
+            {% else %}
+              <button class="btn btn-outline-secondary" disabled>Non autorizzato</button>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% if is_admin %}
+      <div class="mt-3">
+        <a href="/sede" class="btn btn-outline-primary">Informatico in sede</a>
+      </div>
+      <div class="mt-4">
+        <a href="/admin/permessi" class="btn btn-outline-secondary">Gestione permessi</a>
+      </div>
+    {% endif %}
+  </div>
+</body>
+</html>

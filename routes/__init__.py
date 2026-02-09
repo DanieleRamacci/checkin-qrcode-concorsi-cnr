@@ -9,6 +9,9 @@ from .user import user_bp
 from .scanner import scanner_bp
 from .azioni import azioni_bp
 from .debug import debug_bp
+from .esperto import esperto_bp
+from .admin_permessi import admin_permessi_bp
+from .notifiche import notifiche_bp
 
 
 def register_blueprints(app):
@@ -23,8 +26,9 @@ def register_blueprints(app):
     app.register_blueprint(scanner_bp)
     app.register_blueprint(azioni_bp)
     app.register_blueprint(debug_bp)
-
-
+    app.register_blueprint(esperto_bp)
+    app.register_blueprint(admin_permessi_bp)
+    app.register_blueprint(notifiche_bp)
 
 
 

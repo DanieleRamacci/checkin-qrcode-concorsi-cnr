@@ -1,9 +1,100 @@
-<div class="row"  id="azioni-wrapper"  >
-  <!-- Colonna Azioni (larghezza 8/12) -->
-  <div class="col-md-8" id="contenitore-azioni" data-session-id="{{ sessione.session_id }}" data-stato-corrente="{{ stato_corrente }}">
+{% set is_esperto = view_mode == 'esperto' %}
+{% set show_timeline = view_mode not in ['esperto', 'sede'] %}
+{% set actions_col_class = 'col-md-8' if show_timeline else 'col-12' %}
+<div class="row" id="azioni-wrapper">
+  <!-- Colonna Azioni -->
+  <div class="{{ actions_col_class }}" id="contenitore-azioni" data-session-id="{{ sessione.session_id }}" data-stato-corrente="{{ stato_corrente }}">
 
+    {% if is_esperto %}
+    <div class="it-card-wrapper mb-3">
+      <div class="it-card shadow-sm p-3 bg-light" data-block-ui="true">
+        <div class="d-flex justify-content-between align-items-start">
+          <div class="me-3">
+            <h5 class="mb-2">Scarica liste</h5>
+            <p class="mb-2 text-muted">Download XLSX presenti e CSV Moodle.</p>
 
-    {% if stato_corrente == 'iniziale' %}
+            {% set lista = get_ultima_lista_generata(sessione.session_id) %}
+            {% if lista and (not is_esperto and stato_corrente in ['liste_generate', 'liste_inviate', 'lista_presenti_aggiornata_su_moodle', 'avvia_esame', 'esame_in_corso', 'esame_concluso']
+              or is_esperto and stato_corrente in ['liste_inviate', 'lista_presenti_aggiornata_su_moodle', 'avvia_esame', 'esame_in_corso', 'esame_concluso']) %}
+              <ul class="mb-3">
+                <li><strong>Presenti:</strong> {{ lista.num_presenti }}</li>
+              </ul>
+
+              <div class="d-flex flex-column gap-2 mb-3">
+                <a class="btn btn-outline-primary"
+                   href="{{ url_for('azioni.download_file', session_id=sessione.session_id, type='xlsx') }}">
+                  Scarica lista presenti (XLSX)
+                </a>
+
+                <a class="btn btn-primary"
+                   href="{{ url_for('azioni.download_file', session_id=sessione.session_id, type='moodle_csv') }}">
+                  Scarica lista per Moodle (CSV)
+                </a>
+              </div>
+            {% else %}
+              <div class="alert alert-warning mb-0">Liste non disponibili.</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="it-card-wrapper mb-3">
+      <div class="it-card shadow-sm p-3 bg-light">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <h5 class="mb-2">Stati successivi</h5>
+            <p class="mb-3 text-muted">Avanza lo stato della sessione dopo l’aggiornamento su Moodle.</p>
+          </div>
+          <div class="d-flex flex-column gap-2">
+            {% if stato_corrente == 'liste_inviate' %}
+              <button class="btn btn-primary"
+                      hx-post="{{ url_for('azioni.lista_presenti_moodle', session_id=sessione.session_id) }}"
+                      hx-target="#azioni-wrapper"
+                      hx-swap="innerHTML"
+                      hx-indicator="#global-overlay"
+                      hx-on::afterRequest="document.body.dispatchEvent(new Event('azioniAggiornate'))">
+                Lista presenti aggiornata
+              </button>
+            {% elif stato_corrente == 'lista_presenti_aggiornata_su_moodle' %}
+              <button class="btn btn-success"
+                      hx-post="{{ url_for('azioni.avvia_esame', session_id=sessione.session_id) }}"
+                      hx-target="#azioni-wrapper"
+                      hx-swap="innerHTML"
+                      hx-indicator="#global-overlay"
+                      hx-on::afterRequest="document.body.dispatchEvent(new Event('azioniAggiornate'))">
+                Avvia esame
+              </button>
+            {% elif stato_corrente == 'avvia_esame' %}
+              <button class="btn btn-success"
+                      hx-post="{{ url_for('azioni.inizia_esame', session_id=sessione.session_id) }}"
+                      hx-target="#azioni-wrapper"
+                      hx-swap="innerHTML"
+                      hx-indicator="#global-overlay"
+                      hx-on::afterRequest="document.body.dispatchEvent(new Event('azioniAggiornate'))">
+                Inizia esame
+              </button>
+            {% elif stato_corrente == 'esame_in_corso' %}
+              <button class="btn btn-danger"
+                      hx-post="{{ url_for('azioni.concludi_esame', session_id=sessione.session_id) }}"
+                      hx-target="#azioni-wrapper"
+                      hx-swap="innerHTML"
+                      hx-indicator="#global-overlay"
+                      hx-on::afterRequest="document.body.dispatchEvent(new Event('azioniAggiornate'))">
+                Concludi esame
+              </button>
+            {% elif stato_corrente == 'esame_concluso' %}
+              <button class="btn btn-outline-secondary" disabled>Esame concluso</button>
+            {% else %}
+              <button class="btn btn-outline-secondary" disabled>Attendere liste inviate</button>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if stato_corrente == 'iniziale' and not is_esperto %}
     <div class="it-card-wrapper mb-3">
 
       <div class="it-card shadow-sm p-3 bg-light">
@@ -19,6 +110,7 @@
               hx-trigger="click"
               hx-target="#azioni-wrapper"
               hx-swap="innerHTML"
+              hx-indicator="#global-overlay"
               hx-disabled-elt="button, a, input, [role='button']"
               hx-on::afterOnLoad="this.dispatchEvent(new CustomEvent('candidatiScaricati'))">
               Scarica Candidati
@@ -29,7 +121,7 @@
     </div>
     {% endif %}
 
-    {% if stato_corrente == 'candidati_scaricati' %}
+    {% if stato_corrente == 'candidati_scaricati' and not is_esperto %}
     <div class="it-card-wrapper mb-">
       <div class="it-card shadow-sm p-3 bg-light">
         <div class="d-flex justify-content-between align-items-start">
@@ -48,7 +140,7 @@
 </script>
     {% endif %}
 
-     {% if stato_corrente in ['dispositivi_connessi', 'checkin_avviato', 'checkin_concluso'] %}
+     {% if stato_corrente in ['dispositivi_connessi', 'checkin_avviato', 'checkin_concluso'] and not is_esperto %}
     <div class="it-card-wrapper mb-3">
       <div class="it-card shadow-sm p-3 bg-light">
         <div class="d-flex justify-content-between align-items-start">
@@ -69,7 +161,7 @@
 </script>
     {% endif %}
 
-    {% if stato_corrente == 'dispositivi_connessi' %}
+    {% if stato_corrente == 'dispositivi_connessi' and not is_esperto %}
     <div class="it-card-wrapper mb-3">
       <div class="it-card shadow-sm p-3 bg-light">
         <div class="d-flex justify-content-between align-items-start">
@@ -82,6 +174,7 @@
             hx-post="{{ url_for('azioni.avvia_checkin', session_id=sessione.session_id) }}"
             hx-target="#azioni-wrapper"
             hx-swap="outerHTML"
+            hx-indicator="#global-overlay"
             hx-on::afterRequest="document.body.dispatchEvent(new Event('azioniAggiornate'))"
           >
             Avvia check-in
@@ -92,7 +185,7 @@
     </div>
     {% endif %}
 
-    {% if stato_corrente == 'checkin_avviato' %}
+    {% if stato_corrente == 'checkin_avviato' and not is_esperto %}
     <div class="it-card-wrapper mb-3">
       <div class="it-card shadow-sm p-3 bg-light">
         <div class="d-flex justify-content-between align-items-start">
@@ -105,6 +198,7 @@
             hx-post="{{ url_for('azioni.concludi_checkin', session_id=sessione.session_id) }}"
             hx-target="#azioni-wrapper"
             hx-swap="innerHTML"
+            hx-indicator="#global-overlay"
             hx-on::afterRequest="document.body.dispatchEvent(new Event('azioniAggiornate'))"
           >
             Concludi Checkin
@@ -114,7 +208,7 @@
     </div>
     {% endif %}
 
-{% if stato_corrente == 'checkin_concluso' %}
+{% if stato_corrente == 'checkin_concluso' and not is_esperto %}
 <div class="it-card-wrapper mb-3">
   <div class="it-card shadow-sm p-3 bg-light" data-block-ui="true">
     <div class="d-flex justify-content-between align-items-start">
@@ -128,6 +222,7 @@
         hx-post="{{ url_for('azioni.genera_liste', session_id=sessione.session_id) }}"
         hx-target="#azioni-wrapper"
         hx-swap="innerHTML"
+        hx-indicator="#global-overlay"
         hx-disabled-elt="this"
         hx-on::afterRequest="document.body.dispatchEvent(new Event('azioniAggiornate'))">
         Genera Liste
@@ -138,7 +233,7 @@
 {% endif %}
 
 
-{% if stato_corrente in ['liste_generate', 'liste_inviate'] %}
+{% if stato_corrente in ['liste_generate', 'liste_inviate'] and not is_esperto %}
 <div class="it-card-wrapper mb-3">
   <div class="it-card shadow-sm p-3 bg-light" data-block-ui="true">
     <div class="d-flex justify-content-between align-items-start">
@@ -173,7 +268,8 @@
       <form
         hx-post="{{ url_for('azioni.invia_lista_esame', session_id=sessione.session_id) }}"
         hx-target="#azioni-wrapper"
-        hx-swap="innerHTML">
+        hx-swap="innerHTML"
+        hx-indicator="#global-overlay">
         {% if lista %}
           <input type="hidden" name="lista_id" value="{{ lista.id }}">
         {% endif %}
@@ -186,9 +282,7 @@
 </div>
 {% endif %}
 
-
-
-  {% if stato_corrente == "liste_inviate" %}
+  {% if stato_corrente == "liste_inviate" and not is_esperto %}
     <div class="alert alert-warning d-flex align-items-center" role="alert">
       <i class="bi bi-exclamation-triangle-fill me-2"></i>
       <div>
@@ -198,7 +292,7 @@
   {% endif %}
 
 
-    {% if stato_corrente == "lista_presenti_aggiornata_su_moodle" %}
+    {% if stato_corrente == "lista_presenti_aggiornata_su_moodle" and not is_esperto %}
       <div class="alert alert-info d-flex align-items-center" role="alert">
         <i class="bi bi-check-circle-fill me-2"></i>
         <div>
@@ -207,7 +301,7 @@
       </div>
     {% endif %}
 
-    {% if stato_corrente == "esame_in_corso" %}
+    {% if stato_corrente == "esame_in_corso" and not is_esperto %}
       <div class="alert alert-primary d-flex align-items-center" role="alert">
         <i class="bi bi-play-circle-fill me-2"></i>
         <div>
@@ -227,19 +321,17 @@
 
   </div>
 
+  {% if show_timeline %}
   <!-- Colonna Timeline (larghezza 4/12) -->
-
   <div class="col-md-4">
-  <div id="timeline-wrapper"
-       hx-get="/sessione/{{ sessione.session_id }}/timeline-frammento"
-       hx-trigger="load, azioniAggiornate from:body"
-       hx-swap="innerHTML">
-    <!-- Il frammento sarà caricato qui -->
+    <div id="timeline-wrapper"
+         hx-get="/sessione/{{ sessione.session_id }}/timeline-frammento"
+         hx-trigger="load, azioniAggiornate:{{ sessione.session_id }} from:body"
+         hx-swap="innerHTML">
+      <!-- Il frammento sarà caricato qui -->
+    </div>
   </div>
-</div>
+  {% endif %}
 
 
 </div>
-
-
-

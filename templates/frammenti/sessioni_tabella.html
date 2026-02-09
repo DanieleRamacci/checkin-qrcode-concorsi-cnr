@@ -26,7 +26,7 @@
             <td>{{ s.luogo }}</td>
             <td>{{ s.data_esame and (s.data_esame|string)[:10] or s.giorno }}</td>
             <td>{{ s.ora }}</td>
-            <td><a href="/gestione-concorso/{{ s.session_id }}" class="btn btn-sm btn-primary">Gestisci</a></td>
+            <td><a href="{{ gestione_base or '/gestione-concorso' }}/{{ s.session_id }}" class="btn btn-sm btn-primary">Gestisci</a></td>
           </tr>
         {% endfor %}
       </tbody>

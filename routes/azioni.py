@@ -4,7 +4,8 @@ from db import get_db_connection
 import io, csv, os, re , requests
 from datetime import datetime
 from requests.auth import HTTPBasicAuth
-from utils.stato import get_stato_corrente, get_azioni_per_stato, set_stato_corrente 
+from utils.stato import get_stato_corrente, get_azioni_per_stato, set_stato_corrente
+from utils.roles import ROLE_ADMIN, ROLE_ESPERTO, roles_required_any
 from utils.sessioni import get_sessione_by_id
 from utils.candidati import importa_candidati_da_api
 from utils.liste import genera_liste_excel_csv
@@ -117,10 +118,7 @@ def genera_liste(session_id):
         conn.close()
 
         # Stato
-        try:
-            set_stato_corrente(session_id, "liste_generate", utente=user_email)
-        except Exception:
-            pass
+        set_stato_corrente(session_id, "liste_generate", utente=user_email)
 
         # Refresh del frammento con i pulsanti download/invio
         sessione = get_sessione_by_id(session_id)
@@ -584,6 +582,7 @@ def api_get_stato(session_id):
 @azioni_bp.route("/sessione/<string:session_id>/azioni-frammento")
 @login_required
 def azioni_frammento(session_id):
+    view_mode = request.args.get("view")
     sessione = get_sessione_by_id(session_id)
     if not sessione:
         return "Sessione non trovata", 404
@@ -596,7 +595,8 @@ def azioni_frammento(session_id):
     return render_template("frammenti/azioni.html",
                             sessione=sessione, 
                             stato_corrente=stato_corrente, 
-                            numero_dispositivi_connessi=numero_dispositivi
+                            numero_dispositivi_connessi=numero_dispositivi,
+                            view_mode=view_mode
 
                             )
 
@@ -653,6 +653,81 @@ def concludi_checkin(session_id):
     stato_corrente = get_stato_corrente(session_id)
     return render_template("frammenti/azioni.html", sessione=sessione, stato_corrente=stato_corrente)
 
+
+@azioni_bp.route("/sessione/<session_id>/lista_presenti_moodle", methods=["POST"])
+@login_required
+@roles_required_any([ROLE_ESPERTO, ROLE_ADMIN])
+def lista_presenti_moodle(session_id):
+    user_email = session.get("user_email")
+    if not user_email:
+        return jsonify({"success": False, "message": "Utente non autenticato"}), 401
+
+    set_stato_corrente(session_id, "lista_presenti_aggiornata_su_moodle", utente=user_email)
+    sessione = get_sessione_by_id(session_id)
+    stato_corrente = get_stato_corrente(session_id)
+    return render_template(
+        "frammenti/azioni.html",
+        sessione=sessione,
+        stato_corrente=stato_corrente,
+        view_mode="esperto"
+    )
+
+
+@azioni_bp.route("/sessione/<session_id>/avvia_esame", methods=["POST"])
+@login_required
+@roles_required_any([ROLE_ESPERTO, ROLE_ADMIN])
+def avvia_esame(session_id):
+    user_email = session.get("user_email")
+    if not user_email:
+        return jsonify({"success": False, "message": "Utente non autenticato"}), 401
+
+    set_stato_corrente(session_id, "avvia_esame", utente=user_email)
+    sessione = get_sessione_by_id(session_id)
+    stato_corrente = get_stato_corrente(session_id)
+    return render_template(
+        "frammenti/azioni.html",
+        sessione=sessione,
+        stato_corrente=stato_corrente,
+        view_mode="esperto"
+    )
+
+
+@azioni_bp.route("/sessione/<session_id>/inizia_esame", methods=["POST"])
+@login_required
+@roles_required_any([ROLE_ESPERTO, ROLE_ADMIN])
+def inizia_esame(session_id):
+    user_email = session.get("user_email")
+    if not user_email:
+        return jsonify({"success": False, "message": "Utente non autenticato"}), 401
+
+    set_stato_corrente(session_id, "esame_in_corso", utente=user_email)
+    sessione = get_sessione_by_id(session_id)
+    stato_corrente = get_stato_corrente(session_id)
+    return render_template(
+        "frammenti/azioni.html",
+        sessione=sessione,
+        stato_corrente=stato_corrente,
+        view_mode="esperto"
+    )
+
+
+@azioni_bp.route("/sessione/<session_id>/concludi_esame", methods=["POST"])
+@login_required
+@roles_required_any([ROLE_ESPERTO, ROLE_ADMIN])
+def concludi_esame(session_id):
+    user_email = session.get("user_email")
+    if not user_email:
+        return jsonify({"success": False, "message": "Utente non autenticato"}), 401
+
+    set_stato_corrente(session_id, "esame_concluso", utente=user_email)
+    sessione = get_sessione_by_id(session_id)
+    stato_corrente = get_stato_corrente(session_id)
+    return render_template(
+        "frammenti/azioni.html",
+        sessione=sessione,
+        stato_corrente=stato_corrente,
+        view_mode="esperto"
+    )
 
 
 
@@ -767,20 +842,17 @@ def invia_lista_esame(session_id):
     ok, err = send_notification_email(to_emails, subject, body, attachments=attachments)
     if not ok:
         current_app.logger.warning("[invia-lista-esame] invio KO: %s", err)
-        return render_template(
-            "frammenti/azioni.html",
-            sessione=sessione,
-            stato_corrente="liste_generate",
-            messaggio=f"Invio email fallito: {err}"
-        )
 
-    # (opzionale) aggiorna stato workflow
+    # aggiorna stato workflow comunque (email è solo backup)
     set_stato_corrente(session_id, "liste_inviate", utente=session.get("user_email"))
+    stato_corrente = get_stato_corrente(session_id)
+    messaggio = "Lista inviata all'esperto informatico."
+    if not ok:
+        messaggio = f"Invio email fallito (backup non inviato): {err}"
 
-    # 6) Ritorna il frammento con messaggio di successo
     return render_template(
         "frammenti/azioni.html",
         sessione=sessione,
-        stato_corrente="lista_inviata",
-        messaggio="Lista inviata all'esperto informatico."
+        stato_corrente=stato_corrente,
+        messaggio=messaggio
     )

@@ -1,0 +1,117 @@
+<div id="notif-container"
+     data-session-id="{{ session_id }}"
+     data-latest-id="{{ latest.id if latest else '' }}"
+     data-latest-type="{{ latest.type if latest else '' }}">
+  <div class="it-card shadow-sm p-3 bg-white mb-3">
+    <h6 class="mb-2">Stato sessione</h6>
+    <ul class="exam-timeline list-unstyled ps-0 mb-0">
+      {% if prev_state %}
+        <li class="timeline-step">
+          <div class="d-flex justify-content-between align-items-center w-100">
+            <div class="d-flex align-items-center gap-2">
+              <span class="timeline-dot bg-success"></span>
+              <strong>{{ prev_state|replace("_", " ") }}</strong>
+            </div>
+            <span class="text-muted small step-label">Precedente</span>
+          </div>
+        </li>
+      {% endif %}
+      <li class="timeline-step">
+        <div class="d-flex justify-content-between align-items-center w-100">
+          <div class="d-flex align-items-center gap-2">
+            <span class="timeline-dot bg-success" id="current-step"></span>
+            <strong>{{ (stato_corrente or "-")|replace("_", " ") }}</strong>
+          </div>
+          <span class="text-muted small step-label">Corrente</span>
+        </div>
+      </li>
+      {% if next_state %}
+        <li class="timeline-step">
+          <div class="d-flex justify-content-between align-items-center w-100">
+            <div class="d-flex align-items-center gap-2">
+              <span class="timeline-dot bg-secondary"></span>
+              <strong>{{ next_state|replace("_", " ") }}</strong>
+            </div>
+            <span class="text-muted small step-label">Successivo</span>
+          </div>
+        </li>
+      {% endif %}
+    </ul>
+  </div>
+
+  <div class="it-card shadow-sm p-3 bg-white mb-3 chat-card">
+    <h6 class="mb-2">Chat interna</h6>
+    <div class="d-flex justify-content-end mb-2">
+      <button
+        class="btn btn-sm btn-outline-secondary"
+        hx-get="/sessione/{{ session_id }}/notifiche-frammento"
+        hx-target="#notif-container"
+        hx-swap="innerHTML">
+        <span class="me-1">↻</span> Aggiorna
+      </button>
+    </div>
+    <div class="chat-messages" id="chat-messages">
+      {% if notifiche|length == 0 %}
+        <div class="text-muted">Nessun messaggio.</div>
+      {% else %}
+        <ul class="list-unstyled mb-0">
+          {% for n in notifiche %}
+            <li class="mb-2">
+              <div class="d-flex align-items-center gap-2 mb-1">
+                {% if n.type == "state" %}
+                  <span class="badge bg-primary small">Notifica</span>
+                {% elif n.type == "reset" %}
+                  <span class="badge bg-warning text-dark small">Reset</span>
+                {% else %}
+                  <span class="badge bg-secondary small">Msg</span>
+                {% endif %}
+                <span class="small text-muted">{{ n.created_at.strftime("%d/%m %H:%M") if n.created_at else "" }}</span>
+              </div>
+              <div class="small">
+                {{ n.payload }}
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+
+    <form class="chat-input mt-3"
+          hx-post="/sessione/{{ session_id }}/notifiche"
+          hx-target="#notif-container"
+          hx-swap="innerHTML">
+      <div class="input-group">
+        <input class="form-control form-control-sm" name="message" placeholder="Scrivi un messaggio" autocomplete="off">
+        <button class="btn btn-sm btn-primary" type="submit">Invia</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  const list = document.getElementById("chat-messages");
+  if (list) {
+    list.scrollTop = list.scrollHeight;
+  }
+})();
+</script>
+
+<script>
+(function () {
+  const el = document.getElementById("notif-container");
+  if (!el) return;
+  const sessionId = el.dataset.sessionId;
+  const latestId = el.dataset.latestId ? Number(el.dataset.latestId) : null;
+  const latestType = el.dataset.latestType || "";
+  if (!latestId) return;
+  window.__lastNotifId = window.__lastNotifId || {};
+  const prev = window.__lastNotifId[sessionId];
+  if (!prev || latestId > prev) {
+    window.__lastNotifId[sessionId] = latestId;
+    if (latestType === "state") {
+      document.body.dispatchEvent(new Event(`azioniAggiornate:${sessionId}`));
+    }
+  }
+})();
+</script>

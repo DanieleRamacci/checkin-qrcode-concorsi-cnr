@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Centro di Controllo • Sessione concorso</title>
+
+  <!--
+    Include qui Bootstrap Italia / Bootstrap CSS già usati nel tuo progetto.
+    Esempio:
+    <link rel="stylesheet" href="/static/bootstrap-italia/css/bootstrap-italia.min.css">
+  -->
+
+  <style>
+    :root {
+      --surface: #ffffff;
+      --surface-2: #f6f7f9;
+      --border: #e6e8ee;
+    }
+    body { background: var(--surface-2); }
+    .app-shell { min-height: 100vh; }
+    .sidebar {
+      width: 280px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+    }
+    .topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .content { padding: 1rem; }
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+    }
+    .card-header {
+      background: transparent;
+      border-bottom: 1px solid var(--border);
+      border-top-left-radius: 12px;
+      border-top-right-radius: 12px;
+      padding: 1rem;
+    }
+    .card-body { padding: 1rem; }
+    .badge-soft {
+      display: inline-flex;
+      align-items: center;
+      gap: .5rem;
+      padding: .35rem .6rem;
+      border-radius: 999px;
+      background: #e8f5e9;
+      color: #1b5e20;
+      border: 1px solid #c8e6c9;
+      font-weight: 600;
+      font-size: .85rem;
+    }
+    .dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: #2e7d32; display: inline-block;
+    }
+    .muted { color: #5c6f82; }
+    .kpi {
+      display: flex; gap: 1rem; flex-wrap: wrap;
+      padding: .75rem; border: 1px dashed var(--border); border-radius: 12px;
+      background: #fbfbfd;
+    }
+    .kpi > div { min-width: 140px; }
+    .kpi .value { font-size: 1.1rem; font-weight: 700; }
+    .kpi .label { font-size: .85rem; color: #5c6f82; }
+    .timeline {
+      list-style: none; padding: 0; margin: 0;
+      display: grid; gap: .75rem;
+    }
+    .timeline li {
+      display: grid;
+      grid-template-columns: 18px 1fr auto;
+      gap: .75rem;
+      align-items: start;
+      padding: .6rem .6rem;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #fff;
+    }
+    .t-dot { width: 14px; height: 14px; border-radius: 50%; margin-top: 3px; }
+    .t-done { background: #2e7d32; }
+    .t-next { background: #90a4ae; }
+    .pill {
+      font-size: .8rem; padding: .2rem .5rem; border-radius: 999px;
+      border: 1px solid var(--border); color: #5c6f82; background: #fff;
+    }
+    .table-clean { width: 100%; border-collapse: collapse; }
+    .table-clean th, .table-clean td { padding: .6rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .table-clean th { text-align: left; font-size: .85rem; color: #5c6f82; }
+    .btn {
+      padding: .55rem .9rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #fff;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn-primary {
+      background: #0066cc; color: #fff; border-color: #0066cc;
+    }
+    .btn-secondary {
+      background: #eef4ff; color: #003a6b; border-color: #cfe3ff;
+    }
+    .btn-danger {
+      background: #ffecec; color: #8a1c1c; border-color: #ffd0d0;
+    }
+    .btn:focus { outline: 3px solid rgba(0, 102, 204, .25); outline-offset: 2px; }
+    .navlink {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: .65rem .75rem;
+      border-radius: 10px;
+      color: #17324d;
+      text-decoration: none;
+    }
+    .navlink:hover { background: #f2f6fc; }
+    .navlink.active { background: #e7f0ff; border: 1px solid #cfe3ff; }
+    .navgroup-title { font-size: .8rem; color: #5c6f82; margin: 1rem .75rem .5rem; text-transform: uppercase; letter-spacing: .04em; }
+    @media (max-width: 991px) {
+      .sidebar { display: none; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app-shell d-flex">
+    <!-- SIDEBAR (desktop) -->
+    <aside class="sidebar p-3">
+      <div class="mb-3">
+        <div class="muted" style="font-size:.85rem;">PROVA SCRITTA</div>
+        <div style="font-weight:800; font-size:1.1rem;">Sessione 2</div>
+        <div class="muted" style="margin-top:.25rem;">
+          Roma, piazz.le Aldo Moro n°7 • 00185<br>
+          11/09/2025 • 14:17
+        </div>
+      </div>
+
+      <div class="kpi mb-3">
+        <div>
+          <div class="value">1</div>
+          <div class="label">Presenti registrati</div>
+        </div>
+        <div>
+          <div class="value">3</div>
+          <div class="label">Reset in coda</div>
+        </div>
+      </div>
+
+      <div class="navgroup-title">Navigazione</div>
+      <nav class="d-grid gap-1">
+        <a class="navlink active" href="#">
+          <span>Dashboard</span>
+          <span class="pill">Live</span>
+        </a>
+        <a class="navlink" href="#">
+          <span>Template &amp; Buste</span>
+          <span class="pill">Condivisa</span>
+        </a>
+        <a class="navlink" href="#">
+          <span>Liste &amp; Export</span>
+          <span class="pill">2</span>
+        </a>
+        <a class="navlink" href="#">
+          <span>Interventi</span>
+          <span class="pill">3</span>
+        </a>
+        <a class="navlink" href="#">
+          <span>Timeline &amp; Log</span>
+          <span class="pill">6</span>
+        </a>
+      </nav>
+
+      <div class="navgroup-title">Utility</div>
+      <nav class="d-grid gap-1">
+        <a class="navlink" href="#"><span>Dispositivi</span><span class="pill">1</span></a>
+        <a class="navlink" href="#"><span>Impostazioni sessione</span><span class="pill">Admin</span></a>
+      </nav>
+    </aside>
+
+    <!-- MAIN -->
+    <div class="flex-grow-1 d-flex flex-column">
+      <!-- TOPBAR -->
+      <header class="topbar px-3 py-3">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+          <div>
+            <div style="font-weight:800; font-size:1.1rem;">Centro di controllo — Esperto informatico</div>
+            <div class="muted">Gestione materiali, export liste, avanzamento flusso e interventi operativi.</div>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge-soft"><span class="dot"></span> Check-in concluso</span>
+            <button class="btn btn-secondary" type="button">Apri Timeline</button>
+            <button class="btn btn-primary" type="button">Apri Template &amp; Buste</button>
+          </div>
+        </div>
+      </header>
+
+      <main class="content">
+        <div class="container-fluid">
+          <div class="row g-3">
+            <!-- COLONNA OPERATIVA -->
+            <div class="col-12 col-lg-8">
+              <!-- CARD 1: Materiali -->
+              <section class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-start gap-3">
+                  <div>
+                    <div style="font-weight:800; font-size:1.05rem;">Materiali sessione (Template &amp; Buste)</div>
+                    <div class="muted">Area condivisa con il Segretario: template e buste A/B/C, con versioni e storico.</div>
+                  </div>
+                  <div class="d-flex gap-2 flex-wrap">
+                    <button class="btn btn-secondary" type="button">Vedi storico</button>
+                    <button class="btn btn-primary" type="button">Apri area materiali</button>
+                  </div>
+                </div>
+                <div class="card-body">
+                  <div class="kpi">
+                    <div>
+                      <div class="value">1</div>
+                      <div class="label">Template caricati</div>
+                    </div>
+                    <div>
+                      <div class="value">A ✓</div>
+                      <div class="label">Buste A</div>
+                    </div>
+                    <div>
+                      <div class="value">B ✓</div>
+                      <div class="label">Buste B</div>
+                    </div>
+                    <div>
+                      <div class="value">C ⏳</div>
+                      <div class="label">Buste C</div>
+                    </div>
+                  </div>
+
+                  <div style="margin-top:1rem;" class="muted">
+                    Ultimo aggiornamento: <strong>11/09/2025 14:05</strong> • da <strong>Segretario</strong>
+                  </div>
+                </div>
+              </section>
+
+              <!-- CARD 2: Export liste (fissa) -->
+              <section class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-start gap-3">
+                  <div>
+                    <div style="font-weight:800; font-size:1.05rem;">Liste &amp; Export</div>
+                    <div class="muted">Scarica XLSX presenti e CSV Moodle. Queste azioni restano sempre disponibili.</div>
+                  </div>
+                  <div class="pill">Fisso</div>
+                </div>
+                <div class="card-body">
+                  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                    <div>
+                      <div class="muted">Presenti registrati</div>
+                      <div style="font-weight:800; font-size:1.2rem;">1</div>
+                    </div>
+                    <div class="d-flex gap-2 flex-wrap">
+                      <button class="btn btn-secondary" type="button">Scarica presenti (XLSX)</button>
+                      <button class="btn btn-primary" type="button">Scarica per Moodle (CSV)</button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- CARD 3: Azione contestuale (dinamica) -->
+              <section class="card">
+                <div class="card-header d-flex justify-content-between align-items-start gap-3">
+                  <div>
+                    <div style="font-weight:800; font-size:1.05rem;">Azione contestuale</div>
+                    <div class="muted">Questa scheda cambia in base allo step (stessa grafica, contenuto diverso).</div>
+                  </div>
+                  <div class="pill">Dinamica</div>
+                </div>
+                <div class="card-body">
+                  <!-- Esempio: step “post aggiornamento su Moodle” -->
+                  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <div>
+                      <div style="font-weight:800;">Avanza stato dopo aggiornamento su Moodle</div>
+                      <div class="muted">Dopo aver caricato il CSV su Moodle, conferma per proseguire il flusso.</div>
+                    </div>
+                    <button class="btn btn-primary" type="button">Lista presenti aggiornata</button>
+                  </div>
+
+                  <hr style="border:none;border-top:1px solid var(--border); margin:1rem 0;">
+
+                  <!-- Placeholder: qui in futuro potresti mostrare altra UI in base allo step -->
+                  <div class="muted">
+                    Esempi di contenuti dinamici:
+                    “Genera liste”, “Invia lista”, “Importa presenti”, “Sblocca sessione”, ecc.
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            <!-- COLONNA STATO + INTERVENTI -->
+            <div class="col-12 col-lg-4">
+              <!-- TIMELINE -->
+              <section class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-start gap-3">
+                  <div>
+                    <div style="font-weight:800; font-size:1.05rem;">Timeline esame</div>
+                    <div class="muted">Stato del flusso e prossimi step.</div>
+                  </div>
+                  <button class="btn btn-secondary" type="button">Dettagli</button>
+                </div>
+                <div class="card-body">
+                  <ul class="timeline" aria-label="Timeline esame">
+                    <li>
+                      <span class="t-dot t-done" aria-hidden="true"></span>
+                      <div>
+                        <div style="font-weight:800;">Candidati importati</div>
+                        <div class="muted">Step 1</div>
+                      </div>
+                      <span class="pill">OK</span>
+                    </li>
+                    <li>
+                      <span class="t-dot t-done" aria-hidden="true"></span>
+                      <div>
+                        <div style="font-weight:800;">Check-in iniziato</div>
+                        <div class="muted">Step 2</div>
+                      </div>
+                      <span class="pill">OK</span>
+                    </li>
+                    <li>
+                      <span class="t-dot t-done" aria-hidden="true"></span>
+                      <div>
+                        <div style="font-weight:800;">Check-in concluso</div>
+                        <div class="muted">Step 3</div>
+                      </div>
+                      <span class="pill">OK</span>
+                    </li>
+                    <li>
+                      <span class="t-dot t-done" aria-hidden="true"></span>
+                      <div>
+                        <div style="font-weight:800;">Liste generate</div>
+                        <div class="muted">Step 4</div>
+                      </div>
+                      <span class="pill">OK</span>
+                    </li>
+                    <li>
+                      <span class="t-dot t-next" aria-hidden="true"></span>
+                      <div>
+                        <div style="font-weight:800;">Lista inviata</div>
+                        <div class="muted">Step 5</div>
+                      </div>
+                      <span class="pill">Next</span>
+                    </li>
+                    <li>
+                      <span class="t-dot t-next" aria-hidden="true"></span>
+                      <div>
+                        <div style="font-weight:800;">Presenti importati</div>
+                        <div class="muted">Step 6</div>
+                      </div>
+                      <span class="pill">Next</span>
+                    </li>
+                  </ul>
+                </div>
+              </section>
+
+              <!-- CODA RESET PASSWORD -->
+              <section class="card">
+                <div class="card-header d-flex justify-content-between align-items-start gap-3">
+                  <div>
+                    <div style="font-weight:800; font-size:1.05rem;">Interventi • Reset password</div>
+                    <div class="muted">Coda operativa: segna “Fatto” per rimuovere dalla vista.</div>
+                  </div>
+                  <span class="pill" id="resetCount">3</span>
+                </div>
+                <div class="card-body">
+                  <table class="table-clean" aria-label="Lista reset password">
+                    <thead>
+                      <tr>
+                        <th>Candidato</th>
+                        <th>Motivo</th>
+                        <th style="width: 140px;">Azione</th>
+                      </tr>
+                    </thead>
+                    <tbody id="resetQueue">
+                      <tr data-item>
+                        <td><strong>Rossi Mario</strong><br><span class="muted">UID: 9f2a…</span></td>
+                        <td><span class="pill">Reset password</span></td>
+                        <td>
+                          <button class="btn btn-primary" type="button" onclick="markDone(this)">Fatto</button>
+                          <button class="btn btn-danger" type="button" onclick="dismiss(this)" style="margin-top:.4rem;">Nascondi</button>
+                        </td>
+                      </tr>
+                      <tr data-item>
+                        <td><strong>Bianchi Laura</strong><br><span class="muted">UID: 11c0…</span></td>
+                        <td><span class="pill">Reset password</span></td>
+                        <td>
+                          <button class="btn btn-primary" type="button" onclick="markDone(this)">Fatto</button>
+                          <button class="btn btn-danger" type="button" onclick="dismiss(this)" style="margin-top:.4rem;">Nascondi</button>
+                        </td>
+                      </tr>
+                      <tr data-item>
+                        <td><strong>Verdi Paolo</strong><br><span class="muted">UID: 7aa1…</span></td>
+                        <td><span class="pill">Reset password</span></td>
+                        <td>
+                          <button class="btn btn-primary" type="button" onclick="markDone(this)">Fatto</button>
+                          <button class="btn btn-danger" type="button" onclick="dismiss(this)" style="margin-top:.4rem;">Nascondi</button>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  <div id="emptyState" class="muted" style="display:none; margin-top:.75rem;">
+                    Nessun reset in coda 🎉
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    function updateResetCount() {
+      const tbody = document.getElementById('resetQueue');
+      const count = tbody.querySelectorAll('tr[data-item]').length;
+      document.getElementById('resetCount').textContent = count;
+      document.getElementById('emptyState').style.display = count === 0 ? 'block' : 'none';
+    }
+
+    function markDone(btn) {
+      // qui in produzione chiamerai una route Flask: /reset-password/done/<uid>
+      const row = btn.closest('tr');
+      row.remove();
+      updateResetCount();
+    }
+
+    function dismiss(btn) {
+      // alternativa: "nascondi" senza segnare fatto (es. stato "ignored")
+      const row = btn.closest('tr');
+      row.remove();
+      updateResetCount();
+    }
+
+    updateResetCount();
+  </script>
+</body>
+</html>

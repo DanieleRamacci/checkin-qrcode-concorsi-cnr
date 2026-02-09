@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard Informatico in Sede</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-italia@2.6.1/dist/css/bootstrap-italia.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap-italia@2.6.1/dist/js/bootstrap-italia.bundle.min.js" defer></script>
+</head>
+
+<body>
+  {% include 'header.html' %}
+
+  <div class="container my-5">
+    <h1 class="mb-4">Dashboard Informatico in Sede</h1>
+    <p class="lead">Concorsi per cui sei autorizzato come informatico in sede.</p>
+
+    <div class="table-responsive">
+      <table class="table table-striped table-hover">
+        <thead class="table-light">
+          <tr>
+            <th>#</th>
+            <th>Nome Concorso</th>
+            <th>Azioni</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in commissioni %}
+          <tr>
+            <th scope="row">{{ loop.index }}</th>
+            <td>{{ c.title }}</td>
+            <td>
+              <a href="/sessioni?commission_id={{ c.id }}&mode=sede" class="btn btn-sm btn-primary">
+                Visualizza Sessioni
+              </a>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="3">Nessuna commissione disponibile.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

@@ -50,6 +50,28 @@ try:
     );
     """)
 
+    # Ruoli utente (permessi locali)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS user_roles (
+        user_email TEXT NOT NULL,
+        role TEXT NOT NULL,
+        created_by TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_email, role)
+    );
+    """)
+    # Admin bootstrap (opzionale): BOOTSTRAP_ADMIN_EMAILS="a@x.it,b@y.it"
+    bootstrap_emails = os.getenv("BOOTSTRAP_ADMIN_EMAILS", "daniele.ramacci@cnr.it")
+    for raw_email in bootstrap_emails.split(","):
+        email = raw_email.strip().lower()
+        if not email:
+            continue
+        cursor.execute("""
+            INSERT INTO user_roles (user_email, role, created_by)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (user_email, role) DO NOTHING
+        """, (email, "admin_globale", "bootstrap"))
+
     # Tabella sessioni
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS sessioni (
@@ -69,6 +91,23 @@ try:
         stato_corrente TEXT DEFAULT 'iniziale',
         FOREIGN KEY (commission_id, user_email) REFERENCES commissions(commission_id, user_email)
     );
+    """)
+
+    # Notifiche/messaggi per sessione
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS session_notifications (
+        id SERIAL PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        author_email TEXT,
+        type TEXT NOT NULL,
+        payload TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (session_id) REFERENCES sessioni(session_id)
+    );
+    """)
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS session_notifications_session_idx
+        ON session_notifications (session_id, created_at DESC);
     """)
     
     cursor.execute(""" 
@@ -97,6 +136,12 @@ try:
         document_issued_by TEXT,
         checkin_effettuato BOOLEAN DEFAULT FALSE,
         documento_scaduto BOOLEAN DEFAULT FALSE,
+        reset_password_richiesto BOOLEAN DEFAULT FALSE,
+        reset_password_richiesto_at TIMESTAMP,
+        reset_password_richiesto_by TEXT,
+        reset_password_effettuato BOOLEAN DEFAULT FALSE,
+        reset_password_effettuato_at TIMESTAMP,
+        reset_password_effettuato_by TEXT,
         PRIMARY KEY (uid, session_id),
         FOREIGN KEY (session_id) REFERENCES sessioni(session_id)
     );

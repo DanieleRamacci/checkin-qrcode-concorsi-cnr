@@ -95,6 +95,12 @@ def set_stato_corrente(session_id, nuovo_stato, utente=None):
                 (session_id, nuovo_stato, datetime.now(), utente)
             )
 
+        try:
+            from utils.notifications import add_notification
+            add_notification(session_id, "state", payload=nuovo_stato, author_email=utente)
+        except Exception:
+            pass
+
         db.commit()
         print(f"[DEBUG] Stato aggiornato correttamente e log inserito.")
 
