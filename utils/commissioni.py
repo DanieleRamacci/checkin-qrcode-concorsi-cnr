@@ -13,6 +13,7 @@ def get_commissioni_sincronizzate(access_token, user_email, timeout_s: int = 8):
     try:
         api_url = f"{BASE_URL}/openapi/v1/call/commissions"
         headers = {'Authorization': f'Bearer {access_token}', 'Accept': 'application/json'}
+        remote_fetch_ok = False
 
         try:
             current_app.logger.debug(f"[comm] GET {api_url}")
@@ -23,34 +24,37 @@ def get_commissioni_sincronizzate(access_token, user_email, timeout_s: int = 8):
                 return None
             response.raise_for_status()
             remote_commissions = response.json()
+            remote_fetch_ok = True
         except (requests.Timeout, requests.ConnectionError) as e:
             current_app.logger.warning(f"[comm] timeout/conn error: {e}")
-            remote_commissions = []  # fallback: usa solo DB locale
+            remote_commissions = []
         except requests.HTTPError as e:
             current_app.logger.error(f"[comm] HTTP {e.response.status_code}: {e.response.text[:300]}")
             remote_commissions = []
 
-        remote_ids = {c['id'] for c in remote_commissions}
-
         with get_db_connection() as conn:
             with conn.cursor() as cursor:
-                cursor.execute("SELECT commission_id FROM commissions WHERE user_email = %s", (user_email,))
-                local_ids = {row[0] for row in cursor.fetchall()}
+                if remote_fetch_ok:
+                    remote_ids = {c['id'] for c in remote_commissions}
+                    cursor.execute("SELECT commission_id FROM commissions WHERE user_email = %s", (user_email,))
+                    local_ids = {row[0] for row in cursor.fetchall()}
 
-                nuovi = remote_ids - local_ids
-                for c in remote_commissions:
-                    if c['id'] in nuovi:
+                    nuovi = remote_ids - local_ids
+                    for c in remote_commissions:
+                        if c['id'] in nuovi:
+                            cursor.execute("""
+                                INSERT INTO commissions (commission_id, titolo, user_email, data_sync)
+                                VALUES (%s, %s, %s, %s)
+                            """, (c['id'], c['title'], user_email, now_iso_utc()))
+
+                    da_eliminare = local_ids - remote_ids
+                    for cid in da_eliminare:
                         cursor.execute("""
-                            INSERT INTO commissions (commission_id, titolo, user_email, data_sync)
-                            VALUES (%s, %s, %s, %s)
-                        """, (c['id'], c['title'], user_email, now_iso_utc()))
-
-                da_eliminare = local_ids - remote_ids
-                for cid in da_eliminare:
-                    cursor.execute("""
-                        DELETE FROM commissions
-                        WHERE commission_id = %s AND user_email = %s
-                    """, (cid, user_email))
+                            DELETE FROM commissions
+                            WHERE commission_id = %s AND user_email = %s
+                        """, (cid, user_email))
+                else:
+                    current_app.logger.warning("[comm] Sync remota non disponibile: nessuna modifica al DB locale")
 
                 cursor.execute("""
                     SELECT commission_id, titolo

@@ -25,7 +25,7 @@ def sync_commissioni():
             'Authorization': f'Bearer {access_token}',
             'Accept': 'application/json'
         }
-        response = requests.get(api_url, headers=headers)
+        response = requests.get(api_url, headers=headers, timeout=8)
         response.raise_for_status()
         remote_commissions = response.json()
 
@@ -70,6 +70,22 @@ def sync_commissioni():
             "commissioni": risultati
         })
 
+    except (requests.Timeout, requests.ConnectionError) as conn_err:
+        # Non toccare il DB locale se la remota non è raggiungibile.
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    SELECT commission_id, titolo FROM commissions
+                    WHERE user_email = %s
+                    ORDER BY titolo
+                """, (user_email,))
+                risultati = [{"id": r[0], "title": r[1]} for r in cursor.fetchall()]
+        return jsonify({
+            "success": False,
+            "error": f"Connessione API non disponibile: {conn_err}",
+            "commissioni": risultati
+        }), 200
+
     except requests.exceptions.HTTPError as http_err:
         return jsonify({
             "success": False,
@@ -83,5 +99,4 @@ def sync_commissioni():
             "success": False,
             "error": str(e)
         }), 500
-
 
