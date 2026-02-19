@@ -1,0 +1,16 @@
+<div class="card shadow-sm">
+  <div class="card-body p-3">
+    <h6 class="mb-2">Modulo Prove</h6>
+    <div class="list-group list-group-flush small">
+      <a class="list-group-item list-group-item-action py-2 {% if request.path == '/prove/tutti' %}active{% endif %}" href="/prove/tutti">
+        Tabella concorsi esperto informatico
+      </a>
+      <a class="list-group-item list-group-item-action py-2 {% if request.path == '/prove/miei' %}active{% endif %}" href="/prove/miei">
+        I miei concorsi
+      </a>
+      <a class="list-group-item list-group-item-action py-2" href="/prove/nuova">
+        Aggiungi nuovo concorso
+      </a>
+    </div>
+  </div>
+</div>

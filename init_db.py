@@ -167,7 +167,7 @@ try:
     """)
     # Tabella liste generate
     cursor.execute("""
-    CREATE TABLE liste_generate (
+    CREATE TABLE IF NOT EXISTS liste_generate (
         id SERIAL PRIMARY KEY,
         session_id TEXT NOT NULL,
         file_xlsx TEXT NOT NULL,
@@ -177,6 +177,208 @@ try:
         timestamp_creazione TIMESTAMP DEFAULT CURRENT_TIMESTAMP
    );
    """)
+
+    # ===============================
+    # Modulo Prove (separato dal check-in)
+    # ===============================
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS prove (
+        prove_id UUID PRIMARY KEY,
+        numero_bando TEXT,
+        titolo TEXT,
+        data_prova DATE,
+        ora_prova TIME,
+        luogo TEXT,
+        tipologia_prova_esame TEXT,
+        note_tipologia_prova TEXT,
+        esperto_email TEXT NOT NULL,
+        referente_nome TEXT,
+        referente_email TEXT,
+        referente_dati_confermati BOOLEAN NOT NULL DEFAULT FALSE,
+        referente_dati_confermati_at TIMESTAMP NULL,
+        referente_dati_confermati_by TEXT,
+        segretario_nome TEXT,
+        segretario_email TEXT,
+        segretario_telefono TEXT,
+        informatico_sede_nome TEXT,
+        informatico_sede_email TEXT,
+        informatico_sede_telefono TEXT,
+        num_partecipanti INTEGER,
+        candidati_tempo_aggiuntivo INTEGER,
+        candidati_tempo_aggiuntivo_nomi TEXT,
+        num_presenti INTEGER,
+        provvedimento_nomina_numero TEXT,
+        data_convocazioni_inviate DATE,
+        data_lista_candidati_acquisita DATE,
+        data_template_moodle_inviati DATE,
+        data_excel_presenti_inviato DATE,
+        data_lista_presenti_ricevuta DATE,
+        data_presenti_attivati_moodle DATE,
+        data_valutazione_prova DATE,
+        data_convocazione_test_piattaforma DATE,
+        busta_estratta_codice TEXT,
+        orario_inizio_prova TIMESTAMP NULL,
+        durata_minuti INTEGER NULL,
+        orario_fine_previsto TIMESTAMP NULL,
+        stato_corrente TEXT NOT NULL DEFAULT 'bozza',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        created_by TEXT,
+        updated_at TIMESTAMP,
+        updated_by TEXT
+    );
+    """)
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_prove_data
+    ON prove (data_prova, ora_prova);
+    """)
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_prove_esperto
+    ON prove (esperto_email);
+    """)
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_prove_stato
+    ON prove (stato_corrente);
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS prove_documents (
+        id SERIAL PRIMARY KEY,
+        prove_id UUID REFERENCES prove(prove_id) ON DELETE CASCADE,
+        doc_type TEXT NOT NULL,
+        filename TEXT NOT NULL,
+        version INTEGER NOT NULL DEFAULT 1,
+        note TEXT,
+        uploaded_by TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS prove_state_log (
+        id SERIAL PRIMARY KEY,
+        prove_id UUID REFERENCES prove(prove_id) ON DELETE CASCADE,
+        from_state TEXT,
+        to_state TEXT,
+        timestamp TIMESTAMP NOT NULL DEFAULT NOW(),
+        utente TEXT,
+        payload_json TEXT
+    );
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS prove_external_tokens (
+        token TEXT PRIMARY KEY,
+        prove_id UUID REFERENCES prove(prove_id) ON DELETE CASCADE,
+        scope TEXT NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        used_at TIMESTAMP NULL,
+        created_by TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS prove_support_staff (
+        id SERIAL PRIMARY KEY,
+        prove_id UUID REFERENCES prove(prove_id) ON DELETE CASCADE,
+        nome TEXT NOT NULL,
+        email TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    """)
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_prove_support_staff_prove_id
+    ON prove_support_staff (prove_id, created_at DESC);
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS prove_emails_log (
+        id SERIAL PRIMARY KEY,
+        prove_id UUID REFERENCES prove(prove_id) ON DELETE CASCADE,
+        subject TEXT,
+        to_emails TEXT,
+        cc_emails TEXT,
+        attachments TEXT,
+        smtp_status TEXT,
+        sent_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        sent_by TEXT
+    );
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS prove_global_templates (
+        id SERIAL PRIMARY KEY,
+        doc_type TEXT NOT NULL,
+        template_categoria TEXT NOT NULL DEFAULT 'generico',
+        filename TEXT NOT NULL,
+        version INTEGER NOT NULL DEFAULT 1,
+        note TEXT,
+        uploaded_by TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    """)
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_prove_global_templates_doc_type
+    ON prove_global_templates (doc_type, created_at DESC);
+    """)
+
+    # Migrazioni additive sicure su installazioni esistenti
+    cursor.execute("""
+    ALTER TABLE prove
+    ADD COLUMN IF NOT EXISTS busta_estratta_codice TEXT;
+    """)
+    cursor.execute("""
+    ALTER TABLE prove
+    ADD COLUMN IF NOT EXISTS num_presenti INTEGER;
+    """)
+    cursor.execute("""
+    ALTER TABLE prove
+    ADD COLUMN IF NOT EXISTS data_valutazione_prova DATE;
+    """)
+    cursor.execute("""
+    ALTER TABLE prove
+    ADD COLUMN IF NOT EXISTS tipologia_prova_esame TEXT;
+    """)
+    cursor.execute("""
+    ALTER TABLE prove
+    ADD COLUMN IF NOT EXISTS note_tipologia_prova TEXT;
+    """)
+    cursor.execute("""
+    ALTER TABLE prove
+    ADD COLUMN IF NOT EXISTS segretario_telefono TEXT;
+    """)
+    cursor.execute("""
+    ALTER TABLE prove
+    ADD COLUMN IF NOT EXISTS informatico_sede_telefono TEXT;
+    """)
+    cursor.execute("""
+    ALTER TABLE prove
+    ADD COLUMN IF NOT EXISTS candidati_tempo_aggiuntivo INTEGER;
+    """)
+    cursor.execute("""
+    ALTER TABLE prove
+    ADD COLUMN IF NOT EXISTS candidati_tempo_aggiuntivo_nomi TEXT;
+    """)
+    cursor.execute("""
+    ALTER TABLE prove
+    ADD COLUMN IF NOT EXISTS referente_dati_confermati BOOLEAN NOT NULL DEFAULT FALSE;
+    """)
+    cursor.execute("""
+    ALTER TABLE prove
+    ADD COLUMN IF NOT EXISTS referente_dati_confermati_at TIMESTAMP NULL;
+    """)
+    cursor.execute("""
+    ALTER TABLE prove
+    ADD COLUMN IF NOT EXISTS referente_dati_confermati_by TEXT;
+    """)
+    cursor.execute("""
+    ALTER TABLE prove
+    ADD COLUMN IF NOT EXISTS data_convocazione_test_piattaforma DATE;
+    """)
+    cursor.execute("""
+    ALTER TABLE prove_global_templates
+    ADD COLUMN IF NOT EXISTS template_categoria TEXT NOT NULL DEFAULT 'generico';
+    """)
 
     conn.commit()
     cursor.close()

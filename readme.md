@@ -2,6 +2,9 @@
 
 Documentazione tecnica aggiornata del progetto, pensata come **fotografia dello stato attuale del codice** e come base di handover per riprendere il lavoro (anche con altre AI).
 
+## Documentazione Modulo Gestione Esami Moodle
+Documentazione dedicata (solo modulo Prove/Esami): `docs/gestione-esami-moodle.md`
+
 ## 1. Scopo del progetto
 Applicazione web Flask per gestire il check-in candidati nelle sessioni di concorso CNR.
 

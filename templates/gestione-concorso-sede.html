@@ -22,6 +22,49 @@
       min-height: 100vh;
       padding: 1.5rem 1.5rem;
     }
+    .right-rail {
+      background-color: #f5f6f8;
+      min-height: 100vh;
+      padding: 1.5rem 1rem;
+      border-left: 1px solid #e6e6e6;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .exam-timeline .timeline-step {
+      position: relative;
+      padding-left: 0;
+      margin-bottom: 1.5rem;
+      border-left: none;
+    }
+    .timeline-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .step-label {
+      white-space: nowrap;
+      margin-left: auto;
+    }
+    .chat-card {
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 240px);
+    }
+    .chat-messages {
+      overflow-y: auto;
+      flex: 1 1 auto;
+      padding-right: 0.25rem;
+    }
+    .chat-input {
+      margin-top: auto !important;
+      background: #fff;
+      position: sticky;
+      bottom: 0;
+      padding-top: 0.5rem;
+    }
     .overlay {
       position: fixed; inset: 0; z-index: 2000;
       display: flex; align-items: center; justify-content: center;
@@ -82,6 +125,29 @@
     </div>
   </div>
 
-  <script></script>
+  <script>
+    document.addEventListener("htmx:afterSwap", function (evt) {
+      if (evt.target && evt.target.id === "timeline-log") {
+        const input = evt.target.querySelector("input[name='message']");
+        if (input && input.value) {
+          evt.target.setAttribute("data-auto-refresh", "false");
+        }
+      }
+    });
+
+    document.addEventListener("focusin", function (evt) {
+      if (evt.target && evt.target.matches("input[name='message']")) {
+        const panel = document.getElementById("timeline-log");
+        if (panel) panel.setAttribute("data-auto-refresh", "false");
+      }
+    });
+
+    document.addEventListener("focusout", function (evt) {
+      if (evt.target && evt.target.matches("input[name='message']")) {
+        const panel = document.getElementById("timeline-log");
+        if (panel) panel.setAttribute("data-auto-refresh", "true");
+      }
+    });
+  </script>
 </body>
 </html>

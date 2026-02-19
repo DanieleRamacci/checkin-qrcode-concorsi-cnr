@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Modulo Prove - Elenco</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-italia@2.6.1/dist/css/bootstrap-italia.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap-italia@2.6.1/dist/js/bootstrap-italia.bundle.min.js" defer></script>
+  <style>
+    body { font-size: 0.92rem; }
+    .table td, .table th { vertical-align: middle; }
+    .table-sm td, .table-sm th { padding: .35rem .45rem; }
+    .badge-state { font-size: .72rem; }
+    .click-row { cursor: pointer; }
+  </style>
+</head>
+<body>
+  {% include 'header.html' %}
+
+  <div class="container-fluid px-4 my-4">
+    <div class="row g-3">
+      <div class="col-12">
+        {% set mesi = {1:'gen',2:'feb',3:'mar',4:'apr',5:'mag',6:'giu',7:'lug',8:'ago',9:'set',10:'ott',11:'nov',12:'dic'} %}
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div>
+            <h2 class="h5 mb-0">
+              {% if view_mode == 'miei' %}I miei concorsi{% else %}Tabella concorsi esperto informatico{% endif %}
+            </h2>
+            <small class="text-muted">Elenco compatto con filtri e accesso rapido alla scheda concorso</small>
+          </div>
+          <div class="d-flex gap-2">
+            <a class="btn btn-primary btn-sm" href="/prove/nuova">Aggiungi nuovo concorso</a>
+            {% if view_mode == 'tutti' %}
+            <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#global-template-deposito" aria-expanded="false" aria-controls="global-template-deposito">Carica template globalmente</button>
+            {% endif %}
+          </div>
+        </div>
+
+        {% if request.args.get('err') %}
+          <div class="alert alert-danger py-2">{{ request.args.get('err') }}</div>
+        {% endif %}
+        {% if request.args.get('ok') %}
+          <div class="alert alert-success py-2">{{ request.args.get('ok') }}</div>
+        {% endif %}
+
+        {% if view_mode == 'tutti' %}
+        <div class="collapse mb-2" id="global-template-deposito">
+          <div class="border rounded p-2 bg-light">
+            <h3 class="h6 mb-2">Deposito template globale</h3>
+            <form method="POST" action="{{ url_for('prove.prove_global_template_upload') }}" enctype="multipart/form-data" class="row g-2 align-items-end mb-2">
+              <div class="col-md-3">
+                <label class="form-label mb-1">Tipo template</label>
+                <select class="form-select form-select-sm" name="doc_type" required>
+                  <option value="template_busta_a_vuota">Template busta A</option>
+                  <option value="template_busta_b_vuota">Template busta B</option>
+                  <option value="template_busta_c_vuota">Template busta C</option>
+                </select>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label mb-1">Categoria modello</label>
+                <select class="form-select form-select-sm" name="template_categoria" required>
+                  {% for c in template_categoria_options %}
+                    <option value="{{ c }}">
+                      {% if c == 'risposta_multipla' %}Risposta multipla{% elif c == 'risposta_aperta' %}Risposta aperta{% endif %}
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label mb-1">File</label>
+                <input type="file" class="form-control form-control-sm" name="file" required>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label mb-1">Note</label>
+                <input class="form-control form-control-sm" name="note">
+              </div>
+              <div class="col-md-2 d-grid">
+                <button class="btn btn-primary btn-sm" type="submit">Carica nel deposito</button>
+              </div>
+            </form>
+
+            <h4 class="h6 mb-1">Modelli risposta multipla</h4>
+            <div class="table-responsive">
+              <table class="table table-sm table-striped mb-0">
+                <thead class="table-light">
+                  <tr><th>Tipo</th><th>File</th><th>Ver.</th><th>Caricato da</th><th>Data</th><th></th></tr>
+                </thead>
+                <tbody>
+                  {% for t in global_templates if t.template_categoria == 'risposta_multipla' %}
+                  <tr>
+                    <td>{{ t.doc_type }}</td>
+                    <td class="small">{{ t.filename }}</td>
+                    <td>{{ t.version }}</td>
+                    <td class="small">{{ t.uploaded_by or '-' }}</td>
+                    <td class="small">{{ t.created_at.strftime('%d/%m/%Y %H:%M') if t.created_at else '-' }}</td>
+                    <td><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('prove.prove_global_template_download', template_id=t.id) }}">Scarica</a></td>
+                  </tr>
+                  {% else %}
+                  <tr><td colspan="6" class="text-muted">Nessun template risposta multipla.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+
+            <h4 class="h6 mb-1 mt-3">Modelli risposta aperta</h4>
+            <div class="table-responsive">
+              <table class="table table-sm table-striped mb-0">
+                <thead class="table-light">
+                  <tr><th>Tipo</th><th>File</th><th>Ver.</th><th>Caricato da</th><th>Data</th><th></th></tr>
+                </thead>
+                <tbody>
+                  {% for t in global_templates if t.template_categoria == 'risposta_aperta' %}
+                  <tr>
+                    <td>{{ t.doc_type }}</td>
+                    <td class="small">{{ t.filename }}</td>
+                    <td>{{ t.version }}</td>
+                    <td class="small">{{ t.uploaded_by or '-' }}</td>
+                    <td class="small">{{ t.created_at.strftime('%d/%m/%Y %H:%M') if t.created_at else '-' }}</td>
+                    <td><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('prove.prove_global_template_download', template_id=t.id) }}">Scarica</a></td>
+                  </tr>
+                  {% else %}
+                  <tr><td colspan="6" class="text-muted">Nessun template risposta aperta.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+
+          </div>
+        </div>
+        {% endif %}
+
+        <form method="GET" class="border rounded p-2 mb-2 bg-light">
+          <div class="row g-2 align-items-end">
+            <div class="col-lg-3 col-md-6">
+              <label class="form-label mb-1">Ricerca</label>
+              <input type="search" class="form-control form-control-sm" name="q" value="{{ request.args.get('q','') }}" placeholder="bando, titolo, luogo">
+            </div>
+            <div class="col-lg-2 col-md-6">
+              <label class="form-label mb-1">Stato</label>
+              <select class="form-select form-select-sm" name="stato">
+                <option value="">Tutti</option>
+                {% for s in states %}
+                  <option value="{{ s }}" {% if request.args.get('stato') == s %}selected{% endif %}>{{ state_labels.get(s, s) }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-lg-2 col-md-6">
+              <label class="form-label mb-1">Data da</label>
+              <input type="date" class="form-control form-control-sm" name="data_da" value="{{ request.args.get('data_da','') }}">
+            </div>
+            <div class="col-lg-2 col-md-6">
+              <label class="form-label mb-1">Data a</label>
+              <input type="date" class="form-control form-control-sm" name="data_a" value="{{ request.args.get('data_a','') }}">
+            </div>
+            <div class="col-lg-2 col-md-6">
+              <label class="form-label mb-1">Esperto email</label>
+              <input type="text" class="form-control form-control-sm" name="esperto_email" value="{{ request.args.get('esperto_email','') }}" placeholder="email">
+            </div>
+            <div class="col-lg-1 col-md-6 d-grid">
+              <button class="btn btn-outline-primary btn-sm" type="submit">Filtra</button>
+            </div>
+          </div>
+        </form>
+
+        <div class="table-responsive">
+          <table class="table table-striped table-hover table-sm">
+            <thead class="table-light">
+              <tr>
+                <th>Data/Ora</th>
+                <th>Numero bando</th>
+                <th>Referente</th>
+                <th>Segretario</th>
+                <th>Data valutazione</th>
+                <th>Luogo</th>
+                <th>Esperto</th>
+                <th>Stato</th>
+                <th>Alert</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in prove_rows %}
+              <tr class="click-row" onclick="window.location='/prove/{{ p.prove_id }}?section=workflow'">
+                <td>
+                  {% if p.data_prova %}
+                    <div>{{ p.data_prova.strftime('%d/%m/%Y') }}</div>
+                    <small class="text-muted d-block">{{ p.data_prova.day }} {{ mesi.get(p.data_prova.month) }} {{ p.data_prova.strftime('%y') }}</small>
+                  {% else %}
+                    <div>-</div>
+                  {% endif %}
+                  <small class="text-muted d-block">{{ p.ora_prova.strftime('%H:%M') if p.ora_prova else '-' }}</small>
+                </td>
+                <td>
+                  <div><strong>{{ p.numero_bando or '-' }}</strong></div>
+                </td>
+                <td>
+                  <div>{{ p.referente_nome or '-' }}</div>
+                  <small class="text-muted">{{ p.referente_email or '-' }}</small>
+                </td>
+                <td>
+                  <div>{{ p.segretario_nome or '-' }}</div>
+                  <small class="text-muted">{{ p.segretario_email or '-' }}</small>
+                </td>
+                <td>
+                  {% if p.data_valutazione_prova %}
+                    <div>{{ p.data_valutazione_prova.strftime('%d/%m/%Y') }}</div>
+                  {% else %}
+                    <span class="text-muted">-</span>
+                  {% endif %}
+                </td>
+                <td>{{ p.luogo or '-' }}</td>
+                <td><small>{{ p.esperto_email }}</small></td>
+                <td><span class="badge rounded-pill bg-primary badge-state">{{ state_labels.get(p.stato_corrente, p.stato_corrente) }}</span></td>
+                <td>
+                  {% if p.upload_deadline_alert %}
+                    {% if p.upload_deadline_overdue %}
+                      <span class="badge bg-danger">Carico candidati scaduto {{ (p.upload_deadline_days * -1) }}g</span>
+                    {% else %}
+                      <span class="badge bg-warning text-dark">
+                        Carico candidati entro {{ p.upload_deadline.strftime('%d/%m') }} (D{{ '%+d'|format(p.upload_deadline_days) }})
+                      </span>
+                    {% endif %}
+                  {% elif p.days_left is not none %}
+                    <span class="badge bg-light text-dark border">D{{ '%+d'|format(p.days_left) }}</span>
+                  {% else %}
+                    <span class="text-muted">-</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="9" class="text-muted">Nessun concorso trovato.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

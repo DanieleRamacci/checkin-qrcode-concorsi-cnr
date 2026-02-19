@@ -15,6 +15,11 @@
     <h1 class="mb-4">Dashboard Segretario</h1>
     <p class="lead">Di seguito trovi l’elenco dei concorsi per cui sei autorizzato.</p>
 
+    <div class="mb-3">
+      <label for="filtro-concorso-segretario" class="form-label">Cerca concorso</label>
+      <input id="filtro-concorso-segretario" type="search" class="form-control" placeholder="Scrivi il nome del concorso...">
+    </div>
+
     <div class="table-responsive">
       <table class="table table-striped table-hover">
         <thead class="table-light">
@@ -24,7 +29,7 @@
             <th>Azioni</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody id="tabella-concorsi-segretario-body">
           {% for c in commissioni %}
           <tr>
             <th scope="row">{{ loop.index }}</th>
@@ -64,6 +69,21 @@
 
 <script>
   document.addEventListener("DOMContentLoaded", function () {
+    const input = document.getElementById("filtro-concorso-segretario");
+    const body = document.getElementById("tabella-concorsi-segretario-body");
+    if (input && body) {
+      input.addEventListener("input", function () {
+        const q = input.value.trim().toLowerCase();
+        const rows = body.querySelectorAll("tr");
+        rows.forEach((row) => {
+          const titoloCell = row.children[1];
+          if (!titoloCell) return;
+          const testo = titoloCell.textContent.toLowerCase();
+          row.style.display = (!q || testo.includes(q)) ? "" : "none";
+        });
+      });
+    }
+
     const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     if (isMobile) {
       const modal = new bootstrap.Modal(document.getElementById('mobileScannerModal'));

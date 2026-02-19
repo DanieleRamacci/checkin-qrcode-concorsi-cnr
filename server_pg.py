@@ -13,6 +13,7 @@ from routes.auth import login_required
 from utils.logging_setup import setup_logging
 from datetime import datetime, timedelta
 from utils.device_tokens import make_reg_token
+from utils.roles import has_role, ROLE_ADMIN, ROLE_ESPERTO
 
 
 
@@ -22,6 +23,11 @@ register_blueprints(app)
 from utils.liste import  get_ultima_lista_generata
 
 app.jinja_env.globals.update(get_ultima_lista_generata=get_ultima_lista_generata)
+app.jinja_env.globals.update(
+    has_role=has_role,
+    ROLE_ADMIN=ROLE_ADMIN,
+    ROLE_ESPERTO=ROLE_ESPERTO,
+)
 
 # Base directory dove salvi/leggi le liste
 FILES_BASE_DIR = os.getenv("FILES_BASE_DIR", os.path.join(app.root_path, "files_liste"))

@@ -48,6 +48,14 @@
 
              <td class="text-nowrap">
             <button
+              type="button"
+              class="btn btn-sm btn-outline-dark me-1"
+              title="Mostra QR candidato"
+              aria-label="Mostra QR candidato"
+              onclick='apriQrCandidato({{ c.candidato_id|default("", true)|tojson }}, {{ c.first_name|default("", true)|tojson }}, {{ c.last_name|default("", true)|tojson }})'>
+              QR
+            </button>
+            <button
               class="btn btn-sm {{ 'btn-outline-danger' if c.checkin_effettuato else 'btn-outline-success' }}"
               hx-post="/sessione/{{ sessione_id }}/candidato/{{ c.candidato_id }}/toggle_checkin"
               hx-headers='{"X-CSRFToken":"{{ csrf_token() if csrf_token is defined else "" }}"}'
