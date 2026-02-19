@@ -29,6 +29,13 @@
             <small class="text-muted">Elenco compatto con filtri e accesso rapido alla scheda concorso</small>
           </div>
           <div class="d-flex gap-2">
+            {% if is_admin and view_mode == 'tutti' %}
+            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('prove.prove_backup_export') }}">Scarica backup</a>
+            <form method="POST" action="{{ url_for('prove.prove_backup_import') }}" enctype="multipart/form-data" class="d-flex gap-1 align-items-center">
+              <input type="file" class="form-control form-control-sm" name="backup_file" accept=".zip" required style="max-width: 220px;">
+              <button class="btn btn-outline-danger btn-sm" type="submit" onclick="return confirm('Importare il backup sovrascrive i dati correnti del modulo Prove. Confermi?');">Importa backup</button>
+            </form>
+            {% endif %}
             <a class="btn btn-primary btn-sm" href="/prove/nuova">Aggiungi nuovo concorso</a>
             {% if view_mode == 'tutti' %}
             <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#global-template-deposito" aria-expanded="false" aria-controls="global-template-deposito">Carica template globalmente</button>

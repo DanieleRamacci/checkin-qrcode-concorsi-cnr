@@ -4,6 +4,10 @@ import json
 import secrets
 import csv
 import re
+import io
+import shutil
+import zipfile
+import tempfile
 from datetime import datetime, date, timedelta
 from pathlib import Path
 from flask import Blueprint, render_template, request, session, redirect, url_for, abort, current_app, send_file
@@ -118,6 +122,16 @@ GLOBAL_TEMPLATE_DOC_TYPES_ALLOWED = {
     "template_busta_b_vuota",
     "template_busta_c_vuota",
 }
+
+BACKUP_TABLES = [
+    "prove",
+    "prove_documents",
+    "prove_state_log",
+    "prove_external_tokens",
+    "prove_emails_log",
+    "prove_global_templates",
+    "prove_support_staff",
+]
 
 
 def _user_email():
@@ -316,6 +330,49 @@ def _safe_filename_part(value):
     if not raw:
         return "-"
     return re.sub(r'[\\/:*?"<>|]+', "-", raw)
+
+
+def _json_default_serializer(obj):
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    return str(obj)
+
+
+def _dump_backup_payload():
+    payload = {
+        "meta": {
+            "created_at": datetime.now().isoformat(),
+            "module": "prove",
+            "version": 1,
+        },
+        "tables": {},
+    }
+    with get_db_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            for table_name in BACKUP_TABLES:
+                cur.execute(f"SELECT * FROM {table_name}")
+                payload["tables"][table_name] = cur.fetchall()
+    return payload
+
+
+def _insert_rows(cur, table_name, rows):
+    if not rows:
+        return
+    cols = list(rows[0].keys())
+    cols_sql = ", ".join(cols)
+    values_sql = ", ".join(["%s"] * len(cols))
+    q = f"INSERT INTO {table_name} ({cols_sql}) VALUES ({values_sql})"
+    for row in rows:
+        cur.execute(q, tuple(row.get(c) for c in cols))
+
+
+def _reset_serial_sequence(cur, table_name, id_col="id"):
+    cur.execute(f"SELECT COALESCE(MAX({id_col}), 0) FROM {table_name}")
+    max_id = cur.fetchone()[0] or 0
+    if max_id <= 0:
+        cur.execute("SELECT setval(pg_get_serial_sequence(%s, %s), 1, false)", (table_name, id_col))
+    else:
+        cur.execute("SELECT setval(pg_get_serial_sequence(%s, %s), %s, true)", (table_name, id_col, max_id))
 
 
 def _split_docs(docs):
@@ -592,6 +649,114 @@ def prove_miei():
         global_templates=[],
         template_categoria_options=TEMPLATE_CATEGORIA_OPTIONS,
     )
+
+
+@prove_bp.route("/prove/admin/backup/export", methods=["GET"])
+@login_required
+@roles_required_any([ROLE_ADMIN])
+def prove_backup_export():
+    payload = _dump_backup_payload()
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_name = f"prove_backup_{ts}.zip"
+
+    mem_zip = io.BytesIO()
+    with zipfile.ZipFile(mem_zip, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr(
+            "db.json",
+            json.dumps(payload, ensure_ascii=False, indent=2, default=_json_default_serializer),
+        )
+        prove_files_dir = os.path.join(_base_files_dir(), "prove")
+        if os.path.exists(prove_files_dir):
+            for root, _, files in os.walk(prove_files_dir):
+                for fn in files:
+                    abs_path = os.path.join(root, fn)
+                    rel_path = os.path.relpath(abs_path, _base_files_dir())
+                    zf.write(abs_path, arcname=os.path.join("files", rel_path))
+    mem_zip.seek(0)
+    return send_file(
+        mem_zip,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=backup_name,
+    )
+
+
+@prove_bp.route("/prove/admin/backup/import", methods=["POST"])
+@login_required
+@roles_required_any([ROLE_ADMIN])
+def prove_backup_import():
+    file_obj = request.files.get("backup_file")
+    if not file_obj or not file_obj.filename:
+        return redirect(url_for("prove.prove_tutti", err="Seleziona un file backup .zip"))
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        zip_path = os.path.join(tmpdir, "backup.zip")
+        file_obj.save(zip_path)
+        extract_dir = os.path.join(tmpdir, "extract")
+        os.makedirs(extract_dir, exist_ok=True)
+        try:
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                zf.extractall(extract_dir)
+        except Exception as e:
+            return redirect(url_for("prove.prove_tutti", err=f"Backup non valido: {e}"))
+
+        db_json_path = os.path.join(extract_dir, "db.json")
+        if not os.path.exists(db_json_path):
+            return redirect(url_for("prove.prove_tutti", err="Backup incompleto: manca db.json"))
+
+        try:
+            with open(db_json_path, "r", encoding="utf-8") as f:
+                payload = json.load(f)
+        except Exception as e:
+            return redirect(url_for("prove.prove_tutti", err=f"Impossibile leggere db.json: {e}"))
+
+        tables = (payload or {}).get("tables") or {}
+        try:
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        TRUNCATE TABLE
+                          prove_support_staff,
+                          prove_documents,
+                          prove_state_log,
+                          prove_external_tokens,
+                          prove_emails_log,
+                          prove_global_templates,
+                          prove
+                        RESTART IDENTITY CASCADE
+                        """
+                    )
+
+                    # Ordine di restore: tabella root prima, poi dipendenze.
+                    _insert_rows(cur, "prove", tables.get("prove", []))
+                    _insert_rows(cur, "prove_documents", tables.get("prove_documents", []))
+                    _insert_rows(cur, "prove_state_log", tables.get("prove_state_log", []))
+                    _insert_rows(cur, "prove_external_tokens", tables.get("prove_external_tokens", []))
+                    _insert_rows(cur, "prove_emails_log", tables.get("prove_emails_log", []))
+                    _insert_rows(cur, "prove_global_templates", tables.get("prove_global_templates", []))
+                    _insert_rows(cur, "prove_support_staff", tables.get("prove_support_staff", []))
+
+                    # Allinea sequenze seriali.
+                    for t in ("prove_documents", "prove_state_log", "prove_emails_log", "prove_global_templates", "prove_support_staff"):
+                        _reset_serial_sequence(cur, t, "id")
+                conn.commit()
+        except Exception as e:
+            return redirect(url_for("prove.prove_tutti", err=f"Restore DB fallito: {e}"))
+
+        source_files_dir = os.path.join(extract_dir, "files", "prove")
+        target_files_dir = os.path.join(_base_files_dir(), "prove")
+        try:
+            if os.path.exists(target_files_dir):
+                shutil.rmtree(target_files_dir, ignore_errors=True)
+            if os.path.exists(source_files_dir):
+                shutil.copytree(source_files_dir, target_files_dir)
+            else:
+                os.makedirs(target_files_dir, exist_ok=True)
+        except Exception as e:
+            return redirect(url_for("prove.prove_tutti", err=f"Restore file fallito: {e}"))
+
+    return redirect(url_for("prove.prove_tutti", ok="Backup importato con successo"))
 
 
 @prove_bp.route("/prove/template-globali/upload", methods=["POST"])
