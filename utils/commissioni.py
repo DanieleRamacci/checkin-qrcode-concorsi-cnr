@@ -9,7 +9,14 @@ from datetime import datetime, timezone
 
 BASE_URL = os.environ.get('BASE_URL', 'https://cool-jconon.test.si.cnr.it')
 
-def get_commissioni_sincronizzate(access_token, user_email, timeout_s: int = 8):
+def get_commissioni_sincronizzate_with_status(access_token, user_email, timeout_s: int = 8):
+    out = {
+        "commissioni": [],
+        "unauthorized": False,
+        "sync_ok": True,
+        "sync_error": None,
+        "sync_source": "remote",
+    }
     try:
         api_url = f"{BASE_URL}/openapi/v1/call/commissions"
         headers = {'Authorization': f'Bearer {access_token}', 'Accept': 'application/json'}
@@ -21,15 +28,27 @@ def get_commissioni_sincronizzate(access_token, user_email, timeout_s: int = 8):
             current_app.logger.debug(f"[comm] -> {response.status_code}")
             if response.status_code == 401:
                 current_app.logger.warning("[comm] token scaduto/401")
-                return None
+                out["unauthorized"] = True
+                out["sync_ok"] = False
+                out["sync_error"] = "Token OIDC scaduto o non valido (401)"
+                out["sync_source"] = "unauthorized"
+                return out
             response.raise_for_status()
             remote_commissions = response.json()
             remote_fetch_ok = True
         except (requests.Timeout, requests.ConnectionError) as e:
             current_app.logger.warning(f"[comm] timeout/conn error: {e}")
+            out["sync_ok"] = False
+            out["sync_error"] = f"API Selezioni Online non raggiungibile ({e})"
+            out["sync_source"] = "db_cache"
             remote_commissions = []
         except requests.HTTPError as e:
-            current_app.logger.error(f"[comm] HTTP {e.response.status_code}: {e.response.text[:300]}")
+            body = (e.response.text or "")[:300] if e.response is not None else ""
+            status = e.response.status_code if e.response is not None else "?"
+            current_app.logger.error(f"[comm] HTTP {status}: {body}")
+            out["sync_ok"] = False
+            out["sync_error"] = f"Errore API Selezioni Online HTTP {status}"
+            out["sync_source"] = "db_cache"
             remote_commissions = []
 
         with get_db_connection() as conn:
@@ -62,14 +81,13 @@ def get_commissioni_sincronizzate(access_token, user_email, timeout_s: int = 8):
                     WHERE user_email = %s
                     ORDER BY titolo
                 """, (user_email,))
-                risultati = [{"id": r[0], "title": r[1]} for r in cursor.fetchall()]
-
-        # IMPORTANTE: niente sync delle sessioni qui!
-        return risultati
-
+                out["commissioni"] = [{"id": r[0], "title": r[1]} for r in cursor.fetchall()]
+        return out
     except Exception as e:
         current_app.logger.exception(f"[comm] ERRORE SYNC GENERICO: {e}")
-        # fallback: almeno torna ciò che c'è già in DB
+        out["sync_ok"] = False
+        out["sync_error"] = f"Errore interno sync commissioni: {e}"
+        out["sync_source"] = "db_fallback"
         try:
             with get_db_connection() as conn:
                 with conn.cursor() as cursor:
@@ -79,9 +97,16 @@ def get_commissioni_sincronizzate(access_token, user_email, timeout_s: int = 8):
                         WHERE user_email = %s
                         ORDER BY titolo
                     """, (user_email,))
-                    return [{"id": r[0], "title": r[1]} for r in cursor.fetchall()]
+                    out["commissioni"] = [{"id": r[0], "title": r[1]} for r in cursor.fetchall()]
         except Exception:
-            return []
+            out["commissioni"] = []
+        return out
+
+def get_commissioni_sincronizzate(access_token, user_email, timeout_s: int = 8):
+    details = get_commissioni_sincronizzate_with_status(access_token, user_email, timeout_s=timeout_s)
+    if details.get("unauthorized"):
+        return None
+    return details.get("commissioni", [])
 
 
 

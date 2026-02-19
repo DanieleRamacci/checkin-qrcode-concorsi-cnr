@@ -2,7 +2,7 @@ from flask import Blueprint, make_response, render_template, request, session, r
 from psycopg2.extras import RealDictCursor
 from routes.auth import login_required
 from db import get_db_connection 
-from utils.commissioni import get_commissioni_sincronizzate
+from utils.commissioni import get_commissioni_sincronizzate_with_status
 from utils.roles import get_user_roles, ROLE_ADMIN, ROLE_ESPERTO, has_any_role
 from utils.sessioni import get_sessioni_internamente
 from utils.oidc import ensure_fresh_access_token
@@ -40,13 +40,23 @@ def dashboard_segretario():
     if not access_token or not user_email:
         return redirect(url_for('auth.login'))
 
-    commissioni = get_commissioni_sincronizzate(access_token, user_email)
-
-    if commissioni is None:
+    sync_details = get_commissioni_sincronizzate_with_status(access_token, user_email)
+    if sync_details.get("unauthorized"):
         session.clear()
         return redirect(url_for('auth.login'))
 
-    return render_template('dashboard.html', commissioni=commissioni, user_email=user_email, active_page="dashboard")
+    commissioni = sync_details.get("commissioni", [])
+    sync_error = sync_details.get("sync_error")
+    sync_source = sync_details.get("sync_source")
+
+    return render_template(
+        'dashboard.html',
+        commissioni=commissioni,
+        user_email=user_email,
+        active_page="dashboard",
+        sync_error=sync_error,
+        sync_source=sync_source
+    )
 
 
 
@@ -268,10 +278,12 @@ def api_commissioni():
     if not access_token or not user_email:
         return {"error": "Unauthorized"}, 401
 
-    commissioni = get_commissioni_sincronizzate(access_token, user_email)
-
-    if commissioni is None:
+    sync_details = get_commissioni_sincronizzate_with_status(access_token, user_email)
+    if sync_details.get("unauthorized"):
         return {"error": "Errore nel recupero delle commissioni"}, 500
 
-    return {"commissioni": commissioni}
-
+    return {
+        "commissioni": sync_details.get("commissioni", []),
+        "sync_error": sync_details.get("sync_error"),
+        "sync_source": sync_details.get("sync_source")
+    }
