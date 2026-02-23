@@ -405,18 +405,42 @@ def _send_state_email(prove_id, sent_by, to_emails, cc_emails, subject, body, do
                     (str(prove_id), doc_ids),
                 )
                 rows = cur.fetchall()
+        selected_ids = {int(r["id"]) for r in rows}
+        missing_ids = [str(x) for x in doc_ids if int(x) not in selected_ids]
+        if missing_ids:
+            current_app.logger.warning(
+                "[prove_mail] prove_id=%s documenti non trovati per allegato doc_ids=%s",
+                prove_id,
+                ",".join(missing_ids),
+            )
         for row in rows:
             abs_path = _doc_abs_path(prove_id, row["filename"])
             if os.path.exists(abs_path):
                 attachments.append(abs_path)
                 attachment_names.append(row["filename"])
+            else:
+                current_app.logger.warning(
+                    "[prove_mail] prove_id=%s allegato non presente su disco filename=%s path=%s",
+                    prove_id,
+                    row["filename"],
+                    abs_path,
+                )
 
     merged_cc = list(dict.fromkeys([e.strip() for e in (cc_emails or []) if e.strip()] + [sent_by]))
     merged_to = list(dict.fromkeys([e.strip() for e in (to_emails or []) if e.strip()]))
     recipients = list(dict.fromkeys(merged_to + merged_cc))
     if not recipients:
+        current_app.logger.warning("[prove_mail] prove_id=%s invio bloccato: nessun destinatario valido", prove_id)
         return False, "Nessun destinatario valido"
 
+    current_app.logger.info(
+        "[prove_mail] invio stato prove_id=%s sent_by=%s to=%s cc=%s allegati=%s",
+        prove_id,
+        sent_by,
+        ",".join(merged_to) if merged_to else "-",
+        ",".join(merged_cc) if merged_cc else "-",
+        ",".join(attachment_names) if attachment_names else "-",
+    )
     ok, err = send_notification_email(recipients, subject, body, attachments=attachments)
     smtp_status = "SENT" if ok else f"ERROR: {err}"
     with get_db_connection() as conn:
@@ -1351,18 +1375,27 @@ def prove_azione(prove_id, action):
 
     # Trigger email richiesti
     mail_err = None
-    if to_state == "template_moodle_inviati":
-        ok, err = send_template_moodle_to_segreteria(str(prove_id), email)
-        if not ok:
-            mail_err = f"Invio automatico candidati su piattaforma esami non riuscito: {err}"
-    elif to_state == "modelli_buste_inviati_al_segretario":
-        ok, err = send_modelli_buste_to_segreteria(str(prove_id), email)
-        if not ok:
-            mail_err = f"Invio automatico modelli buste non riuscito: {err}"
-    elif to_state == "excel_presenti_inviato":
-        ok, err = send_excel_presenti_to_segreteria(str(prove_id), email)
-        if not ok:
-            mail_err = f"Invio automatico Excel presenti non riuscito: {err}"
+    try:
+        if to_state == "template_moodle_inviati":
+            ok, err = send_template_moodle_to_segreteria(str(prove_id), email)
+            if not ok:
+                mail_err = f"Invio automatico candidati su piattaforma esami non riuscito: {err}"
+        elif to_state == "modelli_buste_inviati_al_segretario":
+            ok, err = send_modelli_buste_to_segreteria(str(prove_id), email)
+            if not ok:
+                mail_err = f"Invio automatico modelli buste non riuscito: {err}"
+        elif to_state == "excel_presenti_inviato":
+            ok, err = send_excel_presenti_to_segreteria(str(prove_id), email)
+            if not ok:
+                mail_err = f"Invio automatico Excel presenti non riuscito: {err}"
+    except Exception:
+        current_app.logger.exception(
+            "[prove_mail] errore inatteso durante invio automatico prove_id=%s to_state=%s user=%s",
+            prove_id,
+            to_state,
+            email,
+        )
+        mail_err = "Invio automatico non riuscito per errore inatteso lato server (controllare i log)."
 
     return redirect(
         url_for(
@@ -1463,15 +1496,30 @@ def prove_invia_email_stato(prove_id):
     body = (request.form.get("body") or "").strip() or "Invio automatico/operativo dal modulo Prove."
     doc_ids = [int(x) for x in request.form.getlist("doc_ids") if str(x).isdigit()]
 
-    ok, err = _send_state_email(
-        prove_id=prove_id,
-        sent_by=email,
-        to_emails=to_emails,
-        cc_emails=cc_emails,
-        subject=subject,
-        body=body,
-        doc_ids=doc_ids,
-    )
+    try:
+        ok, err = _send_state_email(
+            prove_id=prove_id,
+            sent_by=email,
+            to_emails=to_emails,
+            cc_emails=cc_emails,
+            subject=subject,
+            body=body,
+            doc_ids=doc_ids,
+        )
+    except Exception:
+        current_app.logger.exception(
+            "[prove_mail] errore inatteso in invia-email-stato prove_id=%s user=%s",
+            prove_id,
+            email,
+        )
+        return redirect(
+            url_for(
+                "prove.prove_dettaglio",
+                prove_id=prove_id,
+                section="workflow",
+                err="Invio fallito per errore inatteso lato server (controllare i log).",
+            )
+        )
     if not ok:
         return redirect(url_for("prove.prove_dettaglio", prove_id=prove_id, section="workflow", err=f"Invio fallito: {err}"))
     return redirect(url_for("prove.prove_dettaglio", prove_id=prove_id, section="workflow"))

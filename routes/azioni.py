@@ -839,9 +839,24 @@ def invia_lista_esame(session_id):
     )
 
     # 5) Invia email (senza autenticazione, come configurato nel tuo helper)
-    ok, err = send_notification_email(to_emails, subject, body, attachments=attachments)
+    current_app.logger.info(
+        "[invia-lista-esame] start session_id=%s to=%s allegati=%s",
+        session_id,
+        ",".join(to_emails),
+        ",".join(os.path.basename(x) for x in attachments),
+    )
+    try:
+        ok, err = send_notification_email(to_emails, subject, body, attachments=attachments)
+    except Exception:
+        current_app.logger.exception(
+            "[invia-lista-esame] errore inatteso durante invio session_id=%s",
+            session_id,
+        )
+        ok = False
+        err = "Errore inatteso lato server durante invio email (controllare i log)."
+
     if not ok:
-        current_app.logger.warning("[invia-lista-esame] invio KO: %s", err)
+        current_app.logger.warning("[invia-lista-esame] invio KO session_id=%s err=%s", session_id, err)
 
     # aggiorna stato workflow comunque (email è solo backup)
     set_stato_corrente(session_id, "liste_inviate", utente=session.get("user_email"))

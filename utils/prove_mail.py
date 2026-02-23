@@ -1,7 +1,10 @@
 import os
+import logging
 from flask import current_app
 from db import get_db_connection
 from utils.send_mail import send_notification_email
+
+logger = logging.getLogger(__name__)
 
 
 def _prove_docs_by_type(prove_id, doc_type):
@@ -48,24 +51,32 @@ def _doc_abs_path(prove_id, filename):
 
 
 def _log_email(prove_id, subject, to_emails, cc_emails, attachments, status, sent_by):
-    with get_db_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO prove_emails_log (prove_id, subject, to_emails, cc_emails, attachments, smtp_status, sent_by)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    prove_id,
-                    subject,
-                    ",".join(to_emails or []),
-                    ",".join(cc_emails or []),
-                    ",".join(attachments or []),
-                    status,
-                    sent_by,
-                ),
-            )
-        conn.commit()
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO prove_emails_log (prove_id, subject, to_emails, cc_emails, attachments, smtp_status, sent_by)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        prove_id,
+                        subject,
+                        ",".join(to_emails or []),
+                        ",".join(cc_emails or []),
+                        ",".join(attachments or []),
+                        status,
+                        sent_by,
+                    ),
+                )
+            conn.commit()
+    except Exception:
+        logger.exception(
+            "[prove_mail] impossibile registrare prove_emails_log prove_id=%s subject=%s status=%s",
+            prove_id,
+            subject,
+            status,
+        )
 
 
 def send_template_moodle_to_segreteria(prove_id, sent_by):
