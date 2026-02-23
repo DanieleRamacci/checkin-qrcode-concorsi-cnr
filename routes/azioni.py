@@ -809,23 +809,33 @@ def invia_lista_esame(session_id):
             messaggio="La lista risulta generata ma i file non sono più presenti sul server."
         )
 
-    # 3) Destinatari: ENV o override da form (opzionale)
+    # 3) Destinatari: override form -> utenti associati alla commissione
     to_emails = []
     to_override = (request.form.get("to") or "").strip()
 
     if to_override:
         to_emails = [e.strip() for e in to_override.split(",") if e.strip()]
     else:
-        esperto_email = os.getenv("ESPERTO_EMAIL") or current_app.config.get("ESPERTO_EMAIL")
-        if esperto_email and esperto_email.strip():
-            to_emails = [esperto_email.strip()]
+        # Destinatari dinamici dalla commissione della sessione corrente.
+        with get_db_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT DISTINCT c.user_email
+                FROM sessioni s
+                JOIN commissions c ON c.commission_id = s.commission_id
+                WHERE s.session_id = %s
+                ORDER BY c.user_email
+                """,
+                (session_id,),
+            )
+            to_emails = [r[0].strip() for r in cur.fetchall() if r and r[0] and r[0].strip()]
 
     if not to_emails:
         return render_template(
             "frammenti/azioni.html",
             sessione=get_sessione_by_id(session_id),
             stato_corrente="liste_generate",
-            messaggio="Destinatario mancante: imposta ESPERTO_EMAIL oppure invia il campo 'to' nel form."
+            messaggio="Destinatario mancante: nessun utente associato alla commissione oppure campo 'to' non valorizzato."
         )
 
     # 4) Oggetto e corpo
