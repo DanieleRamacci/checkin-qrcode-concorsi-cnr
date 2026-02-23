@@ -109,8 +109,14 @@ def send_template_moodle_to_segreteria(prove_id, sent_by):
 
     if sent_by:
         cc_emails = list(dict.fromkeys(cc_emails + [sent_by]))
-    recipients = list(dict.fromkeys(to_emails + cc_emails))
-    ok, err = send_notification_email(recipients, subject, body, attachments=attachments)
+    ok, err = send_notification_email(
+        to_emails,
+        subject,
+        body,
+        attachments=attachments,
+        cc_emails=cc_emails,
+        reply_to=sent_by or None,
+    )
     status = "SENT" if ok else f"ERROR: {err}"
     _log_email(prove_id, subject, to_emails, cc_emails, [os.path.basename(a) for a in attachments], status, sent_by)
     return ok, err
@@ -150,8 +156,14 @@ def send_excel_presenti_to_segreteria(prove_id, sent_by):
 
     if sent_by:
         cc_emails = list(dict.fromkeys(cc_emails + [sent_by]))
-    recipients = list(dict.fromkeys(to_emails + cc_emails))
-    ok, err = send_notification_email(recipients, subject, body, attachments=attachments)
+    ok, err = send_notification_email(
+        to_emails,
+        subject,
+        body,
+        attachments=attachments,
+        cc_emails=cc_emails,
+        reply_to=sent_by or None,
+    )
     status = "SENT" if ok else f"ERROR: {err}"
     _log_email(prove_id, subject, to_emails, cc_emails, [os.path.basename(a) for a in attachments], status, sent_by)
     return ok, err
@@ -189,8 +201,14 @@ def send_modelli_buste_to_segreteria(prove_id, sent_by):
 
     if sent_by:
         cc_emails = list(dict.fromkeys(cc_emails + [sent_by]))
-    recipients = list(dict.fromkeys(to_emails + cc_emails))
-    ok, err = send_notification_email(recipients, subject, body, attachments=attachments)
+    ok, err = send_notification_email(
+        to_emails,
+        subject,
+        body,
+        attachments=attachments,
+        cc_emails=cc_emails,
+        reply_to=sent_by or None,
+    )
     status = "SENT" if ok else f"ERROR: {err}"
     _log_email(prove_id, subject, to_emails, cc_emails, attachment_names, status, sent_by)
     return ok, err

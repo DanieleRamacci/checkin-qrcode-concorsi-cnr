@@ -850,13 +850,24 @@ def invia_lista_esame(session_id):
 
     # 5) Invia email (senza autenticazione, come configurato nel tuo helper)
     current_app.logger.info(
-        "[invia-lista-esame] start session_id=%s to=%s allegati=%s",
+        "[invia-lista-esame] start session_id=%s to=%s cc=%s reply_to=%s allegati=%s",
         session_id,
         ",".join(to_emails),
+        session.get("user_email") or "-",
+        session.get("user_email") or "-",
         ",".join(os.path.basename(x) for x in attachments),
     )
     try:
-        ok, err = send_notification_email(to_emails, subject, body, attachments=attachments)
+        sender_email = (session.get("user_email") or "").strip()
+        cc_emails = [sender_email] if sender_email else []
+        ok, err = send_notification_email(
+            to_emails,
+            subject,
+            body,
+            attachments=attachments,
+            cc_emails=cc_emails,
+            reply_to=sender_email or None,
+        )
     except Exception:
         current_app.logger.exception(
             "[invia-lista-esame] errore inatteso durante invio session_id=%s",

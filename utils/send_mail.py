@@ -20,7 +20,7 @@ def _cfg(name, default=None):
             return cfg_val
     return default
 
-def send_notification_email(to_emails, subject, body, attachments=None):
+def send_notification_email(to_emails, subject, body, attachments=None, cc_emails=None, reply_to=None):
     """
     Invia una mail tramite SMTP senza autenticazione (es. relay interno su porta 25).
     Variabili d'ambiente richieste:
@@ -32,8 +32,12 @@ def send_notification_email(to_emails, subject, body, attachments=None):
     """
     if isinstance(to_emails, str):
         to_emails = [to_emails]
+    if isinstance(cc_emails, str):
+        cc_emails = [cc_emails]
 
-    recipients = [e.strip() for e in (to_emails or []) if e and e.strip()]
+    to_list = [e.strip() for e in (to_emails or []) if e and e.strip()]
+    cc_list = [e.strip() for e in (cc_emails or []) if e and e.strip()]
+    recipients = list(dict.fromkeys(to_list + cc_list))
     if not recipients:
         return False, "Nessun destinatario valido"
 
@@ -41,7 +45,13 @@ def send_notification_email(to_emails, subject, body, attachments=None):
     msg['Subject'] = subject
     sender = _cfg('MAIL_SENDER', 'noreply@example.com')
     msg['From'] = sender
-    msg['To'] = ', '.join(recipients)
+    if to_list:
+        msg['To'] = ', '.join(to_list)
+    if cc_list:
+        msg['Cc'] = ', '.join(cc_list)
+    reply_to_val = (reply_to or "").strip()
+    if reply_to_val:
+        msg['Reply-To'] = reply_to_val
     msg.set_content(body or "")
 
     # Allegati (con fallback mime)
@@ -81,12 +91,14 @@ def send_notification_email(to_emails, subject, body, attachments=None):
                 ",".join(missing_files),
             )
         logger.info(
-            "[mail] start server=%s port=%s starttls=%s sender=%s recipients=%s attachments=%s",
+            "[mail] start server=%s port=%s starttls=%s sender=%s to=%s cc=%s reply_to=%s attachments=%s",
             server,
             port,
             use_starttls,
             sender,
-            ",".join(recipients),
+            ",".join(to_list) if to_list else "-",
+            ",".join(cc_list) if cc_list else "-",
+            reply_to_val or "-",
             ",".join(os.path.basename(p) for p in attached_files) if attached_files else "-",
         )
         with smtplib.SMTP(host=server, port=port, timeout=30) as smtp:

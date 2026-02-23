@@ -441,7 +441,14 @@ def _send_state_email(prove_id, sent_by, to_emails, cc_emails, subject, body, do
         ",".join(merged_cc) if merged_cc else "-",
         ",".join(attachment_names) if attachment_names else "-",
     )
-    ok, err = send_notification_email(recipients, subject, body, attachments=attachments)
+    ok, err = send_notification_email(
+        merged_to,
+        subject,
+        body,
+        attachments=attachments,
+        cc_emails=merged_cc,
+        reply_to=sent_by or None,
+    )
     smtp_status = "SENT" if ok else f"ERROR: {err}"
     with get_db_connection() as conn:
         with conn.cursor() as cur:
@@ -1452,10 +1459,23 @@ def prove_invio_link_compilazione(prove_id):
         cc.append(prova.get("segretario_email"))
     cc.append(email)
     recipients = list(dict.fromkeys([referente_email] + cc))
-    ok, err = send_notification_email(recipients, subject, body, attachments=None)
+    ok, err = send_notification_email(
+        [referente_email],
+        subject,
+        body,
+        attachments=None,
+        cc_emails=cc,
+        reply_to=email or None,
+    )
     if not ok and cc:
         # Fallback: se il referente viene rifiutato dal relay, invia almeno a CC operativi.
-        ok_fallback, err_fallback = send_notification_email(cc, subject, body, attachments=None)
+        ok_fallback, err_fallback = send_notification_email(
+            cc,
+            subject,
+            body,
+            attachments=None,
+            reply_to=email or None,
+        )
         if ok_fallback:
             ok = True
             err = f"Destinatario referente rifiutato dal relay; invio effettuato su CC operativi ({','.join(cc)})"
