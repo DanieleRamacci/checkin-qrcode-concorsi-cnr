@@ -867,6 +867,8 @@ def invia_lista_esame(session_id):
             attachments=attachments,
             cc_emails=cc_emails,
             reply_to=sender_email or None,
+            actor_email=sender_email or None,
+            source="azioni.invia_lista_esame",
         )
     except Exception:
         current_app.logger.exception(

@@ -448,6 +448,8 @@ def _send_state_email(prove_id, sent_by, to_emails, cc_emails, subject, body, do
         attachments=attachments,
         cc_emails=merged_cc,
         reply_to=sent_by or None,
+        actor_email=sent_by or None,
+        source="prove._send_state_email",
     )
     smtp_status = "SENT" if ok else f"ERROR: {err}"
     with get_db_connection() as conn:
@@ -1466,6 +1468,8 @@ def prove_invio_link_compilazione(prove_id):
         attachments=None,
         cc_emails=cc,
         reply_to=email or None,
+        actor_email=email or None,
+        source="prove.prove_invio_link_compilazione",
     )
     if not ok and cc:
         # Fallback: se il referente viene rifiutato dal relay, invia almeno a CC operativi.
@@ -1475,6 +1479,8 @@ def prove_invio_link_compilazione(prove_id):
             body,
             attachments=None,
             reply_to=email or None,
+            actor_email=email or None,
+            source="prove.prove_invio_link_compilazione.fallback_cc",
         )
         if ok_fallback:
             ok = True

@@ -116,6 +116,8 @@ def send_template_moodle_to_segreteria(prove_id, sent_by):
         attachments=attachments,
         cc_emails=cc_emails,
         reply_to=sent_by or None,
+        actor_email=sent_by or None,
+        source="prove_mail.send_template_moodle_to_segreteria",
     )
     status = "SENT" if ok else f"ERROR: {err}"
     _log_email(prove_id, subject, to_emails, cc_emails, [os.path.basename(a) for a in attachments], status, sent_by)
@@ -163,6 +165,8 @@ def send_excel_presenti_to_segreteria(prove_id, sent_by):
         attachments=attachments,
         cc_emails=cc_emails,
         reply_to=sent_by or None,
+        actor_email=sent_by or None,
+        source="prove_mail.send_excel_presenti_to_segreteria",
     )
     status = "SENT" if ok else f"ERROR: {err}"
     _log_email(prove_id, subject, to_emails, cc_emails, [os.path.basename(a) for a in attachments], status, sent_by)
@@ -208,6 +212,8 @@ def send_modelli_buste_to_segreteria(prove_id, sent_by):
         attachments=attachments,
         cc_emails=cc_emails,
         reply_to=sent_by or None,
+        actor_email=sent_by or None,
+        source="prove_mail.send_modelli_buste_to_segreteria",
     )
     status = "SENT" if ok else f"ERROR: {err}"
     _log_email(prove_id, subject, to_emails, cc_emails, attachment_names, status, sent_by)

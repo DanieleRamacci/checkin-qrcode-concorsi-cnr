@@ -5,6 +5,7 @@ import os
 import socket
 import logging
 from flask import current_app, has_app_context
+from utils.error_log import log_system_error
 
 
 logger = logging.getLogger(__name__)
@@ -20,7 +21,16 @@ def _cfg(name, default=None):
             return cfg_val
     return default
 
-def send_notification_email(to_emails, subject, body, attachments=None, cc_emails=None, reply_to=None):
+def send_notification_email(
+    to_emails,
+    subject,
+    body,
+    attachments=None,
+    cc_emails=None,
+    reply_to=None,
+    actor_email=None,
+    source="mail.send_notification_email",
+):
     """
     Invia una mail tramite SMTP senza autenticazione (es. relay interno su porta 25).
     Variabili d'ambiente richieste:
@@ -39,7 +49,9 @@ def send_notification_email(to_emails, subject, body, attachments=None, cc_email
     cc_list = [e.strip() for e in (cc_emails or []) if e and e.strip()]
     recipients = list(dict.fromkeys(to_list + cc_list))
     if not recipients:
-        return False, "Nessun destinatario valido"
+        raw = "Nessun destinatario valido"
+        log_system_error(source, actor_email, raw, error_type="ValidationError", context={"to": to_emails, "cc": cc_emails})
+        return False, raw
 
     msg = EmailMessage()
     msg['Subject'] = subject
@@ -82,7 +94,9 @@ def send_notification_email(to_emails, subject, body, attachments=None, cc_email
     try:
         port = int(raw_port)
     except (TypeError, ValueError):
-        return False, f"SMTP_PORT non valido: {raw_port!r}"
+        raw = f"SMTP_PORT non valido: {raw_port!r}"
+        log_system_error(source, actor_email, raw, error_type="ConfigurationError", context={"smtp_server": server, "smtp_port_raw": raw_port})
+        return False, raw
 
     try:
         if missing_files:
@@ -118,39 +132,57 @@ def send_notification_email(to_emails, subject, body, attachments=None, cc_email
         return True, None
 
     except smtplib.SMTPRecipientsRefused as e:
+        raw = str(e)
         refused = ",".join((e.recipients or {}).keys()) if getattr(e, "recipients", None) else "-"
         err = f"Destinatari rifiutati dal server SMTP: {refused}"
+        log_system_error(source, actor_email, raw, error_type=type(e).__name__, context={"smtp_server": server, "smtp_port": port, "to": to_list, "cc": cc_list})
         logger.exception("[mail] %s", err)
         return False, err
     except smtplib.SMTPAuthenticationError as e:
+        raw = str(e)
         err = f"Autenticazione SMTP fallita (code={getattr(e, 'smtp_code', None)}): {e}"
+        log_system_error(source, actor_email, raw, error_type=type(e).__name__, context={"smtp_server": server, "smtp_port": port})
         logger.exception("[mail] %s", err)
         return False, err
     except smtplib.SMTPConnectError as e:
+        raw = str(e)
         err = f"Connessione SMTP fallita (code={getattr(e, 'smtp_code', None)}): {e}"
+        log_system_error(source, actor_email, raw, error_type=type(e).__name__, context={"smtp_server": server, "smtp_port": port})
         logger.exception("[mail] %s server=%s port=%s", err, server, port)
         return False, err
     except smtplib.SMTPServerDisconnected as e:
+        raw = str(e)
         err = f"Server SMTP disconnesso: {e}"
+        log_system_error(source, actor_email, raw, error_type=type(e).__name__, context={"smtp_server": server, "smtp_port": port})
         logger.exception("[mail] %s", err)
         return False, err
     except smtplib.SMTPDataError as e:
+        raw = str(e)
         err = f"Errore dati SMTP (code={getattr(e, 'smtp_code', None)}): {e}"
+        log_system_error(source, actor_email, raw, error_type=type(e).__name__, context={"smtp_server": server, "smtp_port": port})
         logger.exception("[mail] %s", err)
         return False, err
     except (socket.timeout, TimeoutError) as e:
+        raw = str(e)
         err = f"Timeout verso server SMTP {server}:{port}: {e}"
+        log_system_error(source, actor_email, raw, error_type=type(e).__name__, context={"smtp_server": server, "smtp_port": port})
         logger.exception("[mail] %s", err)
         return False, err
     except socket.gaierror as e:
+        raw = str(e)
         err = f"Risoluzione DNS fallita per SMTP_SERVER={server}: {e}"
+        log_system_error(source, actor_email, raw, error_type=type(e).__name__, context={"smtp_server": server, "smtp_port": port})
         logger.exception("[mail] %s", err)
         return False, err
     except OSError as e:
+        raw = str(e)
         err = f"Errore di rete/socket SMTP verso {server}:{port}: {e}"
+        log_system_error(source, actor_email, raw, error_type=type(e).__name__, context={"smtp_server": server, "smtp_port": port})
         logger.exception("[mail] %s", err)
         return False, err
     except Exception as e:
+        raw = str(e)
         err = f"Errore generico invio email: {e}"
+        log_system_error(source, actor_email, raw, error_type=type(e).__name__, context={"smtp_server": server, "smtp_port": port})
         logger.exception("[mail] %s", err)
         return False, err

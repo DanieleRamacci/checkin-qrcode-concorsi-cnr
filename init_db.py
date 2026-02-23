@@ -322,6 +322,23 @@ try:
     ON prove_global_templates (doc_type, created_at DESC);
     """)
 
+    # Log errori tecnici raw (cross-modulo)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS system_error_log (
+        id SERIAL PRIMARY KEY,
+        source TEXT NOT NULL,
+        actor_email TEXT,
+        error_type TEXT,
+        raw_error TEXT NOT NULL,
+        context_json TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    """)
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_system_error_log_created
+    ON system_error_log (created_at DESC);
+    """)
+
     # Migrazioni additive sicure su installazioni esistenti
     cursor.execute("""
     ALTER TABLE prove
