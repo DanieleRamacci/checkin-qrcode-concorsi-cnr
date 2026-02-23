@@ -36,4 +36,4 @@ jobs:
         with:
           image_name: ${{ env.IMAGE_NAME }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          tags: ${{ env.IMAGE_TAG }}
+          image_tag: ${{ env.IMAGE_TAG }}
