@@ -581,18 +581,28 @@
                 <small class="text-muted">
                   Destinatario predefinito: {{ default_to or '-' }} · Allegati consigliati: {{ state_docs|length }}
                 </small>
+                {% if is_state_email_expected and current_state_email_status %}
+                <div class="mt-1">
+                  <span class="badge {{ current_state_email_status.badge_class }}">{{ current_state_email_status.label }}</span>
+                  {% if current_state_email_status.attempts %}
+                  <small class="text-muted">Tentativi: {{ current_state_email_status.attempts }}</small>
+                  {% endif %}
+                </div>
+                {% endif %}
               </div>
               {% if can_edit %}
               <div class="d-flex gap-2">
                 <form method="POST" action="{{ url_for('prove.prove_invia_email_stato', prove_id=prova.prove_id) }}">
+                  <input type="hidden" name="section" value="workflow">
+                  <input type="hidden" name="workflow_state" value="{{ prova.stato_corrente if is_state_email_expected else '' }}">
                   <input type="hidden" name="to_emails" value="{{ default_to }}">
                   <input type="hidden" name="cc_emails" value="{{ default_cc }}">
-                  <input type="hidden" name="subject" value="[Prove] {{ state_labels.get(prova.stato_corrente, prova.stato_corrente) }} - {{ prova.numero_bando or prova.prove_id }}">
-                  <input type="hidden" name="body" value="Invio operativo relativo allo stato {{ state_labels.get(prova.stato_corrente, prova.stato_corrente) }}.">
+                  <input type="hidden" name="subject" value="{{ default_subject }}">
+                  <input type="hidden" name="body" value="{{ default_body }}">
                   {% for d in state_docs %}
                   <input type="hidden" name="doc_ids" value="{{ d.id }}">
                   {% endfor %}
-                  <button class="btn btn-primary btn-sm" type="submit">Invia email</button>
+                  <button class="btn btn-primary btn-sm" type="submit">{{ 'Reinvia notifica' if (is_state_email_expected and current_state_email_status and current_state_email_status.sent) else 'Invia notifica' }}</button>
                 </form>
               </div>
               {% endif %}
@@ -607,6 +617,8 @@
             <div class="collapse mt-2" id="email-stato-collapse">
               <div class="border rounded p-2 bg-white">
                 <form method="POST" action="{{ url_for('prove.prove_invia_email_stato', prove_id=prova.prove_id) }}">
+                  <input type="hidden" name="section" value="workflow">
+                  <input type="hidden" name="workflow_state" value="{{ prova.stato_corrente if is_state_email_expected else '' }}">
                   <div class="row g-2">
                     <div class="col-md-6">
                       <label class="form-label">A</label>
@@ -618,11 +630,11 @@
                     </div>
                     <div class="col-md-12">
                       <label class="form-label">Oggetto</label>
-                      <input class="form-control form-control-sm" name="subject" value="[Prove] {{ state_labels.get(prova.stato_corrente, prova.stato_corrente) }} - {{ prova.numero_bando or prova.prove_id }}">
+                      <input class="form-control form-control-sm" name="subject" value="{{ default_subject }}">
                     </div>
                     <div class="col-md-12">
                       <label class="form-label">Messaggio</label>
-                      <textarea class="form-control form-control-sm" rows="3" name="body">Invio operativo relativo allo stato {{ state_labels.get(prova.stato_corrente, prova.stato_corrente) }}.</textarea>
+                      <textarea class="form-control form-control-sm" rows="3" name="body">{{ default_body }}</textarea>
                     </div>
                   </div>
 
@@ -742,16 +754,58 @@
         {% if active_section == 'email' %}
         <div class="border rounded p-3 bg-light mb-2">
           <h3 class="h6 mb-2">Email e comunicazioni</h3>
-          <small class="text-muted d-block">Questa sezione mostra solo lo storico email del concorso.</small>
+          <small class="text-muted d-block">Invio manuale notifiche per stato workflow e storico completo email del concorso.</small>
+        </div>
+
+        <div class="border rounded p-3 bg-light mb-2">
+          <h4 class="h6 mb-2">Notifiche workflow</h4>
+          <div class="table-responsive">
+            <table class="table table-sm table-striped">
+              <thead class="table-light"><tr><th>Stato workflow</th><th>Stato notifica</th><th>Ultimo invio</th><th>By</th><th>Tentativi</th><th></th></tr></thead>
+              <tbody>
+                {% for w in workflow_email_rows %}
+                <tr>
+                  <td>
+                    {{ w.state_label }}
+                    {% if w.active_state %}<span class="badge bg-primary ms-1">corrente</span>{% endif %}
+                  </td>
+                  <td><span class="badge {{ w.status_class }}">{{ w.status_label }}</span></td>
+                  <td>{{ w.sent_at.strftime('%d/%m/%Y %H:%M') if w.sent_at else '-' }}</td>
+                  <td>{{ w.sent_by or '-' }}</td>
+                  <td>{{ w.attempts }}</td>
+                  <td>
+                    {% if can_edit %}
+                    <form method="POST" action="{{ url_for('prove.prove_invia_email_stato', prove_id=prova.prove_id) }}">
+                      <input type="hidden" name="section" value="email">
+                      <input type="hidden" name="workflow_state" value="{{ w.state }}">
+                      <input type="hidden" name="to_emails" value="{{ w.default_to }}">
+                      <input type="hidden" name="cc_emails" value="{{ w.default_cc }}">
+                      <input type="hidden" name="subject" value="{{ w.subject }}">
+                      <input type="hidden" name="body" value="{{ w.body }}">
+                      {% for d in w.docs %}
+                      <input type="hidden" name="doc_ids" value="{{ d.id }}">
+                      {% endfor %}
+                      <button class="btn btn-primary btn-sm" type="submit">{{ 'Reinvia' if w.sent_ok else 'Invia notifica' }}</button>
+                    </form>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="text-muted">Nessuna notifica configurata.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <div class="table-responsive">
           <table class="table table-sm table-striped">
-            <thead class="table-light"><tr><th>Quando</th><th>Subject</th><th>To</th><th>CC</th><th>Allegati</th><th>Stato SMTP</th><th>By</th></tr></thead>
+            <thead class="table-light"><tr><th>Quando</th><th>Workflow state</th><th>Subject</th><th>To</th><th>CC</th><th>Allegati</th><th>Stato SMTP</th><th>By</th></tr></thead>
             <tbody>
               {% for e in email_log %}
               <tr>
                 <td>{{ e.sent_at.strftime('%d/%m/%Y %H:%M') if e.sent_at else '-' }}</td>
+                <td>{{ state_labels.get(e.workflow_state, e.workflow_state) if e.workflow_state else '-' }}</td>
                 <td>{{ e.subject or '-' }}</td>
                 <td class="mono">{{ e.to_emails or '-' }}</td>
                 <td class="mono">{{ e.cc_emails or '-' }}</td>
@@ -760,7 +814,7 @@
                 <td>{{ e.sent_by or '-' }}</td>
               </tr>
               {% else %}
-              <tr><td colspan="7" class="text-muted">Nessuna email inviata.</td></tr>
+              <tr><td colspan="8" class="text-muted">Nessuna email inviata.</td></tr>
               {% endfor %}
             </tbody>
           </table>

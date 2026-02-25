@@ -32,11 +32,6 @@ from utils.prove_stato import (
     giorni_alla_prova,
     next_state_for,
 )
-from utils.prove_mail import (
-    send_template_moodle_to_segreteria,
-    send_excel_presenti_to_segreteria,
-    send_modelli_buste_to_segreteria,
-)
 from utils.send_mail import send_notification_email
 
 
@@ -74,6 +69,21 @@ STATE_HINTS = {
     "buste_con_domande_ricevute": "Carica nella sezione Buste i tre file ricevuti (A/B/C).",
     "estrazione_busta": "Seleziona la busta estratta (A/B/C) prima di iniziare la prova.",
     "inserire_data_valutazione_prova": "Inserisci la data in cui è avvenuta la valutazione della prova.",
+}
+
+WORKFLOW_EMAIL_STATES = {
+    "template_moodle_inviati": {
+        "subject_prefix": "[Prove] Candidati da caricare su piattaforma esami",
+        "body": "Invio operativo relativo allo stato Candidati caricati su piattaforma esami.",
+    },
+    "modelli_buste_inviati_al_segretario": {
+        "subject_prefix": "[Prove] Modelli buste esame inviati al segretario",
+        "body": "Invio operativo relativo allo stato Modelli buste esame inviati al segretario.",
+    },
+    "excel_presenti_inviato": {
+        "subject_prefix": "[Prove] Excel presenti inviato",
+        "body": "Invio operativo relativo allo stato Excel presenti inviato.",
+    },
 }
 
 SENT_DOC_TYPES = {
@@ -390,7 +400,7 @@ def _split_docs(docs):
     return sent, received, other
 
 
-def _send_state_email(prove_id, sent_by, to_emails, cc_emails, subject, body, doc_ids):
+def _send_state_email(prove_id, sent_by, to_emails, cc_emails, subject, body, doc_ids, workflow_state=None):
     attachments = []
     attachment_names = []
     if doc_ids:
@@ -456,11 +466,12 @@ def _send_state_email(prove_id, sent_by, to_emails, cc_emails, subject, body, do
         with conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO prove_emails_log (prove_id, subject, to_emails, cc_emails, attachments, smtp_status, sent_by)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO prove_emails_log (prove_id, workflow_state, subject, to_emails, cc_emails, attachments, smtp_status, sent_by)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     str(prove_id),
+                    workflow_state,
                     subject,
                     ",".join(merged_to),
                     ",".join(merged_cc),
@@ -985,6 +996,10 @@ def prove_dettaglio(prove_id):
     busta_choice = (prova.get("busta_estratta_codice") or "").strip().upper()
     default_to = prova.get("segretario_email") or prova.get("referente_email") or ""
     default_cc = _user_email()
+    current_state = prova.get("stato_corrente")
+    is_state_email_expected = current_state in WORKFLOW_EMAIL_STATES
+    default_subject = f"[Prove] {STATE_LABELS.get(current_state, current_state)} - {prova.get('numero_bando') or prova.get('prove_id')}"
+    default_body = f"Invio operativo relativo allo stato {STATE_LABELS.get(current_state, current_state)}."
 
     with get_db_connection() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -1022,7 +1037,7 @@ def prove_dettaglio(prove_id):
 
             cur.execute(
                 """
-                SELECT id, subject, to_emails, cc_emails, attachments, smtp_status, sent_at, sent_by
+                SELECT id, workflow_state, subject, to_emails, cc_emails, attachments, smtp_status, sent_at, sent_by
                 FROM prove_emails_log
                 WHERE prove_id = %s
                 ORDER BY sent_at DESC, id DESC
@@ -1073,6 +1088,74 @@ def prove_dettaglio(prove_id):
                 if t.get("doc_type") in ("template_busta_a_vuota", "template_busta_b_vuota", "template_busta_c_vuota")
             ]
 
+    workflow_email_last = {}
+    workflow_email_attempts = {}
+    for e in email_log:
+        state_key = (e.get("workflow_state") or "").strip()
+        if not state_key:
+            continue
+        workflow_email_attempts[state_key] = workflow_email_attempts.get(state_key, 0) + 1
+        if state_key not in workflow_email_last:
+            workflow_email_last[state_key] = e
+
+    current_state_email_status = None
+    if is_state_email_expected:
+        latest = workflow_email_last.get(current_state)
+        attempts = workflow_email_attempts.get(current_state, 0)
+        if latest and (latest.get("smtp_status") or "").upper().startswith("SENT"):
+            current_state_email_status = {
+                "sent": True,
+                "badge_class": "bg-success",
+                "label": "Email gia inviata",
+                "attempts": attempts,
+                "sent_at": latest.get("sent_at"),
+                "sent_by": latest.get("sent_by"),
+            }
+        elif latest:
+            current_state_email_status = {
+                "sent": False,
+                "badge_class": "bg-danger",
+                "label": "Ultimo invio con errore",
+                "attempts": attempts,
+                "sent_at": latest.get("sent_at"),
+                "sent_by": latest.get("sent_by"),
+            }
+        else:
+            current_state_email_status = {
+                "sent": False,
+                "badge_class": "bg-secondary",
+                "label": "Email non inviata",
+                "attempts": 0,
+                "sent_at": None,
+                "sent_by": None,
+            }
+
+    workflow_email_rows = []
+    for state_key, cfg in WORKFLOW_EMAIL_STATES.items():
+        latest = workflow_email_last.get(state_key)
+        attempts = workflow_email_attempts.get(state_key, 0)
+        sent_ok = bool(latest and (latest.get("smtp_status") or "").upper().startswith("SENT"))
+        status_label = "Inviata" if sent_ok else ("Errore ultimo invio" if latest else "Non inviata")
+        status_class = "bg-success" if sent_ok else ("bg-danger" if latest else "bg-secondary")
+        workflow_email_rows.append(
+            {
+                "state": state_key,
+                "state_label": STATE_LABELS.get(state_key, state_key),
+                "subject": f"{cfg['subject_prefix']} - {prova.get('numero_bando') or prova.get('prove_id')}",
+                "body": cfg["body"],
+                "default_to": default_to,
+                "default_cc": default_cc,
+                "docs": _get_docs_by_types(prove_id, _state_doc_types(state_key)) if can_view_docs else [],
+                "sent_ok": sent_ok,
+                "status_label": status_label,
+                "status_class": status_class,
+                "attempts": attempts,
+                "sent_at": latest.get("sent_at") if latest else None,
+                "sent_by": latest.get("sent_by") if latest else None,
+                "active_state": state_key == current_state,
+            }
+        )
+
     return render_template(
         "prove/dettaglio.html",
         prova=prova,
@@ -1106,6 +1189,11 @@ def prove_dettaglio(prove_id):
         esami_url=esami_url,
         default_to=default_to,
         default_cc=default_cc,
+        default_subject=default_subject,
+        default_body=default_body,
+        is_state_email_expected=is_state_email_expected,
+        current_state_email_status=current_state_email_status,
+        workflow_email_rows=workflow_email_rows,
         latest_form_token=latest_form_token,
         compile_form_link=(
             f"{(os.getenv('APP_PUBLIC_URL') or request.url_root.rstrip('/'))}/prove/compila/{latest_form_token['token']}"
@@ -1382,36 +1470,12 @@ def prove_azione(prove_id, action):
     except ProveStateError as e:
         return redirect(url_for("prove.prove_dettaglio", prove_id=prove_id, section="workflow", err=str(e)))
 
-    # Trigger email richiesti
-    mail_err = None
-    try:
-        if to_state == "template_moodle_inviati":
-            ok, err = send_template_moodle_to_segreteria(str(prove_id), email)
-            if not ok:
-                mail_err = f"Invio automatico candidati su piattaforma esami non riuscito: {err}"
-        elif to_state == "modelli_buste_inviati_al_segretario":
-            ok, err = send_modelli_buste_to_segreteria(str(prove_id), email)
-            if not ok:
-                mail_err = f"Invio automatico modelli buste non riuscito: {err}"
-        elif to_state == "excel_presenti_inviato":
-            ok, err = send_excel_presenti_to_segreteria(str(prove_id), email)
-            if not ok:
-                mail_err = f"Invio automatico Excel presenti non riuscito: {err}"
-    except Exception:
-        current_app.logger.exception(
-            "[prove_mail] errore inatteso durante invio automatico prove_id=%s to_state=%s user=%s",
-            prove_id,
-            to_state,
-            email,
-        )
-        mail_err = "Invio automatico non riuscito per errore inatteso lato server (controllare i log)."
-
     return redirect(
         url_for(
             "prove.prove_dettaglio",
             prove_id=prove_id,
             section="workflow",
-            err=mail_err if mail_err else None,
+            ok="Stato aggiornato. Notifiche email non inviate automaticamente: usa il pulsante Invia notifica.",
         )
     )
 
@@ -1516,10 +1580,14 @@ def prove_invia_email_stato(prove_id):
     if not _can_edit(prova, email, is_admin):
         abort(403)
 
+    section = (request.form.get("section") or "workflow").strip() or "workflow"
     to_emails = [x.strip() for x in (request.form.get("to_emails") or "").split(",") if x.strip()]
     cc_emails = [x.strip() for x in (request.form.get("cc_emails") or "").split(",") if x.strip()]
+    workflow_state = (request.form.get("workflow_state") or "").strip()
+    if workflow_state and workflow_state not in WORKFLOW_EMAIL_STATES:
+        return redirect(url_for("prove.prove_dettaglio", prove_id=prove_id, section=section, err="Stato email workflow non valido."))
     subject = (request.form.get("subject") or "").strip() or f"[Prove] Stato {STATE_LABELS.get(prova.get('stato_corrente'), prova.get('stato_corrente'))}"
-    body = (request.form.get("body") or "").strip() or "Invio automatico/operativo dal modulo Prove."
+    body = (request.form.get("body") or "").strip() or "Invio operativo dal modulo Prove."
     doc_ids = [int(x) for x in request.form.getlist("doc_ids") if str(x).isdigit()]
 
     try:
@@ -1531,6 +1599,7 @@ def prove_invia_email_stato(prove_id):
             subject=subject,
             body=body,
             doc_ids=doc_ids,
+            workflow_state=workflow_state or None,
         )
     except Exception:
         current_app.logger.exception(
@@ -1542,13 +1611,13 @@ def prove_invia_email_stato(prove_id):
             url_for(
                 "prove.prove_dettaglio",
                 prove_id=prove_id,
-                section="workflow",
+                section=section,
                 err="Invio fallito per errore inatteso lato server (controllare i log).",
             )
         )
     if not ok:
-        return redirect(url_for("prove.prove_dettaglio", prove_id=prove_id, section="workflow", err=f"Invio fallito: {err}"))
-    return redirect(url_for("prove.prove_dettaglio", prove_id=prove_id, section="workflow"))
+        return redirect(url_for("prove.prove_dettaglio", prove_id=prove_id, section=section, err=f"Invio fallito: {err}"))
+    return redirect(url_for("prove.prove_dettaglio", prove_id=prove_id, section=section, ok="Notifica email inviata"))
 
 
 @prove_bp.route("/prove/compila/<token>", methods=["GET", "POST"])

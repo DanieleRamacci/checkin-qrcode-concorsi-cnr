@@ -295,6 +295,7 @@ try:
     CREATE TABLE IF NOT EXISTS prove_emails_log (
         id SERIAL PRIMARY KEY,
         prove_id UUID REFERENCES prove(prove_id) ON DELETE CASCADE,
+        workflow_state TEXT,
         subject TEXT,
         to_emails TEXT,
         cc_emails TEXT,
@@ -395,6 +396,10 @@ try:
     cursor.execute("""
     ALTER TABLE prove_global_templates
     ADD COLUMN IF NOT EXISTS template_categoria TEXT NOT NULL DEFAULT 'generico';
+    """)
+    cursor.execute("""
+    ALTER TABLE prove_emails_log
+    ADD COLUMN IF NOT EXISTS workflow_state TEXT;
     """)
 
     conn.commit()
