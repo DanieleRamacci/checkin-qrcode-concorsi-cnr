@@ -48,6 +48,7 @@ app.config.update(
 
 # === ENVIRONMENT CONFIGURATION ===
 version = os.getenv("APP_VERSION", "test")
+build_time = os.getenv("APP_BUILD_TIME") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 app.jinja_env.globals.update(current_year=datetime.now().year)
 # === SESSIONI SU REDIS ===
 app.secret_key = os.getenv('SECRET_KEY', 'fallback')
@@ -166,7 +167,7 @@ def view_log():
 
 @app.context_processor
 def inject_version():
-    return dict(version=version)
+    return dict(version=version, build_time=build_time)
 
 if __name__ == '__main__':
     app.run(
