@@ -72,6 +72,10 @@ STATE_HINTS = {
 }
 
 WORKFLOW_EMAIL_STATES = {
+    "convocazioni_inviate": {
+        "subject_prefix": "[Prove] Convocazioni inviate",
+        "body": "Invio operativo relativo allo stato Convocazioni inviate.",
+    },
     "template_moodle_inviati": {
         "subject_prefix": "[Prove] Candidati da caricare su piattaforma esami",
         "body": "Invio operativo relativo allo stato Candidati caricati su piattaforma esami.",
@@ -83,6 +87,38 @@ WORKFLOW_EMAIL_STATES = {
     "excel_presenti_inviato": {
         "subject_prefix": "[Prove] Excel presenti inviato",
         "body": "Invio operativo relativo allo stato Excel presenti inviato.",
+    },
+    "lista_presenti_ricevuta": {
+        "subject_prefix": "[Prove] Lista presenti ricevuta",
+        "body": "Invio operativo relativo allo stato Lista presenti ricevuta.",
+    },
+    "presenti_attivati_su_moodle": {
+        "subject_prefix": "[Prove] Presenti attivati su Moodle",
+        "body": "Invio operativo relativo allo stato Presenti attivati su Moodle.",
+    },
+    "busta_estratta": {
+        "subject_prefix": "[Prove] Busta estratta",
+        "body": "Invio operativo relativo allo stato Busta estratta.",
+    },
+    "domande_caricate": {
+        "subject_prefix": "[Prove] Quesiti inseriti su piattaforma",
+        "body": "Invio operativo relativo allo stato Domande caricate.",
+    },
+    "prova_avviata": {
+        "subject_prefix": "[Prove] Prova avviata",
+        "body": "Invio operativo relativo allo stato Prova avviata.",
+    },
+    "prova_conclusa": {
+        "subject_prefix": "[Prove] Prova conclusa",
+        "body": "Invio operativo relativo allo stato Prova conclusa.",
+    },
+    "inserire_data_valutazione_prova": {
+        "subject_prefix": "[Prove] Commissione abilitata alla valutazione",
+        "body": "Invio operativo relativo allo stato Inserire data valutazione prova.",
+    },
+    "prova_valutata": {
+        "subject_prefix": "[Prove] Commissione abilitata a visualizzazione/esportazione",
+        "body": "Invio operativo relativo allo stato Prova valutata.",
     },
 }
 
@@ -115,6 +151,16 @@ MONTHS_IT = {
     10: "ottobre",
     11: "novembre",
     12: "dicembre",
+}
+
+WEEKDAYS_IT = {
+    0: "lunedi",
+    1: "martedi",
+    2: "mercoledi",
+    3: "giovedi",
+    4: "venerdi",
+    5: "sabato",
+    6: "domenica",
 }
 
 TIPOLOGIA_PROVA_OPTIONS = [
@@ -346,6 +392,303 @@ def _json_default_serializer(obj):
     if isinstance(obj, (datetime, date)):
         return obj.isoformat()
     return str(obj)
+
+
+def _format_date_it(value, with_weekday=False):
+    if not value:
+        return "-"
+    if isinstance(value, datetime):
+        value = value.date()
+    month = MONTHS_IT.get(value.month, str(value.month))
+    core = f"{value.day:02d} {month} {value.year}"
+    if with_weekday:
+        weekday = WEEKDAYS_IT.get(value.weekday(), "")
+        if weekday:
+            return f"{weekday} {core}"
+    return core
+
+
+def _format_time_it(value):
+    if not value:
+        return "-"
+    if isinstance(value, datetime):
+        return value.strftime("%H:%M")
+    if hasattr(value, "strftime"):
+        return value.strftime("%H:%M")
+    return str(value)
+
+
+def _format_time_dot(value):
+    t = _format_time_it(value)
+    return t.replace(":", ".") if t and t != "-" else "-"
+
+
+def _safe_contact_line(label, name, email, phone=None):
+    parts = []
+    if name:
+        parts.append(str(name).strip())
+    if email:
+        parts.append(str(email).strip())
+    if phone:
+        parts.append(str(phone).strip())
+    detail = " - ".join([p for p in parts if p]) or "n.d."
+    return f"{label}: {detail}"
+
+
+def _commission_emails(prova, support_staff_rows):
+    out = []
+    for k in ("segretario_email", "referente_email"):
+        val = (prova.get(k) or "").strip()
+        if val:
+            out.append(val)
+    for s in support_staff_rows or []:
+        val = (s.get("email") or "").strip()
+        if val:
+            out.append(val)
+    # Dedup mantenendo ordine
+    return list(dict.fromkeys(out))
+
+
+def _state_email_defaults(state_key, prova, support_staff_rows, sender_email):
+    bando = (prova.get("numero_bando") or prova.get("prove_id") or "-").strip()
+    titolo = (prova.get("titolo") or "").strip()
+    data_prova = _format_date_it(prova.get("data_prova"), with_weekday=True)
+    ora_prova = _format_time_it(prova.get("ora_prova"))
+    luogo = (prova.get("luogo") or "-").strip()
+    durata = prova.get("durata_minuti")
+    num_previsti = prova.get("num_partecipanti")
+    esperto_email = (prova.get("esperto_email") or sender_email or "").strip()
+
+    segretario_line = _safe_contact_line(
+        "Segretario",
+        prova.get("segretario_nome"),
+        prova.get("segretario_email"),
+        prova.get("segretario_telefono"),
+    )
+    referente_line = _safe_contact_line(
+        "Referente",
+        prova.get("referente_nome"),
+        prova.get("referente_email"),
+    )
+    informatico_sede_line = _safe_contact_line(
+        "Informatico sede",
+        prova.get("informatico_sede_nome"),
+        prova.get("informatico_sede_email"),
+        prova.get("informatico_sede_telefono"),
+    )
+
+    support_lines = []
+    for s in support_staff_rows or []:
+        nome = (s.get("nome") or "").strip()
+        mail = (s.get("email") or "").strip()
+        if nome or mail:
+            support_lines.append(f"- {nome or 'Nominativo'} ({mail or 'email non indicata'})")
+    support_text = "\n".join(support_lines) if support_lines else "- Nessun supporto commissione censito"
+
+    base_to = _commission_emails(prova, support_staff_rows)
+    base_cc = list(dict.fromkeys([x for x in [esperto_email, sender_email] if x]))
+
+    if state_key == "template_moodle_inviati":
+        subject = f"[Prove] Coordinamento operativo prova scritta - bando {bando}"
+        body = (
+            "Buongiorno,\n\n"
+            f"al fine di garantire il corretto svolgimento della prova scritta relativa al bando {bando}"
+            f"{f' ({titolo})' if titolo else ''} di {data_prova} alle ore {ora_prova}, "
+            "si riportano di seguito le fasi operative e le modalita di coordinamento tra Commissione e supporto informatico.\n\n"
+            "Seguirà email separata con modelli di tracce diretta al segretario, cosi da gestire le comunicazioni operative "
+            "rispondendo direttamente a quella email.\n\n"
+            "Riepilogo contatti:\n"
+            f"- {segretario_line}\n"
+            f"- {referente_line}\n"
+            f"- {informatico_sede_line}\n"
+            f"- Esperto informatico remoto: {esperto_email or 'n.d.'}\n"
+            f"- Sede prova: {luogo}\n"
+            f"- Durata prevista: {durata if durata is not None else '-'} minuti\n"
+            f"- Numero candidati previsti: {num_previsti if num_previsti is not None else '-'}\n"
+            "Supporto Commissione:\n"
+            f"{support_text}\n\n"
+            "Informazioni da inviare durante le fasi della procedura:\n"
+            "1. Durata della prova, numero di candidati previsti e referente informatico con cui coordinarsi.\n"
+            "2. Modelli tracce A/B/C compilate (email separata inviata dal segretario all informatico remoto).\n"
+            "3. Lista candidati presenti, durata prova e numero candidati previsti.\n"
+            "4. Lettera traccia estratta.\n\n"
+            "Passaggi operativi previsti:\n"
+            "1. Invio template quesiti al segretario.\n"
+            "2. Caricamento in piattaforma il giorno della prova su https://esami.concorsi.cnr.it.\n"
+            "3. Verifica accessi candidati e coordinamento informatico sede-remoto.\n"
+            "4. Abilitazione dei soli candidati presenti.\n"
+            "5. Estrazione busta e avvio prova con comunicazione orario inizio/fine.\n"
+            "6. Chiusura prova allo scadere del tempo con solo invio finale.\n\n"
+            "Resto a disposizione.\n\n"
+            "Cordiali saluti\n"
+            f"{esperto_email or sender_email or ''}"
+        )
+        return {
+            "subject": subject,
+            "body": body,
+            "to": base_to,
+            "cc": base_cc,
+        }
+
+    if state_key == "modelli_buste_inviati_al_segretario":
+        segretario_email = (prova.get("segretario_email") or "").strip()
+        to_list = [x for x in [segretario_email] + [e for e in base_to if e != segretario_email] if x]
+        to_list = list(dict.fromkeys(to_list))
+        subject = f"[Prove] Invio modelli tracce A/B/C - bando {bando}"
+        body = (
+            "Buongiorno,\n\n"
+            "in allegato trasmetto i modelli template delle tracce A/B/C per la prova scritta.\n\n"
+            "I modelli devono essere compilati senza modificare struttura e formato e poi reinviati "
+            f"all indirizzo dell esperto informatico: {esperto_email or sender_email or '-'}.\n\n"
+            "Una volta ricevuti i file compilati procedero al caricamento in piattaforma e alle successive comunicazioni operative.\n\n"
+            "Cordiali saluti\n"
+            f"{esperto_email or sender_email or ''}"
+        )
+        return {
+            "subject": subject,
+            "body": body,
+            "to": to_list,
+            "cc": base_cc,
+        }
+
+    if state_key == "excel_presenti_inviato":
+        subject = f"[Prove] Lista presenti e attivazione candidati - bando {bando}"
+        body = (
+            "Buongiorno,\n\n"
+            f"in allegato invio la lista presenti per la prova del {data_prova} alle ore {ora_prova}.\n"
+            "Dopo verifica, verranno abilitati esclusivamente i candidati presenti.\n\n"
+            "Cordiali saluti\n"
+            f"{esperto_email or sender_email or ''}"
+        )
+        return {
+            "subject": subject,
+            "body": body,
+            "to": base_to,
+            "cc": base_cc,
+        }
+
+    if state_key == "convocazioni_inviate":
+        subject = f"[Prove] Convocazioni e coordinamento iniziale - bando {bando}"
+        body = (
+            "Buongiorno,\n\n"
+            f"si conferma l avvio del coordinamento per la prova del {data_prova} alle ore {ora_prova} presso {luogo}.\n"
+            "Le prossime comunicazioni operative seguiranno via email in base alle fasi del workflow.\n\n"
+            "Cordiali saluti\n"
+            f"{esperto_email or sender_email or ''}"
+        )
+        return {"subject": subject, "body": body, "to": base_to, "cc": base_cc}
+
+    if state_key == "lista_presenti_ricevuta":
+        subject = f"[Prove] Lista presenti ricevuta - bando {bando}"
+        body = (
+            "Buongiorno,\n\n"
+            "si conferma la ricezione della lista candidati presenti.\n"
+            "Procedo con la verifica operativa per l attivazione dei soli candidati presenti in piattaforma.\n\n"
+            "Piattaforma: https://esami.concorsi.cnr.it\n\n"
+            "Cordiali saluti\n"
+            f"{esperto_email or sender_email or ''}"
+        )
+        return {"subject": subject, "body": body, "to": base_to, "cc": base_cc}
+
+    if state_key == "presenti_attivati_su_moodle":
+        subject = f"[Prove] Candidati presenti attivati - bando {bando}"
+        body = (
+            "Buongiorno,\n\n"
+            "si conferma che i candidati presenti sono stati attivati in piattaforma esami.\n"
+            "E possibile procedere con estrazione busta e avvio prova.\n\n"
+            "Piattaforma: https://esami.concorsi.cnr.it\n\n"
+            "Cordiali saluti\n"
+            f"{esperto_email or sender_email or ''}"
+        )
+        return {"subject": subject, "body": body, "to": base_to, "cc": base_cc}
+
+    if state_key == "busta_estratta":
+        lettera = (prova.get("busta_estratta_codice") or "-").strip().upper() or "-"
+        subject = f"[Prove] Busta estratta {lettera} - bando {bando}"
+        body = (
+            "Buongiorno,\n\n"
+            f"si conferma l estrazione della busta {lettera}.\n"
+            "Si procede con avvio della prova secondo i tempi concordati.\n\n"
+            "Cordiali saluti\n"
+            f"{esperto_email or sender_email or ''}"
+        )
+        return {"subject": subject, "body": body, "to": base_to, "cc": base_cc}
+
+    if state_key == "domande_caricate":
+        subject = f"[Prove] Quesiti inseriti su piattaforma - bando {bando}"
+        body = (
+            "Buongiorno,\n"
+            "effettuato con successo l inserimento dei quesiti nel sistema https://esami.concorsi.cnr.it, "
+            "relativi alla prova scritta prevista per il bando in oggetto.\n"
+            "Abilitata funzionalita SEB.\n"
+            "Rimango in attesa della comunicazione dei candidati presenti.\n"
+            "Saluti\n"
+            "Daniele Ramacci\n"
+            "3471066389"
+        )
+        return {"subject": subject, "body": body, "to": base_to, "cc": base_cc}
+
+    if state_key == "prova_avviata":
+        lettera = (prova.get("busta_estratta_codice") or "-").strip().upper() or "-"
+        ora_start = _format_time_dot(prova.get("orario_inizio_prova") or prova.get("ora_prova"))
+        ora_end = _format_time_dot(prova.get("orario_fine_previsto"))
+        n_conn = prova.get("num_presenti")
+        subject = f"[Prove] Prova avviata - bando {bando}"
+        body = (
+            f"Abilitata prova estratta con lettera \"{lettera}\"\n"
+            f"Espletamento prova attivo dalle ore {ora_start}\n"
+            f"Termine prova ore {ora_end}\n"
+            "Abilitata funzionalita SEB.\n"
+            f"N. {n_conn if n_conn is not None else '-'} candidati connessi alle ore {ora_start} con tentativo in corso.\n"
+            "Daniele Ramacci\n"
+            "3471066389"
+        )
+        return {"subject": subject, "body": body, "to": base_to, "cc": base_cc}
+
+    if state_key == "prova_conclusa":
+        ora_end = _format_time_dot(prova.get("orario_fine_previsto"))
+        subject = f"[Prove] Prova conclusa - bando {bando}"
+        body = (
+            f"Espletamento procedura di esami Bando {bando} conclusa con successo ore {ora_end}\n"
+            "Ringrazio per il proficuo lavoro svolto ed invio i piu cordiali saluti.\n"
+            "Daniele Ramacci\n"
+            "3471066389"
+        )
+        return {"subject": subject, "body": body, "to": base_to, "cc": base_cc}
+
+    if state_key == "inserire_data_valutazione_prova":
+        subject = f"[Prove] Commissione abilitata alla valutazione - bando {bando}"
+        body = (
+            "Commissione abilitata alla valutazione, nella procedura https://esami.concorsi.cnr.it, "
+            "delle prove di esame effettuate dai candidati al bando in oggetto.\n"
+            "Coloro che non hanno mai fatto accesso al portale https://esami.concorsi.cnr.it inserire nel campo utente "
+            "il proprio nome.cognome (tutto minuscolo come in SIPER);\n"
+            "nel campo password inserire: esercitazione (anch essa in minuscolo) il sistema obblighera al cambio della password\n"
+            "Cordiali saluti\n"
+            "Roberto Ballacci"
+        )
+        return {"subject": subject, "body": body, "to": base_to, "cc": base_cc}
+
+    if state_key == "prova_valutata":
+        subject = f"[Prove] Commissione abilitata a visualizzazione/esportazione - bando {bando}"
+        body = (
+            "Commissione abilitata alla visualizzazione/esportazione del risultato della valutazione, "
+            "nella procedura https://esami.concorsi.cnr.it, delle prove di esame effettuate dai candidati al bando in oggetto.\n"
+            "Cordiali saluti\n"
+            "Roberto Ballacci\n"
+            "06-49932179\n"
+            "338-6544605"
+        )
+        return {"subject": subject, "body": body, "to": base_to, "cc": base_cc}
+
+    generic_subject = f"[Prove] {STATE_LABELS.get(state_key, state_key)} - {bando}"
+    generic_body = f"Invio operativo relativo allo stato {STATE_LABELS.get(state_key, state_key)}."
+    return {
+        "subject": generic_subject,
+        "body": generic_body,
+        "to": base_to,
+        "cc": base_cc,
+    }
 
 
 def _dump_backup_payload():
@@ -1068,6 +1411,9 @@ def prove_dettaglio(prove_id):
                 (str(prove_id),),
             )
             support_staff_rows = cur.fetchall()
+            support_staff_rows = (support_staff_rows or [])[:3]
+            while len(support_staff_rows) < 3:
+                support_staff_rows.append({"id": None, "nome": "", "email": "", "created_at": None})
 
             global_templates = []
             if can_view_docs:
@@ -1099,6 +1445,11 @@ def prove_dettaglio(prove_id):
             workflow_email_last[state_key] = e
 
     current_state_email_status = None
+    current_state_defaults = _state_email_defaults(current_state, prova, support_staff_rows, email)
+    default_to = ",".join(current_state_defaults.get("to") or [x.strip() for x in [default_to] if x.strip()])
+    default_cc = ",".join(current_state_defaults.get("cc") or [x.strip() for x in [default_cc] if x.strip()])
+    default_subject = current_state_defaults.get("subject") or default_subject
+    default_body = current_state_defaults.get("body") or default_body
     if is_state_email_expected:
         latest = workflow_email_last.get(current_state)
         attempts = workflow_email_attempts.get(current_state, 0)
@@ -1137,14 +1488,15 @@ def prove_dettaglio(prove_id):
         sent_ok = bool(latest and (latest.get("smtp_status") or "").upper().startswith("SENT"))
         status_label = "Inviata" if sent_ok else ("Errore ultimo invio" if latest else "Non inviata")
         status_class = "bg-success" if sent_ok else ("bg-danger" if latest else "bg-secondary")
+        row_defaults = _state_email_defaults(state_key, prova, support_staff_rows, email)
         workflow_email_rows.append(
             {
                 "state": state_key,
                 "state_label": STATE_LABELS.get(state_key, state_key),
-                "subject": f"{cfg['subject_prefix']} - {prova.get('numero_bando') or prova.get('prove_id')}",
-                "body": cfg["body"],
-                "default_to": default_to,
-                "default_cc": default_cc,
+                "subject": row_defaults.get("subject"),
+                "body": row_defaults.get("body"),
+                "default_to": ",".join(row_defaults.get("to") or []),
+                "default_cc": ",".join(row_defaults.get("cc") or []),
                 "docs": _get_docs_by_types(prove_id, _state_doc_types(state_key)) if can_view_docs else [],
                 "sent_ok": sent_ok,
                 "status_label": status_label,
@@ -1260,7 +1612,7 @@ def prove_update(prove_id):
     support_nomi = request.form.getlist("support_nome[]")
     support_emails = request.form.getlist("support_email[]")
     support_pairs = []
-    max_len = max(len(support_nomi), len(support_emails)) if (support_nomi or support_emails) else 0
+    max_len = min(3, max(len(support_nomi), len(support_emails)) if (support_nomi or support_emails) else 0)
     for i in range(max_len):
         nome = (support_nomi[i] if i < len(support_nomi) else "").strip()
         email_val = (support_emails[i] if i < len(support_emails) else "").strip()
