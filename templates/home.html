@@ -38,48 +38,6 @@
           </div>
         </div>
       </div>
-
-      <div class="col-md-4">
-        <div class="card h-100 shadow-sm">
-          <div class="card-body">
-            <h5 class="card-title">Esperto informatico</h5>
-            <p class="card-text">Gestione fasi finali, Moodle e stati di esame.</p>
-            {% if is_esperto or is_admin %}
-              <a href="/esperto" class="btn btn-primary">Entra come Esperto</a>
-            {% else %}
-              <button class="btn btn-outline-secondary" disabled>Non autorizzato</button>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-
-      <div class="col-md-4">
-        <div class="card h-100 shadow-sm">
-          <div class="card-body">
-            <h5 class="card-title">Informatico in sede</h5>
-            <p class="card-text">Supporto operativo in presenza durante il concorso.</p>
-            {% if is_admin %}
-              <a href="/sede" class="btn btn-primary">Entra come Informatico in sede</a>
-            {% else %}
-              <button class="btn btn-outline-secondary" disabled>Non autorizzato</button>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-
-      <div class="col-md-4">
-        <div class="card h-100 shadow-sm">
-          <div class="card-body">
-            <h5 class="card-title">Tabella concorsi esperto informatico</h5>
-            <p class="card-text">Modulo separato per coordinamento prove, documenti, workflow ed email.</p>
-            {% if is_esperto or is_admin %}
-              <a href="/prove/tutti" class="btn btn-primary">Apri modulo Prove</a>
-            {% else %}
-              <button class="btn btn-outline-secondary" disabled>Non autorizzato</button>
-            {% endif %}
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 
