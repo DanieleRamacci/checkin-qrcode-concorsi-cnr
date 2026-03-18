@@ -1,5 +1,6 @@
 from flask import Blueprint, make_response, request, jsonify, session, render_template
 from datetime import datetime
+import os
 from db import get_db_connection
 from routes.auth import login_required
 from utils.stato import get_stato_corrente
