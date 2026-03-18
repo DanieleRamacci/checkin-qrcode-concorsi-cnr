@@ -200,11 +200,14 @@ def get_sessione_by_id(session_id):
 
 
 def get_sessione_config(session_id):
-    """Restituisce la configurazione della sessione (esperto remoto, informatico sede, telefono)."""
+    """Restituisce la configurazione operativa della sessione."""
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
             cursor.execute("""
-                SELECT email_esperto_remoto, nome_informatico_sede, telefono_contatto
+                SELECT email_esperto_remoto, nome_informatico_sede,
+                       email_informatico_sede, telefono_informatico_sede,
+                       email_segretario, telefono_segretario,
+                       durata_prova_minuti, referente_concorso
                 FROM sessione_config
                 WHERE session_id = %s
             """, (session_id,))
@@ -212,22 +215,49 @@ def get_sessione_config(session_id):
     if not row:
         return None
     return {
-        "email_esperto_remoto": row[0],
-        "nome_informatico_sede": row[1],
-        "telefono_contatto": row[2],
+        "email_esperto_remoto":    row[0],
+        "nome_informatico_sede":   row[1],
+        "email_informatico_sede":  row[2],
+        "telefono_informatico_sede": row[3],
+        "email_segretario":        row[4],
+        "telefono_segretario":     row[5],
+        "durata_prova_minuti":     row[6],
+        "referente_concorso":      row[7],
     }
 
 
-def save_sessione_config(session_id, email_esperto_remoto, nome_informatico_sede, telefono_contatto):
-    """Inserisce o aggiorna la configurazione della sessione."""
+def save_sessione_config(session_id, email_esperto_remoto, nome_informatico_sede,
+                         email_informatico_sede, telefono_informatico_sede,
+                         email_segretario, telefono_segretario,
+                         durata_prova_minuti, referente_concorso):
+    """Inserisce o aggiorna la configurazione operativa della sessione."""
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
             cursor.execute("""
-                INSERT INTO sessione_config (session_id, email_esperto_remoto, nome_informatico_sede, telefono_contatto)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO sessione_config (
+                    session_id, email_esperto_remoto, nome_informatico_sede,
+                    email_informatico_sede, telefono_informatico_sede,
+                    email_segretario, telefono_segretario,
+                    durata_prova_minuti, referente_concorso
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (session_id) DO UPDATE SET
-                    email_esperto_remoto = EXCLUDED.email_esperto_remoto,
-                    nome_informatico_sede = EXCLUDED.nome_informatico_sede,
-                    telefono_contatto = EXCLUDED.telefono_contatto
-            """, (session_id, email_esperto_remoto or None, nome_informatico_sede or None, telefono_contatto or None))
+                    email_esperto_remoto     = EXCLUDED.email_esperto_remoto,
+                    nome_informatico_sede    = EXCLUDED.nome_informatico_sede,
+                    email_informatico_sede   = EXCLUDED.email_informatico_sede,
+                    telefono_informatico_sede = EXCLUDED.telefono_informatico_sede,
+                    email_segretario         = EXCLUDED.email_segretario,
+                    telefono_segretario      = EXCLUDED.telefono_segretario,
+                    durata_prova_minuti      = EXCLUDED.durata_prova_minuti,
+                    referente_concorso       = EXCLUDED.referente_concorso
+            """, (
+                session_id,
+                email_esperto_remoto or None,
+                nome_informatico_sede or None,
+                email_informatico_sede or None,
+                telefono_informatico_sede or None,
+                email_segretario or None,
+                telefono_segretario or None,
+                int(durata_prova_minuti) if durata_prova_minuti else None,
+                referente_concorso or None,
+            ))
         conn.commit()

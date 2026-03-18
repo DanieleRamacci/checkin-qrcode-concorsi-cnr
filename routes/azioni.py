@@ -509,9 +509,14 @@ def salva_config(session_id):
     if not sessione:
         abort(404)
 
-    email_esperto_remoto = request.form.get("email_esperto_remoto", "").strip()
-    nome_informatico_sede = request.form.get("nome_informatico_sede", "").strip()
-    telefono_contatto = request.form.get("telefono_contatto", "").strip()
+    email_esperto_remoto     = request.form.get("email_esperto_remoto", "").strip()
+    nome_informatico_sede    = request.form.get("nome_informatico_sede", "").strip()
+    email_informatico_sede   = request.form.get("email_informatico_sede", "").strip()
+    telefono_informatico_sede = request.form.get("telefono_informatico_sede", "").strip()
+    email_segretario         = request.form.get("email_segretario", "").strip()
+    telefono_segretario      = request.form.get("telefono_segretario", "").strip()
+    durata_prova_minuti      = request.form.get("durata_prova_minuti", "").strip()
+    referente_concorso       = request.form.get("referente_concorso", "").strip()
 
     if not email_esperto_remoto:
         return render_template(
@@ -522,7 +527,12 @@ def salva_config(session_id):
             messaggio_tipo="danger",
         )
 
-    save_sessione_config(session_id, email_esperto_remoto, nome_informatico_sede, telefono_contatto)
+    save_sessione_config(
+        session_id, email_esperto_remoto, nome_informatico_sede,
+        email_informatico_sede, telefono_informatico_sede,
+        email_segretario, telefono_segretario,
+        durata_prova_minuti, referente_concorso,
+    )
     set_stato_corrente(session_id, "configurata", utente=session.get("user_email"))
     stato_corrente = get_stato_corrente(session_id)
 

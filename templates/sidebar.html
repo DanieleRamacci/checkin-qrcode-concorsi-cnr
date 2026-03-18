@@ -1,6 +1,6 @@
 <!-- Sidebar Bootstrap Italia -->
-<aside class="col-md-2 p-0 sidebar-wrapper it-line-left-side">
-  <div class="sidebar-linklist-wrapper">
+<aside class="col-md-2 p-0 sidebar-wrapper it-line-left-side d-flex flex-column">
+  <div class="sidebar-linklist-wrapper flex-grow-1">
 
     {% if sessione %}
       <div class="p-3 border-bottom bg-light">
@@ -18,4 +18,49 @@
       </ul>
     </div>
   </div>
+
+  {% if sessione %}
+    {% set cfg = get_sessione_config(sessione.session_id) %}
+    {% if cfg %}
+    <div class="p-3 border-top bg-white" style="font-size: 0.78rem;">
+      <p class="fw-bold text-uppercase text-muted mb-2" style="font-size: 0.7rem; letter-spacing: .05em;">Riferimenti operativi</p>
+
+      {% if cfg.referente_concorso %}
+      <div class="mb-2">
+        <span class="text-muted d-block" style="font-size:0.7rem;">REFERENTE</span>
+        <span class="fw-semibold">{{ cfg.referente_concorso }}</span>
+      </div>
+      {% endif %}
+
+      {% if cfg.durata_prova_minuti %}
+      <div class="mb-2">
+        <span class="text-muted d-block" style="font-size:0.7rem;">DURATA PROVA</span>
+        <span class="fw-semibold">{{ cfg.durata_prova_minuti }} minuti</span>
+      </div>
+      {% endif %}
+
+      <div class="mb-2">
+        <span class="text-muted d-block" style="font-size:0.7rem;">ESPERTO REMOTO</span>
+        <a href="mailto:{{ cfg.email_esperto_remoto }}" class="text-break">{{ cfg.email_esperto_remoto }}</a>
+      </div>
+
+      {% if cfg.nome_informatico_sede or cfg.email_informatico_sede or cfg.telefono_informatico_sede %}
+      <div class="mb-2">
+        <span class="text-muted d-block" style="font-size:0.7rem;">INFORMATICO SEDE</span>
+        {% if cfg.nome_informatico_sede %}<span class="d-block fw-semibold">{{ cfg.nome_informatico_sede }}</span>{% endif %}
+        {% if cfg.email_informatico_sede %}<a href="mailto:{{ cfg.email_informatico_sede }}" class="d-block text-break">{{ cfg.email_informatico_sede }}</a>{% endif %}
+        {% if cfg.telefono_informatico_sede %}<a href="tel:{{ cfg.telefono_informatico_sede }}" class="d-block">{{ cfg.telefono_informatico_sede }}</a>{% endif %}
+      </div>
+      {% endif %}
+
+      {% if cfg.email_segretario or cfg.telefono_segretario %}
+      <div class="mb-1">
+        <span class="text-muted d-block" style="font-size:0.7rem;">SEGRETARIO</span>
+        {% if cfg.email_segretario %}<a href="mailto:{{ cfg.email_segretario }}" class="d-block text-break">{{ cfg.email_segretario }}</a>{% endif %}
+        {% if cfg.telefono_segretario %}<a href="tel:{{ cfg.telefono_segretario }}" class="d-block">{{ cfg.telefono_segretario }}</a>{% endif %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+  {% endif %}
 </aside>

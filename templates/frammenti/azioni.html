@@ -97,9 +97,10 @@
     {% if stato_corrente == 'iniziale' and not is_esperto %}
     <div class="it-card-wrapper mb-3">
       <div class="it-card shadow-sm p-3 bg-light">
-        <h5 class="mb-2">Configura Sessione</h5>
-        <p class="mb-3 text-muted">
-          Inserisci i riferimenti per questa sessione prima di procedere. L'email dell'esperto informatico da remoto è obbligatoria: verrà usata per l'invio automatico delle liste.
+        <h5 class="mb-1">Configura Sessione</h5>
+        <p class="mb-3 text-muted small">
+          Compila i riferimenti operativi prima di procedere.
+          L'email dell'esperto informatico da remoto è obbligatoria: sarà usata per l'invio automatico delle liste.
         </p>
         <form
           hx-post="{{ url_for('azioni.salva_config', session_id=sessione.session_id) }}"
@@ -107,44 +108,67 @@
           hx-swap="innerHTML"
           hx-indicator="#global-overlay">
 
+          <!-- SEZIONE: Esperto informatico da remoto -->
+          <p class="fw-bold text-uppercase small text-primary mb-2 mt-1">Esperto informatico da remoto</p>
           <div class="mb-3">
-            <label class="form-label fw-bold" for="email_esperto_remoto">
-              Email esperto informatico da remoto <span class="text-danger">*</span>
+            <label class="form-label" for="email_esperto_remoto">
+              Email <span class="text-danger">*</span>
             </label>
-            <input
-              type="email"
-              class="form-control"
-              id="email_esperto_remoto"
-              name="email_esperto_remoto"
-              placeholder="es. informatico@cnr.it"
-              required>
+            <input type="email" class="form-control" id="email_esperto_remoto"
+                   name="email_esperto_remoto" placeholder="es. esperto@cnr.it" required>
           </div>
 
+          <!-- SEZIONE: Informatico in sede -->
+          <p class="fw-bold text-uppercase small text-primary mb-2 mt-3">Informatico in sede</p>
+          <div class="row g-2 mb-2">
+            <div class="col-md-6">
+              <label class="form-label" for="nome_informatico_sede">Nome</label>
+              <input type="text" class="form-control" id="nome_informatico_sede"
+                     name="nome_informatico_sede" placeholder="es. Mario Rossi">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="email_informatico_sede">Email</label>
+              <input type="email" class="form-control" id="email_informatico_sede"
+                     name="email_informatico_sede" placeholder="es. sede@cnr.it">
+            </div>
+          </div>
           <div class="mb-3">
-            <label class="form-label fw-bold" for="nome_informatico_sede">
-              Nome informatico in sede
-            </label>
-            <input
-              type="text"
-              class="form-control"
-              id="nome_informatico_sede"
-              name="nome_informatico_sede"
-              placeholder="es. Mario Rossi">
+            <label class="form-label" for="telefono_informatico_sede">Telefono</label>
+            <input type="tel" class="form-control" id="telefono_informatico_sede"
+                   name="telefono_informatico_sede" placeholder="es. +39 06 1234567">
           </div>
 
-          <div class="mb-3">
-            <label class="form-label fw-bold" for="telefono_contatto">
-              Telefono di contatto (comunicazioni durante il concorso)
-            </label>
-            <input
-              type="tel"
-              class="form-control"
-              id="telefono_contatto"
-              name="telefono_contatto"
-              placeholder="es. +39 06 1234567">
+          <!-- SEZIONE: Segretario -->
+          <p class="fw-bold text-uppercase small text-primary mb-2 mt-3">Segretario</p>
+          <div class="row g-2 mb-3">
+            <div class="col-md-6">
+              <label class="form-label" for="email_segretario">Email</label>
+              <input type="email" class="form-control" id="email_segretario"
+                     name="email_segretario" placeholder="es. segretario@cnr.it">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="telefono_segretario">Telefono</label>
+              <input type="tel" class="form-control" id="telefono_segretario"
+                     name="telefono_segretario" placeholder="es. +39 333 1234567">
+            </div>
           </div>
 
-          <div class="d-flex justify-content-end">
+          <!-- SEZIONE: Dati concorso -->
+          <p class="fw-bold text-uppercase small text-primary mb-2 mt-3">Dati concorso</p>
+          <div class="row g-2 mb-3">
+            <div class="col-md-6">
+              <label class="form-label" for="referente_concorso">Referente del concorso</label>
+              <input type="text" class="form-control" id="referente_concorso"
+                     name="referente_concorso" placeholder="es. Dott. Bianchi">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="durata_prova_minuti">Durata prova (minuti)</label>
+              <input type="number" class="form-control" id="durata_prova_minuti"
+                     name="durata_prova_minuti" min="1" max="480" placeholder="es. 90">
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-end border-top pt-3">
             <button type="submit" class="btn btn-primary">
               Salva e prosegui
             </button>
@@ -165,8 +189,12 @@
             {% if cfg %}
             <ul class="small text-muted mb-0">
               <li><strong>Esperto remoto:</strong> {{ cfg.email_esperto_remoto }}</li>
-              {% if cfg.nome_informatico_sede %}<li><strong>Informatico sede:</strong> {{ cfg.nome_informatico_sede }}</li>{% endif %}
-              {% if cfg.telefono_contatto %}<li><strong>Tel. contatto:</strong> {{ cfg.telefono_contatto }}</li>{% endif %}
+              {% if cfg.nome_informatico_sede or cfg.email_informatico_sede %}
+              <li><strong>Informatico sede:</strong>
+                {{ cfg.nome_informatico_sede or '' }}{% if cfg.email_informatico_sede %} ({{ cfg.email_informatico_sede }}){% endif %}
+              </li>{% endif %}
+              {% if cfg.email_segretario %}<li><strong>Segretario:</strong> {{ cfg.email_segretario }}</li>{% endif %}
+              {% if cfg.durata_prova_minuti %}<li><strong>Durata prova:</strong> {{ cfg.durata_prova_minuti }} min</li>{% endif %}
             </ul>
             {% endif %}
           </div>

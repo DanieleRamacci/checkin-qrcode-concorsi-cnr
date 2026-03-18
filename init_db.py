@@ -94,13 +94,18 @@ try:
     );
     """)
 
-    # Configurazione per sessione (esperto remoto, informatico in sede, contatto telefonico)
+    # Configurazione per sessione: riferimenti operativi, contatti, durata prova
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS sessione_config (
         session_id TEXT PRIMARY KEY,
         email_esperto_remoto TEXT,
         nome_informatico_sede TEXT,
-        telefono_contatto TEXT,
+        email_informatico_sede TEXT,
+        telefono_informatico_sede TEXT,
+        email_segretario TEXT,
+        telefono_segretario TEXT,
+        durata_prova_minuti INTEGER,
+        referente_concorso TEXT,
         FOREIGN KEY (session_id) REFERENCES sessioni(session_id)
     );
     """)
@@ -359,10 +364,25 @@ try:
         session_id TEXT PRIMARY KEY,
         email_esperto_remoto TEXT,
         nome_informatico_sede TEXT,
-        telefono_contatto TEXT,
+        email_informatico_sede TEXT,
+        telefono_informatico_sede TEXT,
+        email_segretario TEXT,
+        telefono_segretario TEXT,
+        durata_prova_minuti INTEGER,
+        referente_concorso TEXT,
         FOREIGN KEY (session_id) REFERENCES sessioni(session_id)
     );
     """)
+    # Colonne aggiunte in versioni successive (safe su installazioni esistenti)
+    for col, tipo in [
+        ("email_informatico_sede", "TEXT"),
+        ("telefono_informatico_sede", "TEXT"),
+        ("email_segretario", "TEXT"),
+        ("telefono_segretario", "TEXT"),
+        ("durata_prova_minuti", "INTEGER"),
+        ("referente_concorso", "TEXT"),
+    ]:
+        cursor.execute(f"ALTER TABLE sessione_config ADD COLUMN IF NOT EXISTS {col} {tipo};")
 
     cursor.execute("""
     ALTER TABLE prove
