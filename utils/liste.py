@@ -75,44 +75,42 @@ def get_ultima_lista_generata(session_id):
 
 
 def get_candidati_by_sessione_checkin(session_id):
-    db = get_db_connection()
-
-    query = """
-        SELECT uid, first_name, last_name, fiscal_code, document_number,document_date, checkin_effettuato
-        FROM candidati
-        WHERE session_id = %s AND checkin_effettuato = TRUE
-    """
-    cur = db.cursor()
-    cur.execute(query, (session_id,))
-    risultati = cur.fetchall()
-    colonne = [desc[0] for desc in cur.description]
+    with get_db_connection() as db:
+        query = """
+            SELECT uid, first_name, last_name, fiscal_code, document_number, document_date, checkin_effettuato
+            FROM candidati
+            WHERE session_id = %s AND checkin_effettuato = TRUE
+        """
+        with db.cursor() as cur:
+            cur.execute(query, (session_id,))
+            risultati = cur.fetchall()
+            colonne = [desc[0] for desc in cur.description]
     return [dict(zip(colonne, riga)) for riga in risultati]
 
 def get_candidati_per_lista_completa(session_id):
-    db = get_db_connection()
-    query = """
-        SELECT uid, first_name, last_name, fiscal_code, document_number,document_date, checkin_effettuato
-        FROM candidati
-        WHERE session_id = %s
-    """
-    cur = db.cursor()
-    cur.execute(query, (session_id,))
-    colonne = [desc[0] for desc in cur.description]
-    return [dict(zip(colonne, riga)) for riga in cur.fetchall()]
+    with get_db_connection() as db:
+        query = """
+            SELECT uid, first_name, last_name, fiscal_code, document_number, document_date, checkin_effettuato
+            FROM candidati
+            WHERE session_id = %s
+        """
+        with db.cursor() as cur:
+            cur.execute(query, (session_id,))
+            risultati = cur.fetchall()
+            colonne = [desc[0] for desc in cur.description]
+    return [dict(zip(colonne, riga)) for riga in risultati]
 
 
 def get_liste_generate(session_id):
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT id, file_xlsx, file_csv_moodle, num_presenti, timestamp_creazione
-        FROM liste_generate
-        WHERE session_id = %s
-        ORDER BY timestamp_creazione DESC
-    """, (session_id,))
-    rows = cur.fetchall()
-    cur.close(); conn.close()
-
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id, file_xlsx, file_csv_moodle, num_presenti, timestamp_creazione
+                FROM liste_generate
+                WHERE session_id = %s
+                ORDER BY timestamp_creazione DESC
+            """, (session_id,))
+            rows = cur.fetchall()
     return [
         {
             "id": r[0],
@@ -125,17 +123,15 @@ def get_liste_generate(session_id):
 
 
 def get_lista_by_id(session_id, lista_id):
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT id, file_xlsx, file_csv_moodle, num_presenti, timestamp_creazione
-        FROM liste_generate
-        WHERE session_id = %s AND id = %s
-        LIMIT 1
-    """, (session_id, lista_id))
-    row = cur.fetchone()
-    cur.close(); conn.close()
-
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id, file_xlsx, file_csv_moodle, num_presenti, timestamp_creazione
+                FROM liste_generate
+                WHERE session_id = %s AND id = %s
+                LIMIT 1
+            """, (session_id, lista_id))
+            row = cur.fetchone()
     if not row:
         return None
     return {

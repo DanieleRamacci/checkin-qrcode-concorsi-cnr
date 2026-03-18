@@ -312,7 +312,7 @@
 
 
     {% if messaggio %}
-  <div class="alert alert-warning" role="alert">
+  <div class="alert alert-{{ messaggio_tipo or 'warning' }}" role="alert">
     {{ messaggio }}
   </div>
 {% endif %}

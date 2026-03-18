@@ -1,18 +1,14 @@
-from flask import Blueprint, render_template, abort, jsonify,session, send_file, abort, Response ,request, current_app, make_response, render_template, sessions
+from flask import Blueprint, render_template, abort, jsonify, session, send_file, Response, request, current_app
 from routes.auth import login_required
 from db import get_db_connection
-import io, csv, os, re , requests
+import io, csv, os, re, requests
 from datetime import datetime
-from requests.auth import HTTPBasicAuth
 from utils.stato import get_stato_corrente, get_azioni_per_stato, set_stato_corrente
 from utils.roles import ROLE_ADMIN, ROLE_ESPERTO, roles_required_any
 from utils.sessioni import get_sessione_by_id
 from utils.candidati import importa_candidati_da_api
-from utils.liste import genera_liste_excel_csv
-from db import get_db_connection
-from utils.liste import get_candidati_by_sessione_checkin, get_ultima_lista_generata, genera_liste_excel_csv, get_lista_by_id, get_liste_generate
+from utils.liste import get_candidati_by_sessione_checkin, genera_liste_excel_csv
 from utils.send_mail import send_notification_email
-from urllib.parse import quote
 from utils.oidc import ensure_fresh_access_token, seconds_left
 
 
@@ -881,16 +877,22 @@ def invia_lista_esame(session_id):
     if not ok:
         current_app.logger.warning("[invia-lista-esame] invio KO session_id=%s err=%s", session_id, err)
 
-    # aggiorna stato workflow comunque (email è solo backup)
+    # Lo stato avanza sempre: è il segretario che decide di procedere.
+    # Se l'email non è partita può scaricare la lista manualmente e inviarla.
     set_stato_corrente(session_id, "liste_inviate", utente=session.get("user_email"))
     stato_corrente = get_stato_corrente(session_id)
-    messaggio = "Lista inviata all'esperto informatico."
-    if not ok:
-        messaggio = f"Invio email fallito (backup non inviato): {err}"
+
+    if ok:
+        messaggio = "Lista inviata all'esperto informatico via email."
+        messaggio_tipo = "success"
+    else:
+        messaggio = f"Email non inviata ({err}). Scarica la lista manualmente e inviala. Lo stato è stato comunque aggiornato."
+        messaggio_tipo = "warning"
 
     return render_template(
         "frammenti/azioni.html",
         sessione=sessione,
         stato_corrente=stato_corrente,
-        messaggio=messaggio
+        messaggio=messaggio,
+        messaggio_tipo=messaggio_tipo
     )
