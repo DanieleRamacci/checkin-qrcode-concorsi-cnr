@@ -20,7 +20,7 @@
   <tbody>
     {% for d in dispositivi %}
       <tr>
-        <td>{{ d.timestamp }}</td>
+        <td>{{ d.timestamp.strftime('%d/%m/%Y %H:%M') if d.timestamp else '-' }}</td>
         <td>
           {% if d.status == 'online' %}
             <span class="badge bg-success">{{ d.status_label }}</span>
@@ -32,9 +32,9 @@
         </td>
         <td>
           {% if d.status == 'disconnected' %}
-            {{ d.disconnected_at or '-' }}
+            {{ d.disconnected_at.strftime('%d/%m/%Y %H:%M') if d.disconnected_at else '-' }}
           {% else %}
-            {{ d.last_seen or '-' }}
+            {{ d.last_seen.strftime('%d/%m/%Y %H:%M') if d.last_seen else '-' }}
           {% endif %}
         </td>
         <td>{{ d.nome_dispositivo }}</td>
