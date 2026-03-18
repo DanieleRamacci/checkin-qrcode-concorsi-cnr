@@ -96,26 +96,92 @@
 
     {% if stato_corrente == 'iniziale' and not is_esperto %}
     <div class="it-card-wrapper mb-3">
+      <div class="it-card shadow-sm p-3 bg-light">
+        <h5 class="mb-2">Configura Sessione</h5>
+        <p class="mb-3 text-muted">
+          Inserisci i riferimenti per questa sessione prima di procedere. L'email dell'esperto informatico da remoto è obbligatoria: verrà usata per l'invio automatico delle liste.
+        </p>
+        <form
+          hx-post="{{ url_for('azioni.salva_config', session_id=sessione.session_id) }}"
+          hx-target="#azioni-wrapper"
+          hx-swap="innerHTML"
+          hx-indicator="#global-overlay">
 
+          <div class="mb-3">
+            <label class="form-label fw-bold" for="email_esperto_remoto">
+              Email esperto informatico da remoto <span class="text-danger">*</span>
+            </label>
+            <input
+              type="email"
+              class="form-control"
+              id="email_esperto_remoto"
+              name="email_esperto_remoto"
+              placeholder="es. informatico@cnr.it"
+              required>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold" for="nome_informatico_sede">
+              Nome informatico in sede
+            </label>
+            <input
+              type="text"
+              class="form-control"
+              id="nome_informatico_sede"
+              name="nome_informatico_sede"
+              placeholder="es. Mario Rossi">
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold" for="telefono_contatto">
+              Telefono di contatto (comunicazioni durante il concorso)
+            </label>
+            <input
+              type="tel"
+              class="form-control"
+              id="telefono_contatto"
+              name="telefono_contatto"
+              placeholder="es. +39 06 1234567">
+          </div>
+
+          <div class="d-flex justify-content-end">
+            <button type="submit" class="btn btn-primary">
+              Salva e prosegui
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if stato_corrente == 'configurata' and not is_esperto %}
+    {% set cfg = get_sessione_config(sessione.session_id) %}
+    <div class="it-card-wrapper mb-3">
       <div class="it-card shadow-sm p-3 bg-light">
         <div class="d-flex justify-content-between align-items-start">
           <div>
             <h5 class="mb-2">Scarica Lista Candidati</h5>
-            <p class="mb-3 text-muted">Scarica i candidati registrati per questa sessione.</p>
+            <p class="mb-2 text-muted">Scarica i candidati registrati per questa sessione.</p>
+            {% if cfg %}
+            <ul class="small text-muted mb-0">
+              <li><strong>Esperto remoto:</strong> {{ cfg.email_esperto_remoto }}</li>
+              {% if cfg.nome_informatico_sede %}<li><strong>Informatico sede:</strong> {{ cfg.nome_informatico_sede }}</li>{% endif %}
+              {% if cfg.telefono_contatto %}<li><strong>Tel. contatto:</strong> {{ cfg.telefono_contatto }}</li>{% endif %}
+            </ul>
+            {% endif %}
           </div>
-            <button 
-              class="btn btn-primary"
-              data-block-ui="true"             
-              hx-post="/sessione/{{ sessione.session_id }}/scarica_candidati"
-              hx-trigger="click"
-              hx-target="#azioni-wrapper"
-              hx-swap="innerHTML"
-              hx-indicator="#global-overlay"
-              hx-disabled-elt="button, a, input, [role='button']"
-              hx-on::afterOnLoad="this.dispatchEvent(new CustomEvent('candidatiScaricati'))">
-              Scarica Candidati
-            </button>
-
+          <button
+            class="btn btn-primary"
+            data-block-ui="true"
+            hx-post="/sessione/{{ sessione.session_id }}/scarica_candidati"
+            hx-trigger="click"
+            hx-target="#azioni-wrapper"
+            hx-swap="innerHTML"
+            hx-indicator="#global-overlay"
+            hx-disabled-elt="button, a, input, [role='button']"
+            hx-on::afterOnLoad="this.dispatchEvent(new CustomEvent('candidatiScaricati'))">
+            Scarica Candidati
+          </button>
         </div>
       </div>
     </div>

@@ -5,7 +5,7 @@ import io, csv, os, re, requests
 from datetime import datetime
 from utils.stato import get_stato_corrente, get_azioni_per_stato, set_stato_corrente
 from utils.roles import ROLE_ADMIN, ROLE_ESPERTO, roles_required_any
-from utils.sessioni import get_sessione_by_id
+from utils.sessioni import get_sessione_by_id, get_sessione_config, save_sessione_config
 from utils.candidati import importa_candidati_da_api
 from utils.liste import get_candidati_by_sessione_checkin, genera_liste_excel_csv
 from utils.send_mail import send_notification_email
@@ -502,6 +502,39 @@ def genera_moodle_csv(session_id):
 
 
 
+@azioni_bp.route("/sessione/<session_id>/salva_config", methods=["POST"])
+@login_required
+def salva_config(session_id):
+    sessione = get_sessione_by_id(session_id)
+    if not sessione:
+        abort(404)
+
+    email_esperto_remoto = request.form.get("email_esperto_remoto", "").strip()
+    nome_informatico_sede = request.form.get("nome_informatico_sede", "").strip()
+    telefono_contatto = request.form.get("telefono_contatto", "").strip()
+
+    if not email_esperto_remoto:
+        return render_template(
+            "frammenti/azioni.html",
+            sessione=sessione,
+            stato_corrente="iniziale",
+            messaggio="L'email dell'esperto informatico da remoto è obbligatoria.",
+            messaggio_tipo="danger",
+        )
+
+    save_sessione_config(session_id, email_esperto_remoto, nome_informatico_sede, telefono_contatto)
+    set_stato_corrente(session_id, "configurata", utente=session.get("user_email"))
+    stato_corrente = get_stato_corrente(session_id)
+
+    return render_template(
+        "frammenti/azioni.html",
+        sessione=sessione,
+        stato_corrente=stato_corrente,
+        messaggio="Configurazione salvata con successo.",
+        messaggio_tipo="success",
+    )
+
+
 @azioni_bp.route("/sessione/<session_id>/scarica_candidati", methods=["POST"])
 @login_required
 def scarica_candidati(session_id):
@@ -805,26 +838,31 @@ def invia_lista_esame(session_id):
             messaggio="La lista risulta generata ma i file non sono più presenti sul server."
         )
 
-    # 3) Destinatari: override form -> utenti associati alla commissione
+    # 3) Destinatari: config sessione (esperto remoto) -> override form -> utenti commissione
     to_emails = []
     to_override = (request.form.get("to") or "").strip()
 
     if to_override:
         to_emails = [e.strip() for e in to_override.split(",") if e.strip()]
     else:
-        # Destinatari dinamici dalla commissione della sessione corrente.
-        with get_db_connection() as conn, conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT DISTINCT c.user_email
-                FROM sessioni s
-                JOIN commissions c ON c.commission_id = s.commission_id
-                WHERE s.session_id = %s
-                ORDER BY c.user_email
-                """,
-                (session_id,),
-            )
-            to_emails = [r[0].strip() for r in cur.fetchall() if r and r[0] and r[0].strip()]
+        # Prima priorità: email esperto remoto configurata per questa sessione
+        cfg = get_sessione_config(session_id)
+        if cfg and cfg.get("email_esperto_remoto"):
+            to_emails = [cfg["email_esperto_remoto"]]
+        else:
+            # Fallback: utenti associati alla commissione
+            with get_db_connection() as conn, conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT DISTINCT c.user_email
+                    FROM sessioni s
+                    JOIN commissions c ON c.commission_id = s.commission_id
+                    WHERE s.session_id = %s
+                    ORDER BY c.user_email
+                    """,
+                    (session_id,),
+                )
+                to_emails = [r[0].strip() for r in cur.fetchall() if r and r[0] and r[0].strip()]
 
     if not to_emails:
         return render_template(

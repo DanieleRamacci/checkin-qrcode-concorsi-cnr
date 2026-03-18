@@ -20,9 +20,13 @@ from utils.roles import has_role, ROLE_ADMIN, ROLE_ESPERTO
 # === FLASK APP ===
 app = Flask(__name__, static_folder='static')
 register_blueprints(app)  
-from utils.liste import  get_ultima_lista_generata
+from utils.liste import get_ultima_lista_generata
+from utils.sessioni import get_sessione_config
 
-app.jinja_env.globals.update(get_ultima_lista_generata=get_ultima_lista_generata)
+app.jinja_env.globals.update(
+    get_ultima_lista_generata=get_ultima_lista_generata,
+    get_sessione_config=get_sessione_config,
+)
 
 dev_mode = os.getenv("APP_ENV", "production").lower() in ("development", "dev")
 app.config["DEV_MODE"] = dev_mode

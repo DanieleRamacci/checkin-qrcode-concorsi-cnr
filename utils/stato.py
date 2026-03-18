@@ -4,6 +4,7 @@ from db import get_db_connection
 # Ordine degli stati possibili
 SESSION_STATES = [
     "iniziale",
+    "configurata",
     "candidati_scaricati",
     "dispositivi_connessi",
     "checkin_avviato",
@@ -18,7 +19,8 @@ SESSION_STATES = [
 
 
 STATE_TRANSITIONS = {
-    "iniziale": ["candidati_scaricati"],
+    "iniziale": ["configurata"],
+    "configurata": ["candidati_scaricati"],
     "candidati_scaricati": ["dispositivi_connessi"],
     "dispositivi_connessi": ["checkin_avviato"],
     "checkin_avviato": ["checkin_concluso"],
@@ -33,7 +35,8 @@ STATE_TRANSITIONS = {
 
 # Azioni disponibili per ogni stato
 AZIONI_PER_STATO = {
-    "iniziale": ["scarica_candidati"],
+    "iniziale": ["configura_sessione"],
+    "configurata": ["scarica_candidati"],
     "candidati_scaricati": ["collega_dispositivo"],
     "dispositivi_connessi": ["avvia_checkin"],
     "checkin_avviato": ["concludi_checkin"],

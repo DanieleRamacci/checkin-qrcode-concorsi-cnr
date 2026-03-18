@@ -197,3 +197,37 @@ def get_sessione_by_id(session_id):
                 "candidati_importati": row[7],
                 "stato_corrente": row[8],
             }
+
+
+def get_sessione_config(session_id):
+    """Restituisce la configurazione della sessione (esperto remoto, informatico sede, telefono)."""
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT email_esperto_remoto, nome_informatico_sede, telefono_contatto
+                FROM sessione_config
+                WHERE session_id = %s
+            """, (session_id,))
+            row = cursor.fetchone()
+    if not row:
+        return None
+    return {
+        "email_esperto_remoto": row[0],
+        "nome_informatico_sede": row[1],
+        "telefono_contatto": row[2],
+    }
+
+
+def save_sessione_config(session_id, email_esperto_remoto, nome_informatico_sede, telefono_contatto):
+    """Inserisce o aggiorna la configurazione della sessione."""
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO sessione_config (session_id, email_esperto_remoto, nome_informatico_sede, telefono_contatto)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (session_id) DO UPDATE SET
+                    email_esperto_remoto = EXCLUDED.email_esperto_remoto,
+                    nome_informatico_sede = EXCLUDED.nome_informatico_sede,
+                    telefono_contatto = EXCLUDED.telefono_contatto
+            """, (session_id, email_esperto_remoto or None, nome_informatico_sede or None, telefono_contatto or None))
+        conn.commit()

@@ -27,6 +27,7 @@ try:
 
     if APP_ENV == "dev":
         print("  Ambiente di sviluppo: elimino le tabelle esistenti...")
+        cursor.execute("DROP TABLE IF EXISTS sessione_config CASCADE")
         cursor.execute("DROP TABLE IF EXISTS candidati CASCADE")
         cursor.execute("DROP TABLE IF EXISTS sessioni CASCADE")
         cursor.execute("DROP TABLE IF EXISTS commissions CASCADE")
@@ -90,6 +91,17 @@ try:
         data_sync TEXT,
         stato_corrente TEXT DEFAULT 'iniziale',
         FOREIGN KEY (commission_id, user_email) REFERENCES commissions(commission_id, user_email)
+    );
+    """)
+
+    # Configurazione per sessione (esperto remoto, informatico in sede, contatto telefonico)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS sessione_config (
+        session_id TEXT PRIMARY KEY,
+        email_esperto_remoto TEXT,
+        nome_informatico_sede TEXT,
+        telefono_contatto TEXT,
+        FOREIGN KEY (session_id) REFERENCES sessioni(session_id)
     );
     """)
 
@@ -341,6 +353,17 @@ try:
     """)
 
     # Migrazioni additive sicure su installazioni esistenti
+    # sessione_config: nuova tabella per configurazione per-sessione
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS sessione_config (
+        session_id TEXT PRIMARY KEY,
+        email_esperto_remoto TEXT,
+        nome_informatico_sede TEXT,
+        telefono_contatto TEXT,
+        FOREIGN KEY (session_id) REFERENCES sessioni(session_id)
+    );
+    """)
+
     cursor.execute("""
     ALTER TABLE prove
     ADD COLUMN IF NOT EXISTS busta_estratta_codice TEXT;
