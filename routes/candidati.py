@@ -1,13 +1,8 @@
-from flask import Blueprint, Flask, make_response, request, abort, jsonify, send_from_directory, session, redirect, url_for, render_template
-import requests
-import os
+from flask import Blueprint, make_response, request, jsonify, session, render_template
 from datetime import datetime
-from db import get_db_connection  # se hai una funzione centralizzata
-from routes.auth import login_required  # è un decoratore deve essere importato 
-from urllib.parse import quote
-from utils.candidati import importa_candidati_da_api 
+from db import get_db_connection
+from routes.auth import login_required
 from utils.stato import get_stato_corrente
-from utils.commissioni import  now_iso_utc
 from utils.roles import ROLE_ADMIN, ROLE_ESPERTO, roles_required_any
 from utils.notifications import add_notification
 
@@ -325,124 +320,6 @@ def frammento_tabella_candidati(session_id):
 
 
 
-@candidati_bp.route('/get-candidati', methods=['GET'])
-@login_required
-def get_candidati():
-    session_id = request.args.get('session_id')
-    if not session_id:
-        return jsonify({"success": False, "message": "Missing session_id"}), 400
-
-    try:
-        access_token = session.get('access_token')
-        user_email = session.get('user_email')
-
-        if not access_token or not user_email:
-            return jsonify({"success": False, "message": "Autenticazione mancante"}), 401
-
-        with get_db_connection() as conn:
-            with conn.cursor() as cursor:
-                # Dati della sessione
-                cursor.execute("""
-                    SELECT commission_id, session_string, candidati_importati
-                    FROM sessioni
-                    WHERE session_id = %s
-                """, (session_id,))
-                row = cursor.fetchone()
-
-                if not row:
-                    return jsonify({"success": False, "message": "Sessione non trovata."}), 404
-
-                commission_id, session_string, candidati_importati = row
-
-                if candidati_importati:
-                    return jsonify({"success": False, "message": "I candidati sono già stati importati per questa sessione."}), 400
-
-                # Verifica autorizzazione utente
-                cursor.execute("""
-                    SELECT 1 FROM commissions
-                    WHERE commission_id = %s AND user_email = %s
-                """, (commission_id, user_email))
-                if not cursor.fetchone():
-                    return jsonify({"success": False, "message": "Commissione non autorizzata"}), 403
-
-                # Chiamata API
-                encoded_session = quote(session_string, safe='')
-                api_url = f"{BASE_URL}/openapi/v1/call/exam-sessions/{commission_id}?session={encoded_session}"
-                headers = {
-                    "Authorization": f"Bearer {access_token}",
-                    "Accept": "*/*"
-                }
-
-                res = requests.get(api_url, headers=headers)
-                if res.status_code != 200:
-                    return jsonify({"success": False, "message": f"Errore chiamata API Selezioni Online: {res.status_code}"}), 502
-
-                try:
-                    json_data = res.json()
-                except Exception as e:
-                    return jsonify({"success": False, "message": "La risposta non è in formato JSON valido."}), 500
-
-                candidati = json_data.get(session_string)
-                if not candidati:
-                    return jsonify({"success": False, "message": "Nessun candidato trovato nella sessione indicata."}), 404
-
-                inseriti = 0
-                for row in candidati:
-                    if not row.get("uid"):
-                        continue
-                    cursor.execute("""
-                        INSERT INTO candidati (
-                            uid, session_id, first_name, last_name, birthdate,
-                            fiscal_code, document_type, document_number,
-                            document_date, document_issued_by
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (uid, session_id) DO NOTHING
-                    """, (
-                        row.get("uid"),
-                        session_id,
-                        row.get("firstName"),
-                        row.get("lastName"),
-                        row.get("birthdate"),
-                        row.get("fiscalCode"),
-                        row.get("documentType"),
-                        row.get("documentNumber"),
-                        row.get("documentDate"),
-                        row.get("documentIssuedBy"),
-                    ))
-                    inseriti += cursor.rowcount
-
-                # Verifica completezza import: i candidati nel DB devono combaciare con quelli ricevuti.
-                cursor.execute("SELECT COUNT(*) FROM candidati WHERE session_id = %s", (session_id,))
-                db_count = cursor.fetchone()[0]
-                expected = len(candidati)
-                if db_count != expected:
-                    return jsonify({
-                        "success": False,
-                        "message": f"Import parziale: attesi {expected}, presenti {db_count}."
-                    }), 500
-
-                # Aggiorna stato sessione
-                cursor.execute("""
-                        UPDATE sessioni
-                        SET candidati_importati = TRUE,
-                            sync_user_email = %s,
-                            data_sync = %s
-                        WHERE session_id = %s
-                    """, (user_email, now_iso_utc(), session_id))
-
-                conn.commit()
-
-                return jsonify({
-                    "success": True,
-                    "message": f"{inseriti} candidati importati correttamente dal file JSON."
-                })
-
-    except Exception as e:
-        return jsonify({"success": False, "message": str(e)}), 500
-
-
-
-# routes/candidati.py
 
 @candidati_bp.route('/sessione/<session_id>/candidato/<candidato_uid>/toggle_checkin', methods=['POST'])
 @login_required

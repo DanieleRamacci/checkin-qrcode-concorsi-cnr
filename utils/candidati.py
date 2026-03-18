@@ -8,17 +8,6 @@ BASE_URL = os.environ.get('BASE_URL', 'https://cool-jconon.test.si.cnr.it')
 
 
 
-def get_candidato_by_uid(uid, session_id):
-    conn = get_db_connection()
-    cursor = conn.execute(
-        "SELECT first_name AS nome, last_name AS cognome, document_number AS numero_documento, uid FROM candidati WHERE uid = %s AND session_id = %s",
-        (uid, session_id)
-    )
-    row = cursor.fetchone()
-    conn.close()
-    return dict(row) if row else None
-
-
 
 
 import time
