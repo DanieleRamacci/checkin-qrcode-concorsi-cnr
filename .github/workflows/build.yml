@@ -3,8 +3,7 @@ name: Build and Push to GHCR
 on:
   push:
     branches:
-      - main
-      - test
+      - checkin-dev
   pull_request:
 
 env:
