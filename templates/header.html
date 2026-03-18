@@ -24,8 +24,6 @@
     </div>
   </div>
 
-  {% set current_email = session.get('user_email') %}
-  {% set can_access_prove = current_email and (has_role(current_email, ROLE_ADMIN) or has_role(current_email, ROLE_ESPERTO)) %}
   <div class="it-nav-wrapper">
     <div class="it-header-center-wrapper theme-light">
       <div class="container-xxl">
@@ -50,10 +48,6 @@
                 <div class="menu-wrapper">
                   <ul class="navbar-nav">
                     <li class="nav-item"><a class="nav-link" href="/">Home</a></li>
-                    {% if can_access_prove %}
-                    <li class="nav-item"><a class="nav-link" href="/prove/tutti">Tabella concorsi esperto informatico</a></li>
-                    <li class="nav-item"><a class="nav-link" href="/prove/miei">I miei concorsi</a></li>
-                    {% endif %}
                   </ul>
                 </div>
               </div>

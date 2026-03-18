@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, session, current_app, request, Response, url_for
+from flask import Flask, current_app, request, Response, url_for
 from flask_session import Session
 import redis
 from datetime import datetime
@@ -105,10 +105,7 @@ from fpdf import FPDF
 @app.route("/qr-pdf/<session_id>")
 @login_required
 def genera_qr_pdf(session_id):
-    import requests
-
-    # URL contenuto nel QR
-    url = f" https://83c08f8aeab0.ngrok-free.app/scanner.html?session_id={session_id}"
+    url = url_for("scanner.device_link", session_id=session_id, _external=True)
     img = qrcode.make(url)
     img_io = io.BytesIO()
     img.save(img_io, format='PNG')
@@ -133,12 +130,6 @@ def genera_qr_pdf(session_id):
 
 
 
-@app.route('/debug-session')
-def debug_session():
-    return jsonify({
-        "access_token": session.get("access_token"),
-        "user_info": session.get("user_info")
-    })
 
 
 

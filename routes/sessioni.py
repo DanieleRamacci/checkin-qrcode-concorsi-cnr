@@ -220,8 +220,7 @@ def get_session(session_id):
 def session_check():
     session_id = request.args.get("session_id")
     timestamp = request.args.get("timestamp")
-    # TODO: invert logic so debug is enabled only with debug=true; keep current behavior for now.
-    debug_mode = request.args.get("debug", "false").lower() == "false"
+    debug_mode = request.args.get("debug", "false").lower() == "true"
 
     if not session_id or not timestamp:
         return jsonify(success=False, message="Parametri mancanti."), 400

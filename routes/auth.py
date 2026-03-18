@@ -3,7 +3,6 @@ from urllib.parse import urlencode
 from functools import wraps
 import requests
 from datetime import datetime, timezone
-import json
 import jwt
 from flask import Blueprint
 import time
@@ -14,8 +13,7 @@ auth_bp = Blueprint('auth', __name__)
 import os
 
 from dotenv import load_dotenv; load_dotenv()
-import os, sys
-print("DEBUG OIDC:", os.getenv("OIDC_CLIENT_ID"), os.getenv("OIDC_AUTH_URL"), os.getenv("OIDC_REDIRECT_URI"), file=sys.stderr)
+import os
 
 
 OIDC_CLIENT_ID = os.getenv("OIDC_CLIENT_ID")
@@ -90,16 +88,8 @@ def oidc_callback():
         session['expires_at']    = int(time.time()) + expires_in      # opzionale
         session['refresh_expires_at'] = int(time.time()) + refresh_expires_in  # opzionale
 
-        # DEBUG: stampa il token completo
-        print("TOKEN:", json.dumps(tokens, indent=2))
-        print("Access token:", access_token)
-        print("refresh_token:", session['refresh_token'])
-        print("expire:in: ", session['expires_at'])
-
-
         # Decodifica JWT senza verifica (solo per visualizzazione interna)
         decoded = jwt.decode(access_token, options={"verify_signature": False, "verify_aud": False})
-        print("JWT Decodificato:", json.dumps(decoded, indent=2))
 
         #  Controllo utente CNR
         is_cnr_user = decoded.get("is_cnr_user", False)
@@ -120,14 +110,8 @@ def oidc_callback():
 
 
     except Exception as e:
-        print("Errore nella richiesta token:")
-        try:
-            print("Status code:", token_response.status_code)
-            print("Response body:", token_response.text)
-        except:
-            pass
-        import traceback
-        traceback.print_exc()
+        from flask import current_app
+        current_app.logger.error("Errore nella richiesta token: %s", str(e), exc_info=True)
         return f"Errore: {str(e)}", 500
 
 @auth_bp.route('/logout')
