@@ -23,10 +23,14 @@ register_blueprints(app)
 from utils.liste import  get_ultima_lista_generata
 
 app.jinja_env.globals.update(get_ultima_lista_generata=get_ultima_lista_generata)
+
+dev_mode = os.getenv("APP_ENV", "production").lower() in ("development", "dev")
+app.config["DEV_MODE"] = dev_mode
 app.jinja_env.globals.update(
     has_role=has_role,
     ROLE_ADMIN=ROLE_ADMIN,
     ROLE_ESPERTO=ROLE_ESPERTO,
+    dev_mode=dev_mode,
 )
 
 # Base directory dove salvi/leggi le liste

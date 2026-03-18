@@ -11,6 +11,12 @@
 <body>
   {% include 'header.html' %}
 
+  {% if dev_mode %}
+  <div class="alert alert-warning alert-dismissible d-flex align-items-center gap-2 mb-0 rounded-0 py-2" role="alert">
+    <strong>⚠ DEVELOPER MODE</strong> — Sessioni non attive abilitate, controlli temporali disabilitati.
+  </div>
+  {% endif %}
+
   <div class="container my-5">
     <h1 class="mb-4">Dashboard Segretario</h1>
     <p class="lead">Di seguito trovi l’elenco dei concorsi per cui sei autorizzato.</p>

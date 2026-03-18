@@ -220,7 +220,11 @@ def get_session(session_id):
 def session_check():
     session_id = request.args.get("session_id")
     timestamp = request.args.get("timestamp")
-    debug_mode = request.args.get("debug", "false").lower() == "true"
+    import os
+    debug_mode = (
+        request.args.get("debug", "false").lower() == "true"
+        or os.getenv("APP_ENV", "production").lower() in ("development", "dev")
+    )
 
     if not session_id or not timestamp:
         return jsonify(success=False, message="Parametri mancanti."), 400
