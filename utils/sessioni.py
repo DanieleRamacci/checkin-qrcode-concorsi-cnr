@@ -199,15 +199,153 @@ def get_sessione_by_id(session_id):
             }
 
 
-def get_sessione_config(session_id):
-    """Restituisce la configurazione operativa della sessione."""
+def email_to_nome(email: str) -> str:
+    """Deriva nome/cognome dall'email CNR: nome.cognome@cnr.it → Nome Cognome."""
+    if not email:
+        return ""
+    local = email.split("@")[0]
+    parts = [p for p in local.replace("_", ".").split(".") if p]
+    return " ".join(p.capitalize() for p in parts)
+
+
+def get_bando_config(commission_id):
+    """Restituisce la configurazione del bando (dati comuni a tutte le sessioni)."""
+    import json as _json
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
             cursor.execute("""
-                SELECT email_esperto_remoto, nome_informatico_sede,
-                       email_informatico_sede, telefono_informatico_sede,
-                       email_segretario, telefono_segretario,
-                       durata_prova_minuti, referente_concorso
+                SELECT email_referente, email_esperto_remoto, email_segretario,
+                       telefono_segretario, durata_prova_minuti, commissione_members,
+                       rdp_nomi, commissione_nomi, fetched_at, configured_at, configured_by
+                FROM bando_config
+                WHERE commission_id = %s
+            """, (commission_id,))
+            row = cursor.fetchone()
+    if not row:
+        return None
+    return {
+        "email_referente":       row[0],
+        "email_esperto_remoto":  row[1],
+        "email_segretario":      row[2],
+        "telefono_segretario":   row[3],
+        "durata_prova_minuti":   row[4],
+        "commissione_members":   _json.loads(row[5] or "[]"),
+        "rdp_nomi":              _json.loads(row[6] or "[]"),
+        "commissione_nomi":      _json.loads(row[7] or "[]"),
+        "fetched_at":            row[8],
+        "configured_at":         row[9],
+        "configured_by":         row[10],
+    }
+
+
+def save_bando_config(commission_id, email_referente, email_esperto_remoto,
+                      email_segretario, telefono_segretario=None,
+                      durata_prova_minuti=None, commissione_members=None,
+                      configured_by=None):
+    """Inserisce o aggiorna la configurazione del bando."""
+    import json as _json
+    from datetime import datetime as _dt
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO bando_config (
+                    commission_id, email_referente, email_esperto_remoto,
+                    email_segretario, telefono_segretario, durata_prova_minuti,
+                    commissione_members, configured_at, configured_by
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (commission_id) DO UPDATE SET
+                    email_referente      = EXCLUDED.email_referente,
+                    email_esperto_remoto = EXCLUDED.email_esperto_remoto,
+                    email_segretario     = EXCLUDED.email_segretario,
+                    telefono_segretario  = EXCLUDED.telefono_segretario,
+                    durata_prova_minuti  = EXCLUDED.durata_prova_minuti,
+                    commissione_members  = EXCLUDED.commissione_members,
+                    configured_at        = EXCLUDED.configured_at,
+                    configured_by        = EXCLUDED.configured_by
+            """, (
+                commission_id,
+                email_referente or None,
+                email_esperto_remoto or None,
+                email_segretario or None,
+                telefono_segretario or None,
+                int(durata_prova_minuti) if durata_prova_minuti else None,
+                _json.dumps(commissione_members or [], ensure_ascii=False),
+                _dt.now(),
+                configured_by or None,
+            ))
+        conn.commit()
+
+
+def update_commissione_members(commission_id: str, members: list):
+    """Aggiorna solo commissione_members in bando_config senza toccare gli altri campi."""
+    import json as _json
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO bando_config (commission_id, commissione_members)
+                VALUES (%s, %s)
+                ON CONFLICT (commission_id) DO UPDATE SET
+                    commissione_members = EXCLUDED.commissione_members
+            """, (commission_id, _json.dumps(members, ensure_ascii=False)))
+        conn.commit()
+
+
+def update_bando_da_openapi(commission_id: str, rdps: list, commissioners: list):
+    """
+    Aggiorna bando_config con i dati freschi dall'API /openapi/v1/call.
+    - commissione_members e rdp_nomi vengono sempre sovrascritti (dati API).
+    - email_referente viene impostata solo se attualmente vuota.
+    - email_segretario viene impostata solo se attualmente vuota e c'è
+      esattamente un commissioner con ruolo SEGRETARIO.
+    """
+    import json as _json
+
+    commissione_members = [
+        {"nome": f"{c.get('firstName', '')} {c.get('lastName', '')}".strip(), "email": c.get("email", "")}
+        for c in commissioners if c.get("email")
+    ]
+    rdp_nomi = [
+        f"{r.get('firstName', '')} {r.get('lastName', '')}".strip()
+        for r in rdps if r.get("firstName") or r.get("lastName")
+    ]
+    first_rdp_email = rdps[0].get("email", "") if rdps else ""
+
+    segretari = [c for c in commissioners if (c.get("ruolo") or "").upper() == "SEGRETARIO"]
+    segretario_email = segretari[0].get("email", "") if len(segretari) == 1 else ""
+
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO bando_config (commission_id, commissione_members, rdp_nomi,
+                                          email_referente, email_segretario)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (commission_id) DO UPDATE SET
+                    commissione_members = EXCLUDED.commissione_members,
+                    rdp_nomi            = EXCLUDED.rdp_nomi,
+                    email_referente     = CASE
+                        WHEN bando_config.email_referente IS NULL OR bando_config.email_referente = ''
+                        THEN EXCLUDED.email_referente ELSE bando_config.email_referente END,
+                    email_segretario    = CASE
+                        WHEN (bando_config.email_segretario IS NULL OR bando_config.email_segretario = '')
+                             AND EXCLUDED.email_segretario <> ''
+                        THEN EXCLUDED.email_segretario ELSE bando_config.email_segretario END
+            """, (
+                commission_id,
+                _json.dumps(commissione_members, ensure_ascii=False),
+                _json.dumps(rdp_nomi, ensure_ascii=False),
+                first_rdp_email or None,
+                segretario_email or None,
+            ))
+        conn.commit()
+
+
+def get_sessione_config(session_id):
+    """Restituisce la configurazione per-sessione (informatico in sede + data accesso piattaforma)."""
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT nome_informatico_sede, email_informatico_sede,
+                       telefono_informatico_sede, data_accesso_piattaforma
                 FROM sessione_config
                 WHERE session_id = %s
             """, (session_id,))
@@ -215,49 +353,70 @@ def get_sessione_config(session_id):
     if not row:
         return None
     return {
-        "email_esperto_remoto":    row[0],
-        "nome_informatico_sede":   row[1],
-        "email_informatico_sede":  row[2],
-        "telefono_informatico_sede": row[3],
-        "email_segretario":        row[4],
-        "telefono_segretario":     row[5],
-        "durata_prova_minuti":     row[6],
-        "referente_concorso":      row[7],
+        "nome_informatico_sede":     row[0],
+        "email_informatico_sede":    row[1],
+        "telefono_informatico_sede": row[2],
+        "data_accesso_piattaforma":  row[3],
     }
 
 
-def save_sessione_config(session_id, email_esperto_remoto, nome_informatico_sede,
-                         email_informatico_sede, telefono_informatico_sede,
-                         email_segretario, telefono_segretario,
-                         durata_prova_minuti, referente_concorso):
-    """Inserisce o aggiorna la configurazione operativa della sessione."""
+def save_sessione_config(session_id, nome_informatico_sede, email_informatico_sede,
+                         telefono_informatico_sede, data_accesso_piattaforma=None):
+    """Inserisce o aggiorna la configurazione per-sessione."""
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
             cursor.execute("""
                 INSERT INTO sessione_config (
-                    session_id, email_esperto_remoto, nome_informatico_sede,
-                    email_informatico_sede, telefono_informatico_sede,
-                    email_segretario, telefono_segretario,
-                    durata_prova_minuti, referente_concorso
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    session_id, nome_informatico_sede, email_informatico_sede,
+                    telefono_informatico_sede, data_accesso_piattaforma
+                ) VALUES (%s, %s, %s, %s, %s)
                 ON CONFLICT (session_id) DO UPDATE SET
-                    email_esperto_remoto     = EXCLUDED.email_esperto_remoto,
-                    nome_informatico_sede    = EXCLUDED.nome_informatico_sede,
-                    email_informatico_sede   = EXCLUDED.email_informatico_sede,
+                    nome_informatico_sede     = EXCLUDED.nome_informatico_sede,
+                    email_informatico_sede    = EXCLUDED.email_informatico_sede,
                     telefono_informatico_sede = EXCLUDED.telefono_informatico_sede,
-                    email_segretario         = EXCLUDED.email_segretario,
-                    telefono_segretario      = EXCLUDED.telefono_segretario,
-                    durata_prova_minuti      = EXCLUDED.durata_prova_minuti,
-                    referente_concorso       = EXCLUDED.referente_concorso
+                    data_accesso_piattaforma  = EXCLUDED.data_accesso_piattaforma
             """, (
                 session_id,
-                email_esperto_remoto or None,
                 nome_informatico_sede or None,
                 email_informatico_sede or None,
                 telefono_informatico_sede or None,
-                email_segretario or None,
-                telefono_segretario or None,
-                int(durata_prova_minuti) if durata_prova_minuti else None,
-                referente_concorso or None,
+                data_accesso_piattaforma or None,
             ))
         conn.commit()
+
+
+def save_bando_meta_from_jconon(commission_id: str, rdp_nomi: list, commissione_nomi: list):
+    """Upsert solo i campi auto-fetchati (rdp_nomi, commissione_nomi, fetched_at) in bando_config."""
+    import json as _json
+    from datetime import datetime as _dt
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO bando_config (commission_id, rdp_nomi, commissione_nomi, fetched_at)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (commission_id) DO UPDATE SET
+                    rdp_nomi         = EXCLUDED.rdp_nomi,
+                    commissione_nomi = EXCLUDED.commissione_nomi,
+                    fetched_at       = EXCLUDED.fetched_at
+            """, (
+                commission_id,
+                _json.dumps(rdp_nomi, ensure_ascii=False),
+                _json.dumps(commissione_nomi, ensure_ascii=False),
+                _dt.now(),
+            ))
+        conn.commit()
+
+
+def get_merged_config(session_id, commission_id):
+    """
+    Restituisce la configurazione completa unendo bando_config (livello bando)
+    e sessione_config (livello sessione — informatico in sede).
+    """
+    cfg = {}
+    bando = get_bando_config(commission_id)
+    if bando:
+        cfg.update(bando)
+    sessione = get_sessione_config(session_id)
+    if sessione:
+        cfg.update({k: v for k, v in sessione.items() if v is not None})
+    return cfg if cfg else None

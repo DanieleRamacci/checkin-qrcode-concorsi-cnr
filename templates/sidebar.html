@@ -1,34 +1,24 @@
 <!-- Sidebar Bootstrap Italia -->
 <aside class="col-md-2 p-0 sidebar-wrapper it-line-left-side d-flex flex-column">
-  <div class="sidebar-linklist-wrapper flex-grow-1">
-
-    {% if sessione %}
-      <div class="p-3 border-bottom bg-light">
-        <h6 class="mb-1 text-uppercase text-primary fw-bold">{{ sessione.nome }}</h6>
-        <small class="d-block">{{ sessione.luogo }}</small>
-        <small class="text-muted">{{ sessione.giorno }} alle {{ sessione.ora }}</small>
-      </div>
-    {% endif %}
-
-    <div class="link-list-wrapper">
-      <ul class="link-list">
-        <li><h3 class="m-3">Navigazione</h3></li>
-        <li><a class="list-item medium active" href="/"><span>Lista Concorsi</span></a></li>
-        <li><a class="list-item medium" href="/dispositivi?session_id={{ sessione.session_id }}"><span>Dispositivi</span></a></li>
-      </ul>
-    </div>
-  </div>
 
   {% if sessione %}
-    {% set cfg = get_sessione_config(sessione.session_id) %}
+    <div class="p-3 border-bottom bg-light">
+      <h6 class="mb-1 text-uppercase text-primary fw-bold">{{ sessione.nome }}</h6>
+      <small class="d-block">{{ sessione.luogo }}</small>
+      <small class="text-muted">{{ sessione.giorno }} alle {{ sessione.ora }}</small>
+    </div>
+  {% endif %}
+
+  {% if sessione and sessione.commission_id %}
+    {% set cfg = get_merged_config(sessione.session_id, sessione.commission_id) %}
     {% if cfg %}
-    <div class="p-3 border-top bg-white" style="font-size: 0.78rem;">
+    <div class="p-3 border-bottom bg-white" style="font-size: 0.78rem;">
       <p class="fw-bold text-uppercase text-muted mb-2" style="font-size: 0.7rem; letter-spacing: .05em;">Riferimenti operativi</p>
 
-      {% if cfg.referente_concorso %}
+      {% if cfg.email_referente %}
       <div class="mb-2">
         <span class="text-muted d-block" style="font-size:0.7rem;">REFERENTE</span>
-        <span class="fw-semibold">{{ cfg.referente_concorso }}</span>
+        <a href="mailto:{{ cfg.email_referente }}" class="d-block text-break">{{ email_to_nome(cfg.email_referente) }}</a>
       </div>
       {% endif %}
 
@@ -39,10 +29,12 @@
       </div>
       {% endif %}
 
+      {% if cfg.email_esperto_remoto %}
       <div class="mb-2">
         <span class="text-muted d-block" style="font-size:0.7rem;">ESPERTO REMOTO</span>
         <a href="mailto:{{ cfg.email_esperto_remoto }}" class="text-break">{{ cfg.email_esperto_remoto }}</a>
       </div>
+      {% endif %}
 
       {% if cfg.nome_informatico_sede or cfg.email_informatico_sede or cfg.telefono_informatico_sede %}
       <div class="mb-2">
@@ -63,4 +55,15 @@
     </div>
     {% endif %}
   {% endif %}
+
+  <div class="sidebar-linklist-wrapper flex-grow-1 overflow-y-auto">
+    <div class="link-list-wrapper">
+      <ul class="link-list">
+        <li><h3 class="m-3">Navigazione</h3></li>
+        <li><a class="list-item medium active" href="/"><span>Lista Concorsi</span></a></li>
+        <li><a class="list-item medium" href="/dispositivi?session_id={{ sessione.session_id }}"><span>Dispositivi</span></a></li>
+      </ul>
+    </div>
+  </div>
+
 </aside>

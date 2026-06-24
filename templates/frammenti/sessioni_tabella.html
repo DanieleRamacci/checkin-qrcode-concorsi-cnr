@@ -3,6 +3,20 @@
   <div class="alert alert-info py-2 mb-2">{{ messaggio }}</div>
 {% endif %}
 
+{% if commission_id and (not bando_config or not bando_config.configured_at) %}
+<div class="alert alert-warning d-flex align-items-center py-2 mb-3" role="alert">
+  <span class="flex-grow-1">
+    <strong>Bando non configurato.</strong>
+    Inserisci i riferimenti operativi (esperto remoto, segretario, durata prova) prima di gestire le sessioni.
+  </span>
+  <a href="/bando/{{ commission_id }}/configura" class="btn btn-sm btn-warning ms-3 text-nowrap">Configura Bando</a>
+</div>
+{% elif commission_id and bando_config and bando_config.configured_at %}
+<div class="d-flex justify-content-end mb-2">
+  <a href="/bando/{{ commission_id }}/configura" class="btn btn-sm btn-outline-secondary">Modifica config bando</a>
+</div>
+{% endif %}
+
 {% if sessioni|length == 0 %}
   <div class="alert alert-warning mb-2">Nessuna sessione in archivio locale.</div>
 {% else %}

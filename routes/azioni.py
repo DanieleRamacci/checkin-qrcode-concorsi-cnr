@@ -1,11 +1,14 @@
-from flask import Blueprint, render_template, abort, jsonify, session, send_file, Response, request, current_app
+from flask import Blueprint, render_template, abort, jsonify, session, send_file, Response, request, current_app, redirect, url_for
 from routes.auth import login_required
 from db import get_db_connection
 import io, csv, os, re, requests
 from datetime import datetime
 from utils.stato import get_stato_corrente, get_azioni_per_stato, set_stato_corrente
 from utils.roles import ROLE_ADMIN, ROLE_ESPERTO, roles_required_any
-from utils.sessioni import get_sessione_by_id, get_sessione_config, save_sessione_config
+from utils.sessioni import (
+    get_sessione_by_id, get_sessione_config, save_sessione_config,
+    get_bando_config, save_bando_config, update_bando_da_openapi,
+)
 from utils.candidati import importa_candidati_da_api
 from utils.liste import get_candidati_by_sessione_checkin, genera_liste_excel_csv
 from utils.send_mail import send_notification_email
@@ -509,29 +512,15 @@ def salva_config(session_id):
     if not sessione:
         abort(404)
 
-    email_esperto_remoto     = request.form.get("email_esperto_remoto", "").strip()
-    nome_informatico_sede    = request.form.get("nome_informatico_sede", "").strip()
-    email_informatico_sede   = request.form.get("email_informatico_sede", "").strip()
+    # Salva solo i campi per-sessione (informatico in sede + data accesso piattaforma)
+    nome_informatico_sede     = request.form.get("nome_informatico_sede", "").strip()
+    email_informatico_sede    = request.form.get("email_informatico_sede", "").strip()
     telefono_informatico_sede = request.form.get("telefono_informatico_sede", "").strip()
-    email_segretario         = request.form.get("email_segretario", "").strip()
-    telefono_segretario      = request.form.get("telefono_segretario", "").strip()
-    durata_prova_minuti      = request.form.get("durata_prova_minuti", "").strip()
-    referente_concorso       = request.form.get("referente_concorso", "").strip()
-
-    if not email_esperto_remoto:
-        return render_template(
-            "frammenti/azioni.html",
-            sessione=sessione,
-            stato_corrente="iniziale",
-            messaggio="L'email dell'esperto informatico da remoto è obbligatoria.",
-            messaggio_tipo="danger",
-        )
+    data_accesso_piattaforma  = request.form.get("data_accesso_piattaforma", "").strip()
 
     save_sessione_config(
-        session_id, email_esperto_remoto, nome_informatico_sede,
-        email_informatico_sede, telefono_informatico_sede,
-        email_segretario, telefono_segretario,
-        durata_prova_minuti, referente_concorso,
+        session_id, nome_informatico_sede, email_informatico_sede,
+        telefono_informatico_sede, data_accesso_piattaforma,
     )
     set_stato_corrente(session_id, "configurata", utente=session.get("user_email"))
     stato_corrente = get_stato_corrente(session_id)
@@ -540,9 +529,362 @@ def salva_config(session_id):
         "frammenti/azioni.html",
         sessione=sessione,
         stato_corrente=stato_corrente,
-        messaggio="Configurazione salvata con successo.",
+        messaggio="Configurazione sessione salvata.",
         messaggio_tipo="success",
     )
+
+
+def _avanza_sessioni_bando(commission_id: str, user_email: str):
+    """Avanza da 'iniziale' a 'configurata' tutte le sessioni del bando."""
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT session_id FROM sessioni
+                WHERE commission_id = %s AND stato_corrente = 'iniziale'
+            """, (commission_id,))
+            rows = cur.fetchall()
+    for row in rows:
+        set_stato_corrente(row[0], "configurata", utente=user_email)
+
+
+def _fetch_bando_da_openapi(commission_id: str, call_code: str, access_token: str) -> dict:
+    """
+    Chiama GET /openapi/v1/call con detailRdP e detailCommission.
+    Ritorna {"rdps": [...], "commissioners": [...]} oppure {} in caso di errore.
+    """
+    base_url = os.environ.get("BASE_URL", "https://cool-jconon.test.si.cnr.it").rstrip("/")
+    params = {
+        "page": 0, "offset": 20, "filterType": "all",
+        "callCode": call_code, "detailRdP": "true", "detailCommission": "true",
+    }
+    try:
+        resp = requests.get(
+            f"{base_url}/openapi/v1/call",
+            headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json"},
+            params=params, timeout=(5, 30),
+        )
+        resp.raise_for_status()
+        items = resp.json().get("items", [])
+    except Exception as exc:
+        current_app.logger.warning("[openapi-call] fetch fallito: %s", exc)
+        return {}
+
+    # Trova l'item corrispondente al commission_id (cmis:objectId)
+    item = next((i for i in items if i.get("cmis:objectId") == commission_id), None)
+    if not item and items:
+        item = items[0]
+    if not item:
+        return {}
+
+    return {
+        "rdps":         item.get("rdps", []) or [],
+        "commissioners": item.get("commissioners", []) or [],
+    }
+
+
+
+
+@azioni_bp.route("/bando/<commission_id>/dettaglio")
+@login_required
+def dettaglio_bando(commission_id):
+    from utils.roles import has_role, ROLE_ADMIN
+    user_email = session.get("user_email")
+    if not has_role(user_email, ROLE_ADMIN):
+        abort(403)
+
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT titolo FROM commissions WHERE commission_id = %s LIMIT 1",
+                (commission_id,)
+            )
+            row = cur.fetchone()
+    call_code = request.args.get("callCode", "").strip() or (row[0] if row else "")
+    if not call_code:
+        abort(404)
+
+    access_token = ensure_fresh_access_token(skew_sec=60)
+    if not access_token:
+        abort(401)
+
+    bando_data = _fetch_bando_da_openapi(commission_id, call_code, access_token)
+    rdps         = bando_data.get("rdps", [])
+    commissioners = bando_data.get("commissioners", [])
+
+    return render_template(
+        "bando_dettaglio.html",
+        commission_id=commission_id,
+        call_code=call_code,
+        rdps=rdps,
+        commissioners=commissioners,
+    )
+
+
+@azioni_bp.route("/debug/exam-moodle-sessions/<commission_id>")
+@login_required
+def debug_exam_moodle_sessions(commission_id):
+    """Endpoint temporaneo: chiama exam-moodle-sessions e ritorna il JSON grezzo."""
+    session_param = request.args.get("session", "")
+    if not session_param:
+        return jsonify({"error": "Parametro ?session= obbligatorio"}), 400
+
+    access_token = ensure_fresh_access_token(skew_sec=60)
+    if not access_token:
+        return jsonify({"error": "Token OIDC non disponibile"}), 401
+
+    base_url = os.environ.get("BASE_URL", "https://cool-jconon.test.si.cnr.it").rstrip("/")
+    url = f"{base_url}/openapi/v1/call/exam-moodle-sessions/{commission_id}"
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    try:
+        resp = requests.post(url, headers=headers, params={"session": session_param}, timeout=(5, 30))
+        current_app.logger.info("[debug-moodle] status=%s content-type=%s url=%s",
+                                resp.status_code, resp.headers.get("Content-Type"), url)
+        current_app.logger.info("[debug-moodle] body=%s", resp.text[:3000])
+        return Response(
+            resp.text,
+            status=resp.status_code,
+            mimetype=resp.headers.get("Content-Type", "text/plain"),
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@azioni_bp.route("/bando/<commission_id>/configura", methods=["GET", "POST"])
+@login_required
+def configura_bando(commission_id):
+    user_email = session.get("user_email")
+
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT titolo FROM commissions WHERE commission_id = %s AND user_email = %s",
+                (commission_id, user_email),
+            )
+            row = cur.fetchone()
+    if not row:
+        abort(403)
+    titolo = row[0]
+
+    if request.method == "GET":
+        access_token = ensure_fresh_access_token(skew_sec=60)
+        fetch_errori = []
+        if access_token:
+            try:
+                from utils.jconon_referenti import fetch_e_salva_bando_meta
+                risultato = fetch_e_salva_bando_meta(commission_id, oidc_access_token=access_token)
+                fetch_errori = risultato.get("errori", [])
+            except Exception as exc:
+                fetch_errori = [str(exc)]
+
+            # Popola commissione_members e RDP dall'API /openapi/v1/call
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT titolo FROM commissions WHERE commission_id = %s LIMIT 1",
+                        (commission_id,)
+                    )
+                    titolo_row = cur.fetchone()
+            if titolo_row:
+                bando_data = _fetch_bando_da_openapi(commission_id, titolo_row[0], access_token)
+                if bando_data:
+                    update_bando_da_openapi(
+                        commission_id,
+                        rdps=bando_data.get("rdps", []),
+                        commissioners=bando_data.get("commissioners", []),
+                    )
+        else:
+            fetch_errori = ["Token di autenticazione non disponibile."]
+
+    bando_cfg = get_bando_config(commission_id)
+
+    # Lista esperti informatici per il dropdown
+    from utils.roles import ROLE_ESPERTO as _ROLE_ESPERTO
+    from psycopg2.extras import RealDictCursor
+    with get_db_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                "SELECT user_email FROM user_roles WHERE role = %s ORDER BY user_email",
+                (_ROLE_ESPERTO,)
+            )
+            esperti_list = [r["user_email"] for r in cur.fetchall()]
+
+    if request.method == "POST":
+        email_referente      = request.form.get("email_referente", "").strip()
+        email_esperto_remoto = request.form.get("email_esperto_remoto", "").strip()
+        email_segretario     = request.form.get("email_segretario", "").strip()
+        telefono_segretario  = request.form.get("telefono_segretario", "").strip()
+        durata_prova_minuti  = request.form.get("durata_prova_minuti", "").strip()
+
+        # Componenti commissione: liste parallele nome[] + email[]
+        nomi_comm   = request.form.getlist("commissione_nome[]")
+        emails_comm = request.form.getlist("commissione_email[]")
+        commissione_members = [
+            {"nome": n.strip(), "email": e.strip()}
+            for n, e in zip(nomi_comm, emails_comm)
+            if n.strip() or e.strip()
+        ]
+
+        save_bando_config(
+            commission_id,
+            email_referente=email_referente,
+            email_esperto_remoto=email_esperto_remoto,
+            email_segretario=email_segretario,
+            telefono_segretario=telefono_segretario,
+            durata_prova_minuti=durata_prova_minuti,
+            commissione_members=commissione_members,
+            configured_by=user_email,
+        )
+        if email_referente or email_esperto_remoto:
+            _avanza_sessioni_bando(commission_id, user_email)
+
+        return redirect(url_for("dashboard.sessioni", commission_id=commission_id))
+
+    return render_template(
+        "bando_config.html",
+        commission_id=commission_id,
+        titolo=titolo,
+        cfg=bando_cfg,
+        esperti_list=esperti_list,
+        fetch_errori=fetch_errori,
+        messaggio=request.args.get("msg"),
+        messaggio_tipo=request.args.get("msg_tipo", "info"),
+    )
+
+
+@azioni_bp.route("/bando/<commission_id>/richiedi-configurazione", methods=["POST"])
+@login_required
+def richiedi_configurazione_bando(commission_id):
+    """Invia una mail al referente chiedendo di compilare la configurazione del bando."""
+    from utils.send_mail import send_notification_email
+    from utils.sessioni import email_to_nome
+
+    user_email = session.get("user_email")
+
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT titolo FROM commissions WHERE commission_id = %s AND user_email = %s",
+                (commission_id, user_email),
+            )
+            row = cur.fetchone()
+    if not row:
+        abort(403)
+    titolo = row[0]
+
+    email_referente = request.form.get("email_referente", "").strip()
+    if not email_referente:
+        return redirect(url_for("azioni.configura_bando", commission_id=commission_id))
+
+    link = url_for("azioni.configura_bando", commission_id=commission_id, _external=True)
+    nome_mittente = email_to_nome(user_email)
+    corpo = (
+        f"Gentile {email_to_nome(email_referente)},\n\n"
+        f"ti scrivo per chiederti di inserire i dati di configurazione per il bando:\n"
+        f"  {titolo}\n\n"
+        f"Puoi accedere alla pagina di configurazione al seguente link:\n"
+        f"  {link}\n\n"
+        f"Grazie,\n{nome_mittente}"
+    )
+
+    ok, err = send_notification_email(
+        to_emails=[email_referente],
+        subject=f"Richiesta configurazione bando: {titolo}",
+        body=corpo,
+        actor_email=user_email,
+        source="azioni.richiedi_configurazione_bando",
+    )
+
+    # Salva anche l'email referente se appena inserita
+    cfg = get_bando_config(commission_id)
+    if not (cfg and cfg.get("email_referente")):
+        save_bando_config(
+            commission_id,
+            email_referente=email_referente,
+            email_esperto_remoto=cfg.get("email_esperto_remoto") if cfg else None,
+            email_segretario=cfg.get("email_segretario") if cfg else None,
+            configured_by=user_email,
+        )
+
+    messaggio = "Email inviata al referente." if ok else f"Errore invio email: {err}"
+    messaggio_tipo = "success" if ok else "warning"
+    return redirect(url_for(
+        "azioni.configura_bando", commission_id=commission_id,
+        msg=messaggio, msg_tipo=messaggio_tipo
+    ))
+
+
+@azioni_bp.route("/debug/jconon/<commission_id>", methods=["GET"])
+@login_required
+def debug_jconon(commission_id):
+    """Endpoint di diagnostica temporaneo — rimuovere dopo i test."""
+    from utils.jconon_referenti import JCONON_BASE, _make_session_oidc
+    from utils.oidc import ensure_fresh_access_token
+
+    access_token = ensure_fresh_access_token(skew_sec=60)
+    result = {"commission_id": commission_id, "jconon_base": JCONON_BASE, "steps": {}}
+
+    # Step 1: fetch call detail (OpenAPI, OIDC token)
+    sess_oidc = _make_session_oidc(access_token)
+    url1 = f"{JCONON_BASE}/openapi/v1/call/{commission_id}"
+    try:
+        r1 = sess_oidc.get(url1, timeout=10)
+        result["steps"]["call_detail"] = {
+            "url": url1, "status": r1.status_code,
+            "body": r1.json() if r1.headers.get("content-type", "").startswith("application/json") else r1.text[:500]
+        }
+        rdp_raw = r1.json().get("jconon_call:rdp", "") if r1.ok else ""
+    except Exception as e:
+        result["steps"]["call_detail"] = {"url": url1, "error": str(e)}
+        rdp_raw = ""
+
+    result["rdp_raw"] = rdp_raw
+
+    # Step 1b: scambia OIDC token con ticket Alfresco
+    import requests as _req
+    alfresco_ticket = ""
+
+    # prova 1: POST /rest/api/login con il token OIDC come password (username=OIDC)
+    for login_payload in [
+        {"username": "OIDC", "password": access_token},
+        {"ticket": access_token},
+    ]:
+        try:
+            rl = _req.post(f"{JCONON_BASE}/rest/api/login",
+                           json=login_payload, timeout=10,
+                           headers={"Accept": "application/json", "Content-Type": "application/json"})
+            result["steps"][f"alfresco_login_{list(login_payload.keys())[0]}"] = {
+                "status": rl.status_code,
+                "body": rl.json() if rl.headers.get("content-type","").startswith("application/json") else rl.text[:200]
+            }
+            if rl.ok:
+                data = rl.json()
+                alfresco_ticket = (data.get("data") or {}).get("ticket", "")
+                if alfresco_ticket:
+                    break
+        except Exception as e:
+            result["steps"][f"alfresco_login_{list(login_payload.keys())[0]}"] = {"error": str(e)}
+
+    result["alfresco_ticket_ottenuto"] = bool(alfresco_ticket)
+
+    # Step 2: fetch RDP members con il ticket ottenuto
+    if rdp_raw:
+        from urllib.parse import quote as _q
+        inner_path = f"service/cnr/groups/GROUP_{rdp_raw}/members"
+        inner_enc = _q(inner_path, safe="/:@._-~")
+        base_url2 = f"{JCONON_BASE}/rest/proxy?url={inner_enc}"
+        url2 = base_url2 + (f"&alf_ticket={alfresco_ticket}" if alfresco_ticket else "")
+        result["url_rdp_members"] = url2
+        try:
+            r2 = _req.get(url2, timeout=10, headers={"Accept": "application/json"})
+            result["steps"]["rdp_members"] = {
+                "status": r2.status_code,
+                "body": r2.json() if r2.headers.get("content-type","").startswith("application/json") else r2.text[:300]
+            }
+        except Exception as e:
+            result["steps"]["rdp_members"] = {"error": str(e)}
+
+    return jsonify(result)
 
 
 @azioni_bp.route("/sessione/<session_id>/scarica_candidati", methods=["POST"])
@@ -884,11 +1226,35 @@ def invia_lista_esame(session_id):
 
     # 4) Oggetto e corpo
     sessione = get_sessione_by_id(session_id)
-    titolo = getattr(sessione, "nome", None) or getattr(sessione, "session_string", None) or session_id
-    subject = f"[Check-in] Lista esame – {titolo}"
+    with get_db_connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT titolo FROM commissions WHERE commission_id = %s LIMIT 1",
+            (sessione["commission_id"],),
+        )
+        _row = cur.fetchone()
+    titolo_bando = _row[0] if _row else ""
+    nome_sessione = sessione.get("nome") or ""
+    giorno = sessione.get("giorno") or ""
+    ora    = sessione.get("ora") or ""
+    luogo  = sessione.get("luogo") or ""
+
+    label_sessione = nome_sessione
+    if giorno:
+        label_sessione += f" – {giorno}"
+        if ora:
+            label_sessione += f" {ora}"
+    if luogo:
+        label_sessione += f" – {luogo}"
+
+    subject = f"[Check-in] Lista esame – {titolo_bando}"
     body = (
-        f"Ciao,\n\nin allegato la lista esame per la sessione {titolo}.\n"
-        f"Presenti: {num_presenti}\nGenerata da: {generato_da}\nData: {ts}\n\n"
+        f"Ciao,\n\n"
+        f"in allegato la lista esame per:\n"
+        f"  Bando: {titolo_bando}\n"
+        f"  Sessione: {label_sessione}\n\n"
+        f"Presenti: {num_presenti}\n"
+        f"Generata da: {generato_da}\n"
+        f"Data: {ts}\n\n"
         "Cordiali saluti,\nSistema Check-in"
     )
 

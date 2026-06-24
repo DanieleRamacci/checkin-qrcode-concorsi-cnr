@@ -28,6 +28,7 @@ try:
     if APP_ENV == "dev":
         print("  Ambiente di sviluppo: elimino le tabelle esistenti...")
         cursor.execute("DROP TABLE IF EXISTS sessione_config CASCADE")
+        cursor.execute("DROP TABLE IF EXISTS bando_config CASCADE")
         cursor.execute("DROP TABLE IF EXISTS candidati CASCADE")
         cursor.execute("DROP TABLE IF EXISTS sessioni CASCADE")
         cursor.execute("DROP TABLE IF EXISTS commissions CASCADE")
@@ -94,18 +95,33 @@ try:
     );
     """)
 
-    # Configurazione per sessione: riferimenti operativi, contatti, durata prova
+    # Configurazione per BANDO (commission_id): dati comuni a tutte le sessioni del bando
+    # commissione_members: JSON array [{nome, email}] inseriti manualmente
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS sessione_config (
-        session_id TEXT PRIMARY KEY,
+    CREATE TABLE IF NOT EXISTS bando_config (
+        commission_id TEXT PRIMARY KEY,
+        email_referente TEXT,
         email_esperto_remoto TEXT,
-        nome_informatico_sede TEXT,
-        email_informatico_sede TEXT,
-        telefono_informatico_sede TEXT,
         email_segretario TEXT,
         telefono_segretario TEXT,
         durata_prova_minuti INTEGER,
-        referente_concorso TEXT,
+        commissione_members TEXT DEFAULT '[]',
+        rdp_nomi TEXT DEFAULT '[]',
+        commissione_nomi TEXT DEFAULT '[]',
+        fetched_at TIMESTAMP,
+        configured_at TIMESTAMP,
+        configured_by TEXT
+    );
+    """)
+
+    # Configurazione per SESSIONE: solo i dati che variano per sessione
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS sessione_config (
+        session_id TEXT PRIMARY KEY,
+        nome_informatico_sede TEXT,
+        email_informatico_sede TEXT,
+        telefono_informatico_sede TEXT,
+        data_accesso_piattaforma TEXT,
         FOREIGN KEY (session_id) REFERENCES sessioni(session_id)
     );
     """)
@@ -358,31 +374,29 @@ try:
     """)
 
     # Migrazioni additive sicure su installazioni esistenti
-    # sessione_config: nuova tabella per configurazione per-sessione
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS sessione_config (
-        session_id TEXT PRIMARY KEY,
-        email_esperto_remoto TEXT,
-        nome_informatico_sede TEXT,
-        email_informatico_sede TEXT,
-        telefono_informatico_sede TEXT,
-        email_segretario TEXT,
-        telefono_segretario TEXT,
-        durata_prova_minuti INTEGER,
-        referente_concorso TEXT,
-        FOREIGN KEY (session_id) REFERENCES sessioni(session_id)
-    );
-    """)
-    # Colonne aggiunte in versioni successive (safe su installazioni esistenti)
+
+    # sessione_config: migrazioni per installazioni precedenti
     for col, tipo in [
+        ("nome_informatico_sede", "TEXT"),
         ("email_informatico_sede", "TEXT"),
         ("telefono_informatico_sede", "TEXT"),
+    ]:
+        cursor.execute(f"ALTER TABLE sessione_config ADD COLUMN IF NOT EXISTS {col} {tipo};")
+
+    # bando_config: migrazioni additive
+    for col, tipo in [
+        ("email_referente", "TEXT"),
+        ("email_esperto_remoto", "TEXT"),
         ("email_segretario", "TEXT"),
         ("telefono_segretario", "TEXT"),
         ("durata_prova_minuti", "INTEGER"),
-        ("referente_concorso", "TEXT"),
+        ("commissione_members", "TEXT"),
     ]:
-        cursor.execute(f"ALTER TABLE sessione_config ADD COLUMN IF NOT EXISTS {col} {tipo};")
+        cursor.execute(f"ALTER TABLE bando_config ADD COLUMN IF NOT EXISTS {col} {tipo};")
+    cursor.execute("UPDATE bando_config SET commissione_members = '[]' WHERE commissione_members IS NULL;")
+
+    # sessione_config: migrazioni additive
+    cursor.execute("ALTER TABLE sessione_config ADD COLUMN IF NOT EXISTS data_accesso_piattaforma TEXT;")
 
     cursor.execute("""
     ALTER TABLE prove

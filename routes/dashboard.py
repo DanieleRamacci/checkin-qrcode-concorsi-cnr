@@ -8,7 +8,6 @@ from utils.sessioni import get_sessioni_internamente
 from utils.oidc import ensure_fresh_access_token
 from datetime import datetime, timezone
 import time
-from utils.commissioni import now_iso_utc
 
 
 
@@ -228,8 +227,12 @@ def sessioni_frammento(commission_id):
                 return redirect(url_for('auth.login'))
 
             elif isinstance(esito, int) and esito >= 0:
-                # SUCCESSO (anche 0 insert). Non aggiorniamo commissions.data_sync
-                pass
+                # SUCCESSO (anche 0 insert). Fetch RDP/commissione da JCOnon (best-effort)
+                try:
+                    from utils.jconon_referenti import fetch_e_salva_bando_meta
+                    fetch_e_salva_bando_meta(commission_id)
+                except Exception as _e:
+                    current_app.logger.warning("[bando_meta] fetch fallito: %s", _e)
             else:
                 sync_msg = "Sincronizzazione non riuscita"
 
@@ -259,11 +262,16 @@ def sessioni_frammento(commission_id):
                 sessioni = cur.fetchall()
 
     # 4) Render del frammento
+    from utils.sessioni import get_bando_config
+    bando_config = get_bando_config(commission_id)
+
     messaggio = sync_msg if sync_msg else None
     return render_template(
         "frammenti/sessioni_tabella.html",
         sessioni=sessioni,
         concorso_titolo=concorso_titolo,
+        commission_id=commission_id,
+        bando_config=bando_config,
         messaggio=messaggio,
         gestione_base="/esperto/sessione" if mode == "esperto" else ("/sede/sessione" if mode == "sede" else "/gestione-concorso")
     )

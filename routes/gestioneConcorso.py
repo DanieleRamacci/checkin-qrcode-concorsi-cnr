@@ -17,7 +17,7 @@ def gestione_concorso(session_id):
             with conn.cursor() as cursor:
                 # Recupera i dati della sessione
                 cursor.execute("""
-                    SELECT nome, giorno, ora, luogo, attiva
+                    SELECT nome, giorno, ora, luogo, attiva, commission_id
                     FROM sessioni WHERE session_id = %s
                 """, (session_id,))
                 session_row = cursor.fetchone()
@@ -50,7 +50,8 @@ def gestione_concorso(session_id):
             "giorno": session_row[1],
             "ora": session_row[2],
             "luogo": session_row[3],
-            "attiva": bool(session_row[4])
+            "attiva": bool(session_row[4]),
+            "commission_id": session_row[5],
         }
 
         return render_template("gestione-concorso.html", sessione=sessione, candidati=candidati, messaggi=[])

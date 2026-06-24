@@ -8,6 +8,7 @@ from psycopg2.extras import RealDictCursor
 admin_permessi_bp = Blueprint('admin_permessi', __name__)
 
 ALLOWED_ROLES = {ROLE_ADMIN, ROLE_ESPERTO}
+GLOBAL_ROLES = {ROLE_ADMIN}  # ruoli non-esperto gestiti nella sezione "Permessi globali"
 
 
 @admin_permessi_bp.route('/admin/permessi', methods=['GET'])
@@ -23,10 +24,14 @@ def permessi_index():
             """)
             ruoli = cur.fetchall()
 
+    esperti = [r for r in ruoli if r["role"] == ROLE_ESPERTO]
+    altri   = [r for r in ruoli if r["role"] != ROLE_ESPERTO]
+
     return render_template(
         "admin_permessi.html",
-        ruoli=ruoli,
-        allowed_roles=sorted(ALLOWED_ROLES)
+        esperti=esperti,
+        altri_ruoli=altri,
+        global_roles=sorted(GLOBAL_ROLES),
     )
 
 

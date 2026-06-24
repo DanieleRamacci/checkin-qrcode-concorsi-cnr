@@ -24,6 +24,12 @@
 
     <!-- Controlli -->
     <div class="d-flex gap-2 align-items-center mb-3">
+      {% if dev_mode or has_role(session.get('user_email'), 'admin_globale') %}
+      <a href="{{ url_for('azioni.dettaglio_bando', commission_id=commission_id) }}"
+         class="btn btn-outline-secondary btn-sm" target="_blank">
+        Dettaglio Bando
+      </a>
+      {% endif %}
       <button id="btn-aggiorna"
               class="btn btn-outline-primary btn-sm"
               hx-get="{{ frammento_url or ('/sessioni/' ~ commission_id ~ '/frammento') }}"

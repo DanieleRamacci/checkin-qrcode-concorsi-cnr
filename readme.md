@@ -5,6 +5,9 @@ Documentazione tecnica aggiornata del progetto, pensata come **fotografia dello 
 ## Documentazione Modulo Gestione Esami Moodle
 Documentazione dedicata (solo modulo Prove/Esami): `docs/gestione-esami-moodle.md`
 
+## Documentazione Spec Kit ufficiale
+Baseline ufficiale dello stato attuale del progetto: `specs/001-baseline-progetto/spec.md`
+
 ## 1. Scopo del progetto
 Applicazione web Flask per gestire il check-in candidati nelle sessioni di concorso CNR.
 

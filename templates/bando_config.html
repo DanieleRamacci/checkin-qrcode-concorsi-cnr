@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Configura Bando – {{ titolo }}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-italia@2.6.1/dist/css/bootstrap-italia.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap-italia@2.6.1/dist/js/bootstrap-italia.bundle.min.js" defer></script>
+</head>
+<body>
+  {% include 'header.html' %}
+
+  <div class="container my-5" style="max-width: 760px;">
+    <a href="{{ url_for('dashboard.sessioni', commission_id=commission_id) }}" class="btn btn-outline-secondary btn-sm mb-3">
+      &larr; Torna alle sessioni
+    </a>
+
+    <h1 class="mb-1">Configura Bando</h1>
+    <p class="text-muted mb-4">{{ titolo }}</p>
+
+    {% if messaggio %}
+    <div class="alert alert-{{ messaggio_tipo or 'info' }} mb-3">{{ messaggio }}</div>
+    {% endif %}
+
+    {# ── Referente ────────────────────────────────────────────────────────────── #}
+    {% set email_ref = (cfg.email_referente or '') if cfg else '' %}
+    <div class="card mb-4">
+      <div class="card-header bg-light py-2 d-flex align-items-center gap-2">
+        <span class="fw-bold text-uppercase small text-primary">Referente del procedimento</span>
+        <span class="badge bg-warning text-dark small">Consigliato</span>
+      </div>
+      <div class="card-body">
+        {% if email_ref %}
+        <p class="mb-2 small">
+          <strong>{{ email_to_nome(email_ref) }}</strong>
+          <span class="text-muted ms-2">{{ email_ref }}</span>
+        </p>
+        {% endif %}
+        <form method="POST" action="{{ url_for('azioni.richiedi_configurazione_bando', commission_id=commission_id) }}" class="mt-1">
+          <div class="input-group input-group-sm">
+            <input type="email" class="form-control" name="email_referente"
+                   value="{{ email_ref }}" placeholder="es. nome.cognome@cnr.it">
+            <button type="submit" class="btn btn-outline-primary">Salva &amp; invia richiesta</button>
+          </div>
+          <div class="form-text">Salva l'email e invia al referente un link a questa pagina.</div>
+        </form>
+      </div>
+    </div>
+
+    {# ── Form principale ──────────────────────────────────────────────────────── #}
+    <form method="POST" action="{{ url_for('azioni.configura_bando', commission_id=commission_id) }}">
+      {# Porta email_referente nel POST senza riscriverla #}
+      <input type="hidden" name="email_referente" value="{{ email_ref }}">
+
+      {# ── Esperto informatico da remoto ──────────────────────────────────────── #}
+      {% set email_esp = (cfg.email_esperto_remoto or '') if cfg else '' %}
+      <div class="card mb-3">
+        <div class="card-header bg-light py-2 d-flex align-items-center gap-2">
+          <span class="fw-bold text-uppercase small text-primary">Esperto informatico da remoto</span>
+          <span class="badge bg-warning text-dark small">Consigliato</span>
+        </div>
+        <div class="card-body py-3">
+          {% if esperti_list %}
+          <label class="form-label small mb-1" for="email_esperto_remoto">Seleziona esperto</label>
+          <select class="form-select form-select-sm" id="email_esperto_remoto" name="email_esperto_remoto">
+            <option value="">— nessuno —</option>
+            {% for e in esperti_list %}
+            <option value="{{ e }}" {% if e == email_esp %}selected{% endif %}>
+              {{ email_to_nome(e) }} ({{ e }})
+            </option>
+            {% endfor %}
+          </select>
+          {% else %}
+          <div class="alert alert-warning small py-2 mb-0">
+            Nessun esperto informatico registrato.
+            <a href="/admin/permessi" class="alert-link">Aggiungi dalla sezione Admin.</a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      {# ── Segretario ─────────────────────────────────────────────────────────── #}
+      {% set email_seg = (cfg.email_segretario or '') if cfg else '' %}
+      {% set tel_seg   = (cfg.telefono_segretario or '') if cfg else '' %}
+      {% set comm_members_seg = cfg.commissione_members if cfg else [] %}
+      <div class="card mb-3">
+        <div class="card-header bg-light py-2">
+          <span class="fw-bold text-uppercase small text-primary">Segretario</span>
+          <span class="text-muted small ms-2">(opzionale)</span>
+        </div>
+        <div class="card-body py-3">
+          <div class="row g-2">
+            <div class="col-md-7">
+              <label class="form-label small mb-1" for="email_segretario">
+                {% if comm_members_seg %}Seleziona tra i componenti{% else %}Email{% endif %}
+              </label>
+              {% if comm_members_seg %}
+              <select class="form-select form-select-sm" id="email_segretario" name="email_segretario">
+                <option value="">— nessuno —</option>
+                {% for m in comm_members_seg %}
+                <option value="{{ m.email }}" {% if m.email == email_seg %}selected{% endif %}>
+                  {{ m.nome }} ({{ m.email }})
+                </option>
+                {% endfor %}
+              </select>
+              {% else %}
+              <input type="email" class="form-control form-control-sm" id="email_segretario"
+                     name="email_segretario" value="{{ email_seg }}" placeholder="es. nome.cognome@cnr.it">
+              {% endif %}
+            </div>
+            <div class="col-md-5">
+              <label class="form-label small mb-1" for="telefono_segretario">Telefono</label>
+              <input type="tel" class="form-control form-control-sm" id="telefono_segretario"
+                     name="telefono_segretario" value="{{ tel_seg }}" placeholder="es. +39 06 4993…">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# ── Durata prova ───────────────────────────────────────────────────────── #}
+      {% set durata = (cfg.durata_prova_minuti or '') if cfg else '' %}
+      <div class="card mb-3">
+        <div class="card-header bg-light py-2">
+          <span class="fw-bold text-uppercase small text-primary">Prova</span>
+        </div>
+        <div class="card-body py-3">
+          <div class="row g-2">
+            <div class="col-md-4">
+              <label class="form-label small mb-1" for="durata_prova_minuti">Durata (minuti)</label>
+              <input type="number" class="form-control form-control-sm" id="durata_prova_minuti"
+                     name="durata_prova_minuti" min="1" max="480"
+                     value="{{ durata }}" placeholder="es. 90">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# ── Componenti Commissione ─────────────────────────────────────────────── #}
+      {% set comm_members = cfg.commissione_members if cfg else [] %}
+      <div class="card mb-4">
+        <div class="card-header bg-light py-2">
+          <span class="fw-bold text-uppercase small text-primary">Componenti Commissione</span>
+          <span class="text-muted small ms-2">(opzionale)</span>
+        </div>
+        <div class="card-body py-3">
+          <div id="commissione-rows">
+            {% for m in comm_members %}
+            <div class="row g-2 mb-2 commissione-row">
+              <div class="col-md-5">
+                <input type="text" class="form-control form-control-sm" name="commissione_nome[]"
+                       value="{{ m.nome or '' }}" placeholder="Nome Cognome">
+              </div>
+              <div class="col-md-6">
+                <input type="email" class="form-control form-control-sm" name="commissione_email[]"
+                       value="{{ m.email or '' }}" placeholder="email@cnr.it">
+              </div>
+              <div class="col-md-1 d-flex align-items-center">
+                <button type="button" class="btn btn-outline-danger btn-sm rimuovi-riga" title="Rimuovi">&times;</button>
+              </div>
+            </div>
+            {% endfor %}
+            {# Riga vuota iniziale se non ci sono componenti #}
+            {% if not comm_members %}
+            <div class="row g-2 mb-2 commissione-row">
+              <div class="col-md-5">
+                <input type="text" class="form-control form-control-sm" name="commissione_nome[]" placeholder="Nome Cognome">
+              </div>
+              <div class="col-md-6">
+                <input type="email" class="form-control form-control-sm" name="commissione_email[]" placeholder="email@cnr.it">
+              </div>
+              <div class="col-md-1 d-flex align-items-center">
+                <button type="button" class="btn btn-outline-danger btn-sm rimuovi-riga" title="Rimuovi">&times;</button>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+          <button type="button" id="aggiungi-componente" class="btn btn-outline-secondary btn-sm mt-1">
+            + Aggiungi componente
+          </button>
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-end border-top pt-3 gap-2">
+        <a href="{{ url_for('dashboard.sessioni', commission_id=commission_id) }}" class="btn btn-outline-secondary btn-sm">Annulla</a>
+        <button type="submit" class="btn btn-primary btn-sm">Salva configurazione</button>
+      </div>
+    </form>
+  </div>
+
+  {% include "footer.html" %}
+
+  <script>
+    document.getElementById('aggiungi-componente').addEventListener('click', function () {
+      const container = document.getElementById('commissione-rows');
+      const row = document.createElement('div');
+      row.className = 'row g-2 mb-2 commissione-row';
+      row.innerHTML = `
+        <div class="col-md-5">
+          <input type="text" class="form-control form-control-sm" name="commissione_nome[]" placeholder="Nome Cognome">
+        </div>
+        <div class="col-md-6">
+          <input type="email" class="form-control form-control-sm" name="commissione_email[]" placeholder="email@cnr.it">
+        </div>
+        <div class="col-md-1 d-flex align-items-center">
+          <button type="button" class="btn btn-outline-danger btn-sm rimuovi-riga" title="Rimuovi">&times;</button>
+        </div>`;
+      container.appendChild(row);
+    });
+
+    document.getElementById('commissione-rows').addEventListener('click', function (e) {
+      if (e.target.classList.contains('rimuovi-riga')) {
+        e.target.closest('.commissione-row').remove();
+      }
+    });
+  </script>
+</body>
+</html>

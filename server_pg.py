@@ -9,7 +9,7 @@ import qrcode
 import io
 from psycopg2.extras import RealDictCursor
 from routes import register_blueprints  # importa la funzione dal __init__.py
-from routes.auth import login_required  
+from routes.auth import login_required
 from utils.logging_setup import setup_logging
 from datetime import datetime, timedelta
 from utils.device_tokens import make_reg_token
@@ -19,13 +19,16 @@ from utils.roles import has_role, ROLE_ADMIN, ROLE_ESPERTO
 
 # === FLASK APP ===
 app = Flask(__name__, static_folder='static')
-register_blueprints(app)  
+register_blueprints(app)
 from utils.liste import get_ultima_lista_generata
-from utils.sessioni import get_sessione_config
+from utils.sessioni import get_sessione_config, get_bando_config, get_merged_config, email_to_nome
 
 app.jinja_env.globals.update(
     get_ultima_lista_generata=get_ultima_lista_generata,
     get_sessione_config=get_sessione_config,
+    get_bando_config=get_bando_config,
+    get_merged_config=get_merged_config,
+    email_to_nome=email_to_nome,
 )
 
 dev_mode = os.getenv("APP_ENV", "production").lower() in ("development", "dev")

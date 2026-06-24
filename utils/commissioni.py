@@ -35,6 +35,8 @@ def get_commissioni_sincronizzate_with_status(access_token, user_email, timeout_
                 return out
             response.raise_for_status()
             remote_commissions = response.json()
+            if remote_commissions:
+                current_app.logger.info("[comm] STRUTTURA primo oggetto: %s", remote_commissions[0])
             remote_fetch_ok = True
         except (requests.Timeout, requests.ConnectionError) as e:
             current_app.logger.warning(f"[comm] timeout/conn error: {e}")

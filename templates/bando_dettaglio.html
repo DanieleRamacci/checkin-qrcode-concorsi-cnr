@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Dettaglio Bando {{ call_code }}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-italia@2.6.1/dist/css/bootstrap-italia.min.css">
+</head>
+<body>
+  {% include 'header.html' %}
+
+  <div class="container my-5" style="max-width: 860px;">
+    <a href="{{ url_for('dashboard.sessioni', commission_id=commission_id) }}"
+       class="btn btn-outline-secondary btn-sm mb-3">&larr; Torna alle sessioni</a>
+
+    <h1 class="mb-1">Dettaglio Bando</h1>
+    <p class="text-muted mb-4">Codice: <strong>{{ call_code }}</strong> &mdash; commission_id: <code>{{ commission_id }}</code></p>
+
+    {% if not rdps and not commissioners %}
+    <div class="alert alert-warning">Nessun dato ricevuto dall'API per questo bando.</div>
+    {% endif %}
+
+    {# ── RDP ──────────────────────────────────────────────────────────────────── #}
+    {% if rdps %}
+    <div class="card mb-4">
+      <div class="card-header bg-light py-2">
+        <span class="fw-bold text-uppercase small text-primary">Responsabili del Procedimento (RDP)</span>
+        <span class="badge bg-secondary ms-2">{{ rdps|length }}</span>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Nome</th>
+              <th>Email</th>
+              <th>Email certificata</th>
+              <th>Matricola</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in rdps %}
+            <tr>
+              <td>{{ r.firstName }} {{ r.lastName }}</td>
+              <td>{{ r.email or '—' }}</td>
+              <td>{{ r.emailcertificatoperpuk or '—' }}</td>
+              <td>{{ r.matricola or '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    {# ── Commissione ──────────────────────────────────────────────────────────── #}
+    {% if commissioners %}
+    <div class="card mb-4">
+      <div class="card-header bg-light py-2">
+        <span class="fw-bold text-uppercase small text-primary">Componenti Commissione</span>
+        <span class="badge bg-secondary ms-2">{{ commissioners|length }}</span>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Nome</th>
+              <th>Email</th>
+              <th>Ruolo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in commissioners %}
+            <tr>
+              <td>{{ c.firstName }} {{ c.lastName }}</td>
+              <td>{{ c.email or '—' }}</td>
+              <td>
+                {% if c.ruolo %}
+                <span class="badge
+                  {% if c.ruolo == 'PRESIDENTE' %}bg-primary
+                  {% elif c.ruolo == 'SEGRETARIO' %}bg-success
+                  {% else %}bg-secondary{% endif %}">
+                  {{ c.ruolo }}
+                </span>
+                {% else %}—{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="text-end">
+      <a href="{{ url_for('azioni.configura_bando', commission_id=commission_id) }}"
+         class="btn btn-primary btn-sm">Vai a Configura Bando</a>
+    </div>
+  </div>
+
+  {% include "footer.html" %}
+</body>
+</html>
