@@ -1,5 +1,37 @@
 # Baltig, registry e Coolify
 
+## Runner
+
+La pipeline non parte (resta `pending`) se il progetto non ha un runner
+disponibile. Verificare prima di tutto:
+
+1. Baltig → progetto → **Settings → CI/CD → Runners**.
+2. Controllare se sono presenti **runner condivisi dell'istanza** e se sono
+   abilitati per questo progetto (toggle "Enable instance runners").
+3. Se un runner condiviso e' disponibile ma la pipeline resta comunque
+   `pending`, verificare che sappia eseguire `image: docker:27-cli` con il
+   servizio `docker:27-dind` (serve per il job `build-images`, che builda le
+   immagini Docker) — non tutti i runner condivisi lo consentono per motivi
+   di sicurezza.
+
+Se non esiste un runner condiviso utilizzabile, registrare un **runner di
+progetto**:
+
+1. Nella stessa pagina Runners, cliccare **New project runner**.
+2. Scegliere tag e sistema operativo della macchina che ospitera' il runner
+   (puo' essere la stessa VM/server dove gira Coolify, o una macchina
+   separata con accesso Docker).
+3. Copiare il comando di registrazione mostrato da Baltig (contiene URL e
+   token monouso) ed eseguirlo sulla macchina scelta, dopo aver installato
+   `gitlab-runner`.
+4. Configurare l'executor come **docker**, con l'immagine di default e i
+   **privileged mode abilitati** (`privileged = true` in `config.toml`,
+   sezione `[runners.docker]`): serve per eseguire `docker:27-dind` nel job
+   `build-images`. Senza `privileged = true` quel job fallisce anche se il
+   runner parte.
+5. Non salvare il token di registrazione nel repository: viene consumato
+   una sola volta da `gitlab-runner register` e non serve piu' dopo.
+
 ## Branch e ambienti
 
 | Branch | Ambiente | Tag immagini | Deploy |

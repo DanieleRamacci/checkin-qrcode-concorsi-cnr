@@ -1,0 +1,44 @@
+# Quickstart: Ambiente di test su Coolify
+
+Questo file registra gli esiti man mano che i task di
+`specs/003-coolify-test-environment/tasks.md` vengono completati.
+
+## Setup runner (T000a-T000c)
+
+- **T000a — fatto (2026-07-03)**: Baltig non fornisce runner condivisi di
+  istanza (nessuna opzione automatica tipo GHCR/GitHub Actions al momento).
+- **T000b — in corso (2026-07-03)**: runner di progetto "docker runner
+  concorsi" creato lato Baltig; registrazione fisica in corso sulla VM di
+  Coolify (install `gitlab-runner`, `register` con executor `docker`,
+  `privileged = true` in `config.toml`, verifica stato online).
+- **T000c — dubbio aperto, non urgente**: se in futuro l'IT CNR attiva
+  runner condivisi di istanza, valutare la migrazione dal runner di
+  progetto (sulla VM Coolify) a quelli condivisi. Vantaggio: zero
+  manutenzione locale. Incognita: se i runner condivisi CNR permetteranno
+  `privileged`/`docker:dind`, necessario per il job `build-images`.
+  Decisione rimandata a quando/se l'opzione sara' disponibile.
+
+**Decisione presa**: il runner gira sulla stessa VM di Coolify (non sul Mac
+locale, non su una VM CI dedicata separata). Motivazione: test e produzione
+condividono gia' quella VM tramite Coolify, quindi l'isolamento perfetto non
+e' comunque la situazione attuale; unico sviluppatore che pusha codice
+(nessun contributo esterno non fidato) rende il rischio aggiuntivo del
+Docker privileged accettabile nel contesto. Vedi `tasks.md` T000b per il
+dettaglio.
+
+## Fase 1 — Validazione pipeline con immagine legacy (US1)
+
+### Prerequisiti (T001)
+
+- Deploy token Baltig (`read_registry`): _da confermare_
+- Dominio di test assegnato in Coolify: _da confermare_
+
+### Esito deploy legacy (T002-T008)
+
+_Non ancora eseguito. Bloccato da T000b (runner in fase di registrazione)._
+
+## Fase 2 — Deploy completo migrazione (US2)
+
+### Esito deploy backend+frontend (T009-T017)
+
+_Non ancora eseguito._
