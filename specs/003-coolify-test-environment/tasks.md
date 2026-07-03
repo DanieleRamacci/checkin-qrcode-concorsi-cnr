@@ -122,6 +122,28 @@ su entrambi gli ambienti (test e produzione).
 
 ---
 
+---
+
+## Phase 4: Decisioni operative da condividere col team (2026-07-03)
+
+**Goal**: chiudere le decisioni infrastrutturali che bloccano la separazione
+pulita tra ambiente di test e di produzione, emerse durante il primo deploy
+manuale con Giorgio. Non sono task tecnici immediati: richiedono conferma/
+azione di altre persone (IT/amministrazione Baltig, decisione di prodotto).
+
+- [ ] T020 Creare il dominio dedicato `test-checkin.concorsi.cnr.it` per l'ambiente di test, lasciando `checkin.concorsi.cnr.it` per la produzione (o viceversa, da confermare)
+- [ ] T021 Decidere se ospitare test e produzione sulla stessa macchina virtuale o su macchine separate
+- [ ] T022 Chiedere a un amministratore Baltig di abilitare i runner condivisi di istanza, per non dover gestire un runner di progetto sulla VM applicativa
+- [ ] T023 Una volta scelta la modalita' di build, separare la pubblicazione delle immagini tra tag/ambiente test e produzione, puntando ciascuna al proprio dominio
+- [ ] T024 Definire un'utenza di servizio dedicata per le chiamate API a Selezioni Online (oggi si usa l'utenza personale di Daniele Ramacci)
+- [ ] T025 Raccogliere i dati del client Keycloak di produzione (o confermare riuso di quello attuale) e registrare il `redirect_uri` di produzione lato IdP
+
+**Checkpoint**: nessuno di questi task richiede lavoro tecnico immediato da
+parte dell'assistente; sono punti di decisione/coordinamento da comunicare
+al team (vedi email).
+
+---
+
 ## Dependencies and Execution Order
 
 - Phase 1 non ha dipendenze.

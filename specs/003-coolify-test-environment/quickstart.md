@@ -3,6 +3,67 @@
 Questo file registra gli esiti man mano che i task di
 `specs/003-coolify-test-environment/tasks.md` vengono completati.
 
+## Stato al 2026-07-03 — riepilogo per comunicazione team
+
+### Fatto
+
+- Repository migrato da GitHub a Baltig (`origin` ora punta a
+  `baltig.cnr.it/daniele.ramacci/checkin-cnr-concorsi`, GitHub resta come
+  mirror secondario).
+- Macchina virtuale configurata con Coolify (Traefik come reverse proxy,
+  gestione domini/certificati).
+- Primo deploy di test eseguito (con Giorgio): stack Docker Compose a due
+  immagini (`frontend`, `backend`) avviato con successo, healthcheck
+  passanti, login OIDC completato sul dominio reale
+  `checkin.concorsi.cnr.it` (percorso via immagini pubblicate su GHCR,
+  vedi sezione sotto, non ancora via pipeline Baltig).
+
+### Decisioni operative da prendere (categorie)
+
+#### 1. Domini e ambienti
+
+- Oggi esiste **un solo dominio**, `checkin.concorsi.cnr.it`, di fatto
+  usato per il collaudo/test.
+- Da fare: creare un secondo dominio dedicato **`test-checkin.concorsi.cnr.it`**
+  per l'ambiente di test, cosi' `checkin.concorsi.cnr.it` resta libero per
+  la futura produzione (o viceversa, da confermare quale dominio va a quale
+  ambiente).
+- Da decidere: se ospitare test e produzione sulla **stessa macchina
+  virtuale** (piu' semplice, meno isolamento) o su macchine separate.
+
+#### 2. CI/CD e runner Baltig
+
+- Baltig **non fornisce runner condivisi di istanza** al momento.
+- Per buildare immagini via pipeline serve un runner registrato
+  manualmente, il che richiede accesso SSH a una macchina virtuale — oggi
+  l'unica disponibile e' quella che ospita gia' l'app, soluzione
+  funzionante ma non ideale (mescola build CI e servizi in esecuzione).
+- **Preferibile**: che un amministratore di Baltig abiliti i **runner
+  condivisi di istanza**, cosi' il progetto non deve gestire un runner
+  proprio. Azione da chiedere all'IT/amministrazione Baltig.
+
+#### 3. Pubblicazione immagini (registry)
+
+- Una volta definita la modalita' di build (runner proprio vs condiviso),
+  va impostata la separazione della pubblicazione delle immagini tra
+  ambiente di test e ambiente di produzione (tag `:test` / `:production`
+  gia' previsti nella pipeline, vedi `.gitlab-ci.yml`), ciascuna puntata al
+  proprio dominio.
+
+#### 4. Utenza di servizio per le API Selezioni Online
+
+- Le chiamate API verso Selezioni Online (ambiente di test) usano oggi
+  **l'utenza personale** di Daniele Ramacci.
+- Da fare: definire un **utente di servizio dedicato** per queste chiamate,
+  cosi' l'integrazione non dipende da un account personale.
+
+#### 5. Keycloak e login per la produzione
+
+- Quando sara' pronta la versione di produzione, servono: dati del client
+  Keycloak di produzione (o conferma di riuso di quello attuale), e la
+  configurazione lato IdP del nuovo `redirect_uri` di produzione, per
+  permettere il login anche su quell'ambiente.
+
 ## Setup runner (T000a-T000c)
 
 - **T000a — fatto (2026-07-03)**: Baltig non fornisce runner condivisi di
