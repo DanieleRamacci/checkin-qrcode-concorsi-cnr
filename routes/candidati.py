@@ -6,6 +6,7 @@ from routes.auth import login_required
 from utils.stato import get_stato_corrente
 from utils.roles import ROLE_ADMIN, ROLE_ESPERTO, roles_required_any
 from utils.notifications import add_notification
+from utils.authorization import session_access_required
 
 BASE_URL = os.environ.get('BASE_URL', 'https://cool-jconon.test.si.cnr.it')
 
@@ -87,17 +88,26 @@ def _render_reset_list(session_id, view_mode, q="", filtro="all"):
     )
 
 def _device_authorized(session_id: str, device_token: str) -> bool:
+    from utils.device_tokens import is_device_token_valid
+
     if not session_id or not device_token:
         return False
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
             cursor.execute("""
-                SELECT 1
+                SELECT device_token, timestamp, disconnected_at
                 FROM dispositivi
-                WHERE session_id = %s AND device_token = %s
-                LIMIT 1
-            """, (session_id, device_token))
-            return cursor.fetchone() is not None
+                WHERE session_id = %s
+            """, (session_id,))
+            return any(
+                is_device_token_valid(
+                    device_token,
+                    stored_token=row[0],
+                    issued_at=row[1],
+                    disconnected_at=row[2],
+                )
+                for row in cursor.fetchall()
+            )
 
 def _checkin_gate(session_id: str):
     stato_corrente = get_stato_corrente(session_id)
@@ -230,6 +240,7 @@ def verifica_candidato():
 
 @candidati_bp.route("/sessione/<session_id>/tabella_candidati", methods=["GET"])
 @login_required
+@session_access_required()
 def frammento_tabella_candidati(session_id):
     from datetime import datetime
     from psycopg2.extras import RealDictCursor
@@ -324,6 +335,7 @@ def frammento_tabella_candidati(session_id):
 
 @candidati_bp.route('/sessione/<session_id>/candidato/<candidato_uid>/toggle_checkin', methods=['POST'])
 @login_required
+@session_access_required()
 def toggle_checkin(session_id, candidato_uid):
     from psycopg2.extras import RealDictCursor
 
@@ -361,10 +373,8 @@ def toggle_checkin(session_id, candidato_uid):
 @candidati_bp.route('/sessione/<session_id>/reset-password-frammento', methods=['GET'])
 @login_required
 @roles_required_any([ROLE_ESPERTO, ROLE_ADMIN])
+@session_access_required(allowed_roles={ROLE_ESPERTO, ROLE_ADMIN})
 def reset_password_frammento(session_id):
-    user_email = session.get("user_email")
-    if not _sessione_autorizzata(session_id, user_email):
-        return ("Utente non autorizzato", 403)
     view_mode = request.args.get("view", "sede")
     q = (request.args.get("q") or "").strip()
     filtro = request.args.get("filtro") or ("da_evade" if view_mode == "esperto" else "all")
@@ -374,10 +384,9 @@ def reset_password_frammento(session_id):
 @candidati_bp.route('/sessione/<session_id>/candidato/<candidato_uid>/reset_password', methods=['POST'])
 @login_required
 @roles_required_any([ROLE_ESPERTO, ROLE_ADMIN])
+@session_access_required(allowed_roles={ROLE_ESPERTO, ROLE_ADMIN})
 def toggle_reset_password(session_id, candidato_uid):
     user_email = session.get("user_email")
-    if not _sessione_autorizzata(session_id, user_email):
-        return ("Utente non autorizzato", 403)
 
     with get_db_connection() as conn:
         with conn.cursor() as cur:

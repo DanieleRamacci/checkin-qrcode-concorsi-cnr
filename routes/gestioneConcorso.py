@@ -3,6 +3,7 @@ from psycopg2.extras import RealDictCursor
 from routes.auth import login_required
 from db import get_db_connection 
 from datetime import datetime, timezone
+from utils.authorization import session_access_required
 
 
 gestione_concorso_bp = Blueprint('gestione-concorso', __name__)
@@ -11,6 +12,7 @@ gestione_concorso_bp = Blueprint('gestione-concorso', __name__)
 
 @gestione_concorso_bp.route('/gestione-concorso/<session_id>')
 @login_required
+@session_access_required()
 def gestione_concorso(session_id):
     try:
         with get_db_connection() as conn:
@@ -77,4 +79,3 @@ def is_document_valid(document_date_str):
     except Exception as e:
         print(f"[DEBUG] Errore durante il parsing della data: {e}")
         return False
-

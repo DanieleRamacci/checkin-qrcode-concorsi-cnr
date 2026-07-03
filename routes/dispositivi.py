@@ -7,7 +7,8 @@ from urllib.parse import quote
 import traceback
 from psycopg2.extras import RealDictCursor
 import secrets
-from utils.device_tokens import make_reg_token, verify_reg_token
+from utils.device_tokens import is_device_token_valid, make_reg_token, verify_reg_token
+from utils.authorization import session_access_required
 
 
 dispositivi_bp = Blueprint('dispositivi', __name__)
@@ -63,6 +64,7 @@ def registra_dispositivo():
 
 @dispositivi_bp.route("/dispositivi/<session_id>")
 @login_required
+@session_access_required()
 def pagina_dispositivi(session_id):
     try:
         with get_db_connection() as conn:
@@ -99,6 +101,7 @@ def pagina_dispositivi(session_id):
 
 @dispositivi_bp.route("/frammenti/dispositivi/<session_id>")
 @login_required
+@session_access_required()
 def frammento_dispositivi(session_id):
     try:
         dispositivi = _load_dispositivi_with_status(session_id)
@@ -120,12 +123,35 @@ def ping_dispositivo():
     now = datetime.now(timezone.utc)
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id, device_token, timestamp, disconnected_at
+                  FROM dispositivi
+                 WHERE session_id = %s
+                """,
+                (session_id,),
+            )
+            device = next(
+                (
+                    row
+                    for row in cursor.fetchall()
+                    if is_device_token_valid(
+                        device_token,
+                        stored_token=row[1],
+                        issued_at=row[2],
+                        disconnected_at=row[3],
+                        now=now,
+                    )
+                ),
+                None,
+            )
+            if not device:
+                return jsonify(success=False, message="Dispositivo non autorizzato"), 403
             cursor.execute("""
                 UPDATE dispositivi
-                   SET last_seen = %s,
-                       disconnected_at = NULL
-                 WHERE session_id = %s AND device_token = %s
-            """, (now, session_id, device_token))
+                   SET last_seen = %s
+                 WHERE id = %s AND disconnected_at IS NULL
+            """, (now, device[0]))
         conn.commit()
 
     return jsonify(success=True)
@@ -142,11 +168,35 @@ def disconnetti_dispositivo():
     now = datetime.now(timezone.utc)
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id, device_token, timestamp, disconnected_at
+                  FROM dispositivi
+                 WHERE session_id = %s
+                """,
+                (session_id,),
+            )
+            device = next(
+                (
+                    row
+                    for row in cursor.fetchall()
+                    if is_device_token_valid(
+                        device_token,
+                        stored_token=row[1],
+                        issued_at=row[2],
+                        disconnected_at=row[3],
+                        now=now,
+                    )
+                ),
+                None,
+            )
+            if not device:
+                return jsonify(success=False, message="Dispositivo non autorizzato"), 403
             cursor.execute("""
                 UPDATE dispositivi
                    SET disconnected_at = %s
-                 WHERE session_id = %s AND device_token = %s
-            """, (now, session_id, device_token))
+                 WHERE id = %s AND disconnected_at IS NULL
+            """, (now, device[0]))
         conn.commit()
 
     return jsonify(success=True)

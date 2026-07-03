@@ -13,7 +13,8 @@ from routes.auth import login_required
 from utils.logging_setup import setup_logging
 from datetime import datetime, timedelta
 from utils.device_tokens import make_reg_token
-from utils.roles import has_role, ROLE_ADMIN, ROLE_ESPERTO
+from utils.roles import has_role, role_required, ROLE_ADMIN, ROLE_ESPERTO
+from utils.authorization import session_access_required
 
 
 
@@ -98,6 +99,7 @@ app.logger.debug("Logging inizializzato")
 
 @app.route("/qr-code/<session_id>")
 @login_required
+@session_access_required()
 def genera_qr_code(session_id):
     token = request.args.get("token")
     if not token:
@@ -115,6 +117,7 @@ from fpdf import FPDF
 
 @app.route("/qr-pdf/<session_id>")
 @login_required
+@session_access_required()
 def genera_qr_pdf(session_id):
     url = url_for("scanner.device_link", session_id=session_id, _external=True)
     img = qrcode.make(url)
@@ -158,6 +161,8 @@ def _tail(path, n=500):
     return b"\n".join(data.splitlines()[-n:]).decode("utf-8", errors="replace")
 
 @app.route("/log")
+@login_required
+@role_required(ROLE_ADMIN)
 def view_log():
     log_path = current_app.config.get("APP_LOG_FILE")
     if not log_path or not os.path.exists(log_path):

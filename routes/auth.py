@@ -1,11 +1,15 @@
 from flask import Flask, request, abort, jsonify, session, redirect, url_for
 from urllib.parse import urlencode
+from urllib.parse import urlsplit
 from functools import wraps
+from hmac import compare_digest
+import secrets
 import requests
 from datetime import datetime, timezone
 import jwt
 from flask import Blueprint
 import time
+from utils.oidc import validate_oidc_token
 auth_bp = Blueprint('auth', __name__)
 
 
@@ -39,14 +43,17 @@ def login_required(f):
 # === LOGIN / CALLBACK / LOGOUT ===
 @auth_bp.route('/login')
 def login():
-    next_url = request.args.get('next') or url_for('dashboard.index', _external=True)
+    next_url = _safe_next_url(request.args.get('next'))
+    state = secrets.token_urlsafe(32)
+    session["oidc_state"] = state
+    session["oidc_next"] = next_url
 
     params = {
         'client_id': OIDC_CLIENT_ID,
         'response_type': 'code',
         'scope': 'openid profile email',
         'redirect_uri': OIDC_REDIRECT_URI,
-        'state': next_url  # <--- qui salviamo l'URL da cui proveniva l'utente
+        'state': state
     }
     return redirect(f"{OIDC_AUTH_URL}?{urlencode(params)}")
 
@@ -60,6 +67,15 @@ def oidc_callback():
         code = request.args.get('code')
         if not code:
             return "Codice non trovato", 400
+        expected_state = session.pop("oidc_state", None)
+        received_state = request.args.get("state")
+        if (
+            not expected_state
+            or not received_state
+            or not compare_digest(expected_state, received_state)
+        ):
+            session.pop("oidc_next", None)
+            return "State OIDC non valido", 400
 
         # Scambio del codice per un access token
         token_response = requests.post(
@@ -83,13 +99,7 @@ def oidc_callback():
         refresh_expires_in = int(tokens.get('refresh_expires_in', 0))  # opzionale
 
         id_token = tokens.get('id_token')
-        session['token']= access_token
-        session['refresh_token'] = refresh_token          
-        session['expires_at']    = int(time.time()) + expires_in      # opzionale
-        session['refresh_expires_at'] = int(time.time()) + refresh_expires_in  # opzionale
-
-        # Decodifica JWT senza verifica (solo per visualizzazione interna)
-        decoded = jwt.decode(access_token, options={"verify_signature": False, "verify_aud": False})
+        decoded = validate_oidc_token(id_token or access_token)
 
         #  Controllo utente CNR
         is_cnr_user = decoded.get("is_cnr_user", False)
@@ -105,7 +115,10 @@ def oidc_callback():
         session['access_token'] = access_token
         session['user_info'] = decoded
         session['id_token'] = id_token  
-        next_url = request.args.get('state', '/')
+        session['refresh_token'] = refresh_token
+        session['expires_at'] = int(time.time()) + expires_in
+        session['refresh_expires_at'] = int(time.time()) + refresh_expires_in
+        next_url = session.pop("oidc_next", "/")
         return redirect(next_url)
 
 
@@ -113,6 +126,15 @@ def oidc_callback():
         from flask import current_app
         current_app.logger.error("Errore nella richiesta token: %s", str(e), exc_info=True)
         return f"Errore: {str(e)}", 500
+
+
+def _safe_next_url(candidate):
+    if not candidate:
+        return "/"
+    parsed = urlsplit(candidate)
+    if parsed.scheme or parsed.netloc or not candidate.startswith("/") or candidate.startswith("//"):
+        return "/"
+    return candidate
 
 @auth_bp.route('/logout')
 def logout():

@@ -3,6 +3,7 @@ from routes.auth import login_required
 from db import get_db_connection
 from utils.notifications import get_notifications
 from utils.stato import get_stato_corrente, SESSION_STATES
+from utils.authorization import session_access_required
 
 
 notifiche_bp = Blueprint("notifiche", __name__)
@@ -10,6 +11,7 @@ notifiche_bp = Blueprint("notifiche", __name__)
 
 @notifiche_bp.route("/sessione/<session_id>/notifiche-frammento")
 @login_required
+@session_access_required()
 def notifiche_frammento(session_id):
     user_email = session.get("user_email")
     with get_db_connection() as conn:
@@ -53,6 +55,7 @@ def notifiche_frammento(session_id):
 
 @notifiche_bp.route("/sessione/<session_id>/notifiche", methods=["POST"])
 @login_required
+@session_access_required()
 def invia_messaggio(session_id):
     testo = (request.form.get("message") or "").strip()
     if not testo:

@@ -217,6 +217,7 @@ def get_session(session_id):
 
 
 @sessioni_bp.route("/session-check", methods=["GET"])
+@login_required
 def session_check():
     session_id = request.args.get("session_id")
     timestamp = request.args.get("timestamp")

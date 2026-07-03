@@ -1,5 +1,26 @@
+import os
 import time, json, base64, requests
+import jwt
 from flask import current_app, session
+
+
+def validate_oidc_token(token: str) -> dict:
+    issuer = os.environ.get("OIDC_ISSUER")
+    audience = os.environ.get("OIDC_AUDIENCE")
+    jwks_url = os.environ.get("OIDC_JWKS_URL")
+    algorithm = os.environ.get("OIDC_ALLOWED_ALGORITHM", "RS256")
+    if not all((issuer, audience, jwks_url)):
+        raise RuntimeError("Configurazione validazione OIDC incompleta")
+    signing_key = jwt.PyJWKClient(jwks_url).get_signing_key_from_jwt(token)
+    return jwt.decode(
+        token,
+        signing_key.key,
+        algorithms=[algorithm],
+        audience=audience,
+        issuer=issuer,
+        leeway=30,
+        options={"require": ["exp", "iss", "aud"]},
+    )
 
 def _b64url_decode(s: str) -> bytes:
     s += '=' * (-len(s) % 4)

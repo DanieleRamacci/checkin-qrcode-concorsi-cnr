@@ -10,6 +10,7 @@ from .scanner import scanner_bp
 from .azioni import azioni_bp
 from .admin_permessi import admin_permessi_bp
 from .notifiche import notifiche_bp
+from .api_v1 import api_v1_bp
 
 
 def register_blueprints(app):
@@ -25,5 +26,5 @@ def register_blueprints(app):
     app.register_blueprint(azioni_bp)
     app.register_blueprint(admin_permessi_bp)
     app.register_blueprint(notifiche_bp)
-
+    app.register_blueprint(api_v1_bp)
 

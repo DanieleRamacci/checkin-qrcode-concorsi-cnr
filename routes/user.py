@@ -3,6 +3,7 @@ from flask import Blueprint, jsonify, session, send_from_directory, request
 from datetime import datetime, timezone
 from routes.auth import login_required
 from utils.oidc import seconds_left, ensure_fresh_access_token
+from utils.roles import ROLE_ADMIN, role_required
 import time, jwt
 
 user_bp = Blueprint('user', __name__)
@@ -75,14 +76,16 @@ def session_refresh():
 
 @user_bp.route('/user/session/debug')
 @login_required
+@role_required(ROLE_ADMIN)
 def session_debug():
     from flask import current_app, jsonify, session
+    if not current_app.config.get("DEV_MODE"):
+        return jsonify({"error": "Not found"}), 404
     return jsonify({
         "has_refresh_token": bool(session.get("refresh_token")),
         "OIDC_TOKEN_URL": bool(current_app.config.get("OIDC_TOKEN_URL")),
         "OIDC_CLIENT_ID": bool(current_app.config.get("OIDC_CLIENT_ID")),
         "OIDC_CLIENT_SECRET": bool(current_app.config.get("OIDC_CLIENT_SECRET")),
     })
-
 
 

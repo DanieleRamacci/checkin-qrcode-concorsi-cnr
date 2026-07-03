@@ -13,6 +13,8 @@ from utils.candidati import importa_candidati_da_api
 from utils.liste import get_candidati_by_sessione_checkin, genera_liste_excel_csv
 from utils.send_mail import send_notification_email
 from utils.oidc import ensure_fresh_access_token, seconds_left
+from utils.authorization import commission_access_required, session_access_required
+from utils.jconon_service import fetch_bando_metadata
 
 
 azioni_bp = Blueprint("azioni", __name__)
@@ -40,11 +42,8 @@ def _abs_path(name: str) -> str:
 
 @azioni_bp.get("/sessione/<session_id>/download")
 @login_required
+@session_access_required()
 def download_file(session_id):
-    user_email = session.get("user_email")
-    if not _check_auth_for_session(session_id, user_email):
-        abort(403)
-
     file_type = request.args.get("type", "").strip()  # xlsx | moodle_csv
     if file_type not in ("xlsx", "moodle_csv"):
         return Response("Tipo file non valido.", status=400)
@@ -73,6 +72,7 @@ def download_file(session_id):
 
 @azioni_bp.route("/sessione/<session_id>/genera_liste", methods=["POST"])
 @login_required
+@session_access_required()
 def genera_liste(session_id):
     user_email = session.get("user_email")
     if not user_email:
@@ -338,14 +338,11 @@ def _split_name_from_email(email: str):
 
 
 
-@login_required
 @azioni_bp.route("/sessione/<session_id>/moodle-csv", methods=["POST"])
+@login_required
+@session_access_required()
 def genera_moodle_csv(session_id):
-    # -- Autorizzazione utente sulla commissione della sessione --
     user_email = session.get("user_email")
-    if not _check_auth_for_session(session_id, user_email):
-        abort(403)
-
     # -- Access token fresco (usa il refresh se sta per scadere) --
     access_token = ensure_fresh_access_token(skew_sec=60)
     if not access_token:
@@ -507,6 +504,7 @@ def genera_moodle_csv(session_id):
 
 @azioni_bp.route("/sessione/<session_id>/salva_config", methods=["POST"])
 @login_required
+@session_access_required()
 def salva_config(session_id):
     sessione = get_sessione_by_id(session_id)
     if not sessione:
@@ -548,38 +546,7 @@ def _avanza_sessioni_bando(commission_id: str, user_email: str):
 
 
 def _fetch_bando_da_openapi(commission_id: str, call_code: str, access_token: str) -> dict:
-    """
-    Chiama GET /openapi/v1/call con detailRdP e detailCommission.
-    Ritorna {"rdps": [...], "commissioners": [...]} oppure {} in caso di errore.
-    """
-    base_url = os.environ.get("BASE_URL", "https://cool-jconon.test.si.cnr.it").rstrip("/")
-    params = {
-        "page": 0, "offset": 20, "filterType": "all",
-        "callCode": call_code, "detailRdP": "true", "detailCommission": "true",
-    }
-    try:
-        resp = requests.get(
-            f"{base_url}/openapi/v1/call",
-            headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json"},
-            params=params, timeout=(5, 30),
-        )
-        resp.raise_for_status()
-        items = resp.json().get("items", [])
-    except Exception as exc:
-        current_app.logger.warning("[openapi-call] fetch fallito: %s", exc)
-        return {}
-
-    # Trova l'item corrispondente al commission_id (cmis:objectId)
-    item = next((i for i in items if i.get("cmis:objectId") == commission_id), None)
-    if not item and items:
-        item = items[0]
-    if not item:
-        return {}
-
-    return {
-        "rdps":         item.get("rdps", []) or [],
-        "commissioners": item.get("commissioners", []) or [],
-    }
+    return fetch_bando_metadata(commission_id, call_code, access_token)
 
 
 
@@ -622,8 +589,11 @@ def dettaglio_bando(commission_id):
 
 @azioni_bp.route("/debug/exam-moodle-sessions/<commission_id>")
 @login_required
+@roles_required_any([ROLE_ADMIN])
 def debug_exam_moodle_sessions(commission_id):
     """Endpoint temporaneo: chiama exam-moodle-sessions e ritorna il JSON grezzo."""
+    if not current_app.config.get("DEV_MODE"):
+        abort(404)
     session_param = request.args.get("session", "")
     if not session_param:
         return jsonify({"error": "Parametro ?session= obbligatorio"}), 400
@@ -652,6 +622,7 @@ def debug_exam_moodle_sessions(commission_id):
 
 @azioni_bp.route("/bando/<commission_id>/configura", methods=["GET", "POST"])
 @login_required
+@commission_access_required()
 def configura_bando(commission_id):
     user_email = session.get("user_email")
 
@@ -754,6 +725,7 @@ def configura_bando(commission_id):
 
 @azioni_bp.route("/bando/<commission_id>/richiedi-configurazione", methods=["POST"])
 @login_required
+@commission_access_required()
 def richiedi_configurazione_bando(commission_id):
     """Invia una mail al referente chiedendo di compilare la configurazione del bando."""
     from utils.send_mail import send_notification_email
@@ -816,8 +788,11 @@ def richiedi_configurazione_bando(commission_id):
 
 @azioni_bp.route("/debug/jconon/<commission_id>", methods=["GET"])
 @login_required
+@roles_required_any([ROLE_ADMIN])
 def debug_jconon(commission_id):
     """Endpoint di diagnostica temporaneo — rimuovere dopo i test."""
+    if not current_app.config.get("DEV_MODE"):
+        abort(404)
     from utils.jconon_referenti import JCONON_BASE, _make_session_oidc
     from utils.oidc import ensure_fresh_access_token
 
@@ -889,6 +864,7 @@ def debug_jconon(commission_id):
 
 @azioni_bp.route("/sessione/<session_id>/scarica_candidati", methods=["POST"])
 @login_required
+@session_access_required()
 def scarica_candidati(session_id):
     try:
         user_email = session.get('user_email')
@@ -926,6 +902,7 @@ def scarica_candidati(session_id):
 
 @azioni_bp.route("/sessione/<session_id>/azioni", methods=["GET"])
 @login_required
+@session_access_required()
 def azioni_view(session_id):
     db = get_db_connection()
     with db.cursor() as cursor:
@@ -950,6 +927,7 @@ def azioni_view(session_id):
 
 @azioni_bp.route("/sessione/<session_id>/stato_corrente")
 @login_required
+@session_access_required()
 def api_get_stato(session_id):
     try:
         stato = get_stato_corrente(session_id)
@@ -962,6 +940,7 @@ def api_get_stato(session_id):
 
 @azioni_bp.route("/sessione/<string:session_id>/azioni-frammento")
 @login_required
+@session_access_required()
 def azioni_frammento(session_id):
     view_mode = request.args.get("view")
     sessione = get_sessione_by_id(session_id)
@@ -985,6 +964,7 @@ def azioni_frammento(session_id):
 
 @azioni_bp.route("/sessione/<session_id>/verifica_dispositivi", methods=["POST"])
 @login_required
+@session_access_required()
 def verifica_dispositivi(session_id):
     print("dentro verifica dispositivi")
     user_email = session.get("user_email")
@@ -1008,6 +988,7 @@ def verifica_dispositivi(session_id):
 
 @azioni_bp.route("/sessione/<session_id>/avvia_checkin", methods=["POST"])
 @login_required
+@session_access_required()
 def avvia_checkin(session_id):
     user_email = session.get("user_email")
     if not user_email:
@@ -1024,6 +1005,7 @@ def avvia_checkin(session_id):
 
 @azioni_bp.route("/sessione/<session_id>/concludi_checkin", methods=["POST"])
 @login_required
+@session_access_required()
 def concludi_checkin(session_id):
     user_email = session.get("user_email")
     if not user_email:
@@ -1038,6 +1020,7 @@ def concludi_checkin(session_id):
 @azioni_bp.route("/sessione/<session_id>/lista_presenti_moodle", methods=["POST"])
 @login_required
 @roles_required_any([ROLE_ESPERTO, ROLE_ADMIN])
+@session_access_required(allowed_roles={ROLE_ESPERTO, ROLE_ADMIN})
 def lista_presenti_moodle(session_id):
     user_email = session.get("user_email")
     if not user_email:
@@ -1057,6 +1040,7 @@ def lista_presenti_moodle(session_id):
 @azioni_bp.route("/sessione/<session_id>/avvia_esame", methods=["POST"])
 @login_required
 @roles_required_any([ROLE_ESPERTO, ROLE_ADMIN])
+@session_access_required(allowed_roles={ROLE_ESPERTO, ROLE_ADMIN})
 def avvia_esame(session_id):
     user_email = session.get("user_email")
     if not user_email:
@@ -1076,6 +1060,7 @@ def avvia_esame(session_id):
 @azioni_bp.route("/sessione/<session_id>/inizia_esame", methods=["POST"])
 @login_required
 @roles_required_any([ROLE_ESPERTO, ROLE_ADMIN])
+@session_access_required(allowed_roles={ROLE_ESPERTO, ROLE_ADMIN})
 def inizia_esame(session_id):
     user_email = session.get("user_email")
     if not user_email:
@@ -1095,6 +1080,7 @@ def inizia_esame(session_id):
 @azioni_bp.route("/sessione/<session_id>/concludi_esame", methods=["POST"])
 @login_required
 @roles_required_any([ROLE_ESPERTO, ROLE_ADMIN])
+@session_access_required(allowed_roles={ROLE_ESPERTO, ROLE_ADMIN})
 def concludi_esame(session_id):
     user_email = session.get("user_email")
     if not user_email:
@@ -1114,6 +1100,7 @@ def concludi_esame(session_id):
 
 @azioni_bp.route("/sessione/<session_id>/timeline-frammento")
 @login_required
+@session_access_required()
 def timeline_frammento(session_id):
     stato_corrente = get_stato_corrente(session_id)  # funzione che calcola lo stato attuale
     print("stato corrente timeline: ", stato_corrente)
@@ -1125,6 +1112,7 @@ def timeline_frammento(session_id):
 
 @azioni_bp.route("/sessione/<session_id>/invia-lista-esame", methods=["POST"])
 @login_required
+@session_access_required()
 def invia_lista_esame(session_id):
     # opzionale: tieni fresco il token, anche se l’invio SMTP non lo usa
     _ = ensure_fresh_access_token(skew_sec=60)

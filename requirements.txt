@@ -4,6 +4,7 @@ certifi==2025.6.15
 charset-normalizer==3.4.2
 click==8.2.1
 click-default-group==1.2.4
+cryptography==43.0.3
 Flask==3.1.1
 Flask-Login==0.6.3
 Flask-Session==0.8.0
