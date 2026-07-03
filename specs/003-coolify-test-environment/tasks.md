@@ -83,7 +83,7 @@ dominio di produzione dopo la promozione.
 - [ ] T002 [US1] Portare `.gitlab-ci.yml` (e solo quello) sul branch `checkin-dev` con un merge/cherry-pick mirato, senza toccare altro codice applicativo
 - [ ] T002b [US1] Merge di `checkin-dev` nel branch `test` (gia' presente su Baltig): la pipeline builda il Dockerfile legacy e pubblica `$CI_REGISTRY_IMAGE/backend:test` (stage `release-test`, automatico)
 - [ ] T003 [US1] Creare in Coolify la risorsa "testing" con il registry privato Baltig configurato (username + deploy token `read_registry`)
-- [ ] T004 [US1] Impostare in Coolify le variabili d'ambiente runtime per il dominio reale (`BASE_URL`, `OIDC_REDIRECT_URI`, `COOKIE_SECURE=1` e il resto da `.env.example`) per l'immagine legacy
+- [ ] T004 [US1] Impostare in Coolify le variabili d'ambiente runtime per il dominio reale (`OIDC_REDIRECT_URI`, `COOKIE_SECURE=1` e il resto da `.env.example`; **non** toccare `BASE_URL`, che punta all'API esterna Selezioni Online/JConon e non all'app) per l'immagine legacy
 - [ ] T005 [US1] Registrare o verificare presso l'IdP OIDC di test (`traefik.test.si.cnr.it`) il `redirect_uri` del dominio di test
 - [ ] T006 [US1] Avviare il deploy dell'immagine `:test` su Coolify (pull manuale o automatico) e verificare che il container risulti `healthy`
 - [ ] T007 [US1] Eseguire `scripts/smoke-deployment.sh <dominio-test>` e verificare 200 sugli endpoint di health
@@ -108,7 +108,7 @@ reale, il flusso segretario→esperto fino a `esame_concluso`, senza ngrok.
 - [ ] T009 [US2] Aprire una Merge Request da `migration/angular-api-first` verso `test` (nessun push diretto, branch protetto) e completarla quando pronta
 - [ ] T010 [US2] Verificare che il merge su `test` pubblichi automaticamente `$CI_REGISTRY_IMAGE/backend:test` e `$CI_REGISTRY_IMAGE/frontend:test`
 - [ ] T011 [US2] Aggiornare la risorsa Coolify "testing" per usare `deploy/compose.yml` + `deploy/compose.test.yml` con le due immagini `:test`
-- [ ] T012 [US2] Impostare in Coolify tutte le variabili d'ambiente richieste (sovrainsieme di `.env.example`), aggiornando `BASE_URL`/`OIDC_REDIRECT_URI` al dominio reale
+- [ ] T012 [US2] Impostare in Coolify tutte le variabili d'ambiente richieste (sovrainsieme di `.env.example`), aggiornando `OIDC_REDIRECT_URI` al dominio reale (`BASE_URL` resta l'API esterna Selezioni Online/JConon, non va cambiato)
 - [ ] T013 [US2] Verificare che Coolify esponga pubblicamente solo la porta del frontend, nessuna porta backend o dati, coerente con `deploy/compose.yml`
 - [ ] T014 [US2] Avviare il deploy e verificare che backend e frontend risultino entrambi `healthy`
 - [ ] T015 [US2] Eseguire `scripts/smoke-deployment.sh <dominio-test>` (frontend, `/healthz`, `/api/v1/health`)

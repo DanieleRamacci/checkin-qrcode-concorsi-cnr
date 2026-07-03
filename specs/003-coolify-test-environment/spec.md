@@ -18,9 +18,13 @@ Coolify e un dominio reale sono ora disponibili. La pipeline GitLab CI
 implementati e documentati (`docs/deployment/baltig-ci-cd.md`), ma non sono
 mai stati verificati contro un'istanza Coolify reale. In locale l'app viene
 raggiunta tramite tunnel ngrok (per l'OIDC callback); su un server con dominio
-pubblico questo meccanismo non si applica e va sostituito con le variabili
-d'ambiente corrette (`BASE_URL`, `OIDC_REDIRECT_URI`) che puntano al dominio
-reale.
+pubblico questo meccanismo non si applica e va sostituito con la variabile
+d'ambiente corretta (`OIDC_REDIRECT_URI`) che punta al dominio reale.
+`BASE_URL` **non** rappresenta il dominio dell'app: e' l'endpoint dell'API
+esterna Selezioni Online/JConon (vedi `utils/candidati.py`,
+`utils/sessioni.py`, `utils/commissioni.py`, `routes/azioni.py`) e non va
+mai puntato al dominio dove gira l'applicazione, ne' in locale ne' in test/
+produzione.
 
 Per ridurre il rischio, la verifica avviene in due passi:
 
@@ -136,9 +140,11 @@ reale, lo stesso flusso segretario→esperto gia' verificato in locale (vedi
 - **FR-002**: Coolify DEVE poter tirare le immagini dal registry Baltig
   usando un deploy token con permesso `read_registry`, senza credenziali
   salvate nel repository.
-- **FR-003**: Le variabili d'ambiente di runtime (in particolare
-  `BASE_URL`, `OIDC_REDIRECT_URI`, `COOKIE_SECURE`) DEVONO puntare al dominio
+- **FR-003**: Le variabili d'ambiente che rappresentano l'URL pubblico
+  dell'app (`OIDC_REDIRECT_URI`, `COOKIE_SECURE`) DEVONO puntare al dominio
   reale di test, senza alcuna dipendenza da ngrok o da URL locali.
+  `BASE_URL` NON va toccato per questo scopo: resta puntato all'API esterna
+  Selezioni Online/JConon indipendentemente dal dominio dell'app.
 - **FR-004**: Il proxy Nginx del frontend DEVE mantenere gli stessi timeout
   allineati a Gunicorn (120s, vedi Phase 9 T117 della spec 002) anche
   nell'immagine pubblicata su Coolify, non solo in locale.

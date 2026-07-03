@@ -26,6 +26,30 @@ e' comunque la situazione attuale; unico sviluppatore che pusha codice
 Docker privileged accettabile nel contesto. Vedi `tasks.md` T000b per il
 dettaglio.
 
+## Percorso alternativo GHCR (mentre il runner Baltig e' in setup)
+
+Il workflow GitHub Actions legacy (`Build and Push to GHCR`) non era mai stato
+toccato su `main`/`checkin-dev` (solo ristretto su
+`migration/angular-api-first`, T079). Per ottenere un'immagine legacy subito,
+senza aspettare il runner Baltig:
+
+- **2026-07-03**: commit vuoto pushato su `main` (solo remote `github`, non
+  Baltig) per innescare il workflow esistente. Immagine attesa:
+  `ghcr.io/danieleramacci/checkin-qrcode-concorsi-cnr:latest`.
+- **Problema trovato**: aprendo il dominio gia' collegato in Coolify
+  (`checkin.concorsi.cnr.it`), il login OIDC reindirizza ancora a un vecchio
+  tunnel ngrok (`OIDC_REDIRECT_URI` non aggiornato per quella risorsa
+  Coolify esistente). Fix da applicare nelle variabili d'ambiente di quella
+  risorsa: `OIDC_REDIRECT_URI=https://checkin.concorsi.cnr.it/oidc-callback`,
+  `COOKIE_SECURE=1`. **Correzione (2026-07-03)**: `BASE_URL` non va toccato,
+  non rappresenta il dominio dell'app — resta l'endpoint dell'API esterna
+  Selezioni Online/JConon (vedi `spec.md`, FR-003); cambiarlo romperebbe
+  import candidati e sync bando. Verificare anche che il `redirect_uri`
+  esatto sia registrato lato IdP (`traefik.test.si.cnr.it`, client
+  `selezioni`). Se si vuole usare la nuova immagine GHCR, aggiornare anche
+  il riferimento immagine nella risorsa.
+  _Esito della correzione: da confermare._
+
 ## Fase 1 — Validazione pipeline con immagine legacy (US1)
 
 ### Prerequisiti (T001)
@@ -35,7 +59,8 @@ dettaglio.
 
 ### Esito deploy legacy (T002-T008)
 
-_Non ancora eseguito. Bloccato da T000b (runner in fase di registrazione)._
+_Non ancora eseguito. Bloccato da T000b (runner in fase di registrazione).
+Percorso alternativo via GHCR in corso, vedi sopra._
 
 ## Fase 2 — Deploy completo migrazione (US2)
 
