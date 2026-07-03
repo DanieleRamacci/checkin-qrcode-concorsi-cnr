@@ -1,7 +1,30 @@
 note.txt
-instance
+instance/
 checkin.db
-node_modules
+files_liste/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+
+# Node / Angular
+node_modules/
+dist/
+build/
+coverage/
+*.log
+
+# Local configuration and secrets
 .env
-*.pyc
-files_liste
+.env.*
+!.env.example
+
+# Editors and operating systems
+.DS_Store
+.idea/
+*.swp
+*.tmp

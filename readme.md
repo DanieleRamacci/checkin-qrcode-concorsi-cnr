@@ -2,6 +2,27 @@
 
 Documentazione tecnica aggiornata del progetto, pensata come **fotografia dello stato attuale del codice** e come base di handover per riprendere il lavoro (anche con altre AI).
 
+## Architettura in migrazione
+
+Il branch `migration/angular-api-first` introduce API Flask `/api/v1`, frontend
+Angular 21 con Design Angular Kit, immagini frontend/backend separate nel
+registry Baltig e ambienti Coolify distinti.
+
+Avvio locale:
+
+```bash
+docker compose --env-file .env \
+  -f deploy/compose.yml \
+  -f deploy/compose.local.yml \
+  up -d --build
+
+scripts/smoke-deployment.sh http://localhost:18080
+```
+
+Il deploy e il rollback sono descritti in
+`docs/deployment/baltig-ci-cd.md`. Le viste Flask/Jinja restano disponibili
+come fallback durante il collaudo.
+
 ## Documentazione Modulo Gestione Esami Moodle
 Documentazione dedicata (solo modulo Prove/Esami): `docs/gestione-esami-moodle.md`
 
