@@ -1,0 +1,82 @@
+# Stato di avanzamento
+
+Fonte: [`specs/002-angular-api-first-migration/tasks.md`](../../specs/002-angular-api-first-migration/tasks.md),
+[`contracts/legacy-ui-flow-matrix.md`](../../specs/002-angular-api-first-migration/contracts/legacy-ui-flow-matrix.md),
+[`contracts/cutover-readiness.md`](../../specs/002-angular-api-first-migration/contracts/cutover-readiness.md).
+Aggiornato al 2026-07-03.
+
+## Riepilogo
+
+La migrazione e' organizzata in fasi Spec Kit (setup, hardening di
+sicurezza, contratti API, frontend Angular, coesistenza/deploy, hardening
+legacy, polish, convergenza di parita'). La maggior parte delle aree
+applicative ha gia' una controparte Angular funzionante e testata; il lavoro
+rimanente e' soprattutto **verifica manuale** (confronto visivo desktop/
+mobile, flussi end-to-end per ogni ruolo) piu' alcuni gap puntuali trovati e
+gia' corretti durante quella verifica.
+
+## Cosa e' stato completato
+
+- **API `/api/v1`**: tutte le aree core (auth/contesto, bandi, sessioni,
+  workflow, candidati, dispositivi/scanner, liste, notifiche, admin) sono
+  esposte via API JSON, con ownership, CSRF e test automatici dedicati.
+- **Hardening di sicurezza**: validazione OIDC (firma, issuer, audience,
+  scadenza via JWKS), protezione `/log` e endpoint debug, token dispositivo
+  con scadenza/revoca, protezione open-redirect sul login OIDC.
+- **Frontend Angular**: tutte le aree applicative hanno una schermata
+  Angular corrispondente — home/profili, bandi, dettaglio e configurazione
+  bando, sessioni, gestione sessione (azioni per stato, timeline a 9 step,
+  notifiche/chat, candidati con QR e reset password, dispositivi con
+  scanner fotocamera), amministrazione permessi/log.
+- **CI/CD**: pipeline Baltig che builda, testa e pubblica le immagini
+  backend/frontend con tag per commit, promozione a `:test` (branch `test`)
+  e `:production` (branch `main`, promozione manuale), senza rebuild tra un
+  ambiente e l'altro.
+- **Verifica end-to-end manuale (in locale)**: flusso segretario→esperto
+  completato dall'inizio (`iniziale`) fino a `esame_concluso`, includendo
+  associazione dispositivo via scansione QR reale, generazione e invio
+  liste.
+
+## Gap trovati e corretti durante la validazione manuale
+
+La verifica manuale ha un valore preciso: alcune parti compilavano e
+passavano i test unitari ma non si comportavano come il legacy in uno
+scenario reale. Gap reali trovati e risolti finora:
+
+1. **Associazione dispositivo non avanzava lo stato**: mancava l'endpoint
+   equivalente a `verifica_dispositivi` del legacy, che conta i dispositivi
+   collegati e fa avanzare lo stato sessione — aggiunto lato API e nel
+   flusso scanner.
+2. **Timeout Nginx troppo basso**: le chiamate lente all'API esterna
+   Selezioni Online (~54s per l'import candidati) superavano il timeout di
+   default di Nginx (60s), inferiore a quello gia' configurato per Gunicorn
+   (120s) — allineati.
+3. **"Configura Bando" non precompilava i dati da Selezioni Online**: il
+   meccanismo di sincronizzazione RDP/componenti commissione esisteva gia'
+   lato API ma non veniva richiamato dalla pagina di configurazione —
+   collegato.
+4. **Pagina Sessioni silenziosa se i componenti commissione non sono
+   sincronizzati**: aggiunto un avviso esplicito (non presente nel legacy,
+   richiesta esplicita durante la validazione).
+
+## Cosa resta da fare
+
+- **Confronto visivo documentato** desktop/mobile di ogni area rispetto al
+  legacy (in corso, riga per riga nella matrice di parita').
+- **Flusso end-to-end per il ruolo "Informatico in sede"** (richiesta reset
+  password) — unico ruolo non ancora verificato manualmente tra Segretario,
+  Esperto e Scanner (gia' verificati).
+- **Verifica finale di coerenza Spec Kit** prima di sbloccare il cutover
+  definitivo (nessun placeholder, nessuna decisione tecnica aperta).
+- Vedi [`ambiente-test-coolify.md`](ambiente-test-coolify.md) per lo stato
+  del deploy su infrastruttura reale (Baltig/Coolify), che procede in
+  parallelo.
+
+## Checklist di cutover (sintesi)
+
+La produzione puo' passare ad Angular come UI principale solo quando, oltre
+al lavoro sopra, risultano verificati: annuncio errori API accessibile
+(non solo colore), layout core verificato a dimensioni desktop e mobile,
+e i flussi funzionali critici confermati con evidenza reale (non solo test
+automatici). Dettaglio completo in
+[`cutover-readiness.md`](../../specs/002-angular-api-first-migration/contracts/cutover-readiness.md).

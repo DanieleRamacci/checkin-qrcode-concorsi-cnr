@@ -8,6 +8,9 @@ Il branch `migration/angular-api-first` introduce API Flask `/api/v1`, frontend
 Angular 21 con Design Angular Kit, immagini frontend/backend separate nel
 registry Baltig e ambienti Coolify distinti.
 
+**Documentazione sintetica della migrazione (architettura, stato di
+avanzamento, ambiente di test)**: [`docs/migrazione/`](docs/migrazione/README.md)
+
 Avvio locale:
 
 ```bash
@@ -27,7 +30,11 @@ come fallback durante il collaudo.
 Documentazione dedicata (solo modulo Prove/Esami): `docs/gestione-esami-moodle.md`
 
 ## Documentazione Spec Kit ufficiale
-Baseline ufficiale dello stato attuale del progetto: `specs/001-baseline-progetto/spec.md`
+
+- Baseline iniziale del progetto: `specs/001-baseline-progetto/spec.md`
+- Migrazione API-first + Angular: `specs/002-angular-api-first-migration/`
+- Ambiente di test Coolify/Baltig: `specs/003-coolify-test-environment/`
+- Sintesi leggibile di tutte e tre: [`docs/migrazione/`](docs/migrazione/README.md)
 
 ## 1. Scopo del progetto
 Applicazione web Flask per gestire il check-in candidati nelle sessioni di concorso CNR.
