@@ -1,0 +1,20 @@
+services:
+  frontend:
+    build:
+      context: ../frontend
+    image: checkin/frontend:local
+    ports:
+      - "${LOCAL_HTTP_PORT:-18080}:8080"
+      - "5050:8080"
+  backend:
+    build:
+      context: ..
+    image: checkin/backend:local
+    env_file:
+      - ../.env
+    environment:
+      APP_ENV: development
+      COOKIE_SECURE: "0"
+  db:
+    env_file:
+      - ../.env

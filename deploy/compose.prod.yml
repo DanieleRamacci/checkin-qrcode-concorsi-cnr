@@ -1,0 +1,6 @@
+services:
+  backend:
+    environment:
+      APP_ENV: production
+      COOKIE_SECURE: "1"
+      WEB_CONCURRENCY: "3"
