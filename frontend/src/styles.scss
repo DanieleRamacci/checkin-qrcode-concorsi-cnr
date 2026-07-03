@@ -1,0 +1,20 @@
+/* You can add global styles to this file, and also import other style files */
+
+/* Importazione libreria SCSS di bootstrap-italia */
+@import '../node_modules/bootstrap-italia/src/scss/bootstrap-italia.scss';
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  color: #17324d;
+  background: #fff;
+}
+
+:focus-visible {
+  outline: 3px solid #ffca00;
+  outline-offset: 3px;
+}
