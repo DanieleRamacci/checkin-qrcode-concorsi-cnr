@@ -1,0 +1,14 @@
+[
+  {"state": "iniziale", "action": "configura_sessione", "role": "segretario"},
+  {"state": "configurata", "action": "scarica_candidati", "role": "segretario"},
+  {"state": "candidati_scaricati", "action": "collega_dispositivo", "role": "segretario"},
+  {"state": "dispositivi_connessi", "action": "avvia_checkin", "role": "segretario"},
+  {"state": "checkin_avviato", "action": "concludi_checkin", "role": "segretario"},
+  {"state": "checkin_concluso", "action": "genera_liste", "role": "segretario"},
+  {"state": "liste_generate", "action": "invia_liste", "role": "segretario"},
+  {"state": "liste_inviate", "action": "aggiorna_presenti_moodle", "role": "esperto"},
+  {"state": "lista_presenti_aggiornata_su_moodle", "action": "avvia_esame", "role": "esperto"},
+  {"state": "avvia_esame", "action": "inizia_esame", "role": "esperto"},
+  {"state": "esame_in_corso", "action": "concludi_esame", "role": "esperto"},
+  {"state": "esame_concluso", "action": null, "role": "esperto"}
+]
