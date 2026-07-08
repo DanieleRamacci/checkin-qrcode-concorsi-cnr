@@ -166,6 +166,12 @@ selezionate, sempre con fallback legacy.
 **Goal**: pubblicare test e produzione in modo ripetibile, con rollback e
 immagini nel registry Baltig.
 
+**Aggiornamento operativo (2026-07-08)**: per sbloccare l'ambiente reale di
+test e' stato scelto il flusso Coolify branch-based: Coolify clona il branch
+`test` via deploy key read-only e builda `docker-compose.coolify.yml`
+direttamente. Il flusso runner/registry Baltig resta implementato come
+possibile evoluzione futura, ma non e il percorso operativo corrente.
+
 **Independent Test**: lo stesso commit produce un'immagine immutabile, viene
 usato in test e puo essere promosso in produzione senza rebuild.
 
@@ -185,7 +191,7 @@ usato in test e puo essere promosso in produzione senza rebuild.
 - [x] T078 [US4] Implementare promozione manuale della stessa immagine in produzione in `.gitlab-ci.yml`
 - [x] T079 [US4] Disabilitare la pubblicazione GHCR o limitarla ai soli test in `.github/workflows/build.yml`
 - [x] T080 [US4] Documentare Coolify pull, rollback e deploy token `read_registry` in `docs/deployment/baltig-ci-cd.md`
-- [ ] T081 [US4] Eseguire smoke test e aggiornare la checklist in `specs/002-angular-api-first-migration/contracts/cutover-readiness.md`
+- [x] T081 [US4] Eseguire smoke test e aggiornare la checklist in `specs/002-angular-api-first-migration/contracts/cutover-readiness.md`
 
 **Checkpoint**: test e produzione separati, deploy ripetibile, rollback
 documentato.

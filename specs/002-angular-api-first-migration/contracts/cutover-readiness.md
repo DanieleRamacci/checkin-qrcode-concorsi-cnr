@@ -63,6 +63,13 @@ Automated baseline completed on 2026-07-03:
 - production build: 2.06 MB raw / 435.79 kB estimated initial transfer
 - local stack smoke: `/healthz`, `/api/v1/health`, `/` returned 200
 
+Real Coolify test environment smoke completed on 2026-07-08 against
+`https://test-checkin.concorsi.cnr.it`:
+
+- `/healthz` returned 200
+- `/api/v1/health` returned 200
+- `/` returned 200
+
 The following checks require an authenticated browser session and real camera
 or external-integration interaction and must not be marked complete from unit
 tests alone:

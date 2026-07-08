@@ -3,7 +3,7 @@
 Fonte: [`specs/002-angular-api-first-migration/tasks.md`](../../specs/002-angular-api-first-migration/tasks.md),
 [`contracts/legacy-ui-flow-matrix.md`](../../specs/002-angular-api-first-migration/contracts/legacy-ui-flow-matrix.md),
 [`contracts/cutover-readiness.md`](../../specs/002-angular-api-first-migration/contracts/cutover-readiness.md).
-Aggiornato al 2026-07-03.
+Aggiornato al 2026-07-08.
 
 ## Riepilogo
 
@@ -28,10 +28,11 @@ gia' corretti durante quella verifica.
   bando, sessioni, gestione sessione (azioni per stato, timeline a 9 step,
   notifiche/chat, candidati con QR e reset password, dispositivi con
   scanner fotocamera), amministrazione permessi/log.
-- **CI/CD**: pipeline Baltig che builda, testa e pubblica le immagini
-  backend/frontend con tag per commit, promozione a `:test` (branch `test`)
-  e `:production` (branch `main`, promozione manuale), senza rebuild tra un
-  ambiente e l'altro.
+- **Deploy test reale**: Coolify clona il repository BaLTIG tramite deploy key
+  read-only, builda `docker-compose.coolify.yml` dal branch `test` ed espone
+  il frontend su `https://test-checkin.concorsi.cnr.it`. Il flusso runner/
+  registry BaLTIG resta una possibile evoluzione futura, ma non e il percorso
+  operativo attuale.
 - **Verifica end-to-end manuale (in locale)**: flusso segretario→esperto
   completato dall'inizio (`iniziale`) fino a `esame_concluso`, includendo
   associazione dispositivo via scansione QR reale, generazione e invio
@@ -68,9 +69,8 @@ scenario reale. Gap reali trovati e risolti finora:
   Esperto e Scanner (gia' verificati).
 - **Verifica finale di coerenza Spec Kit** prima di sbloccare il cutover
   definitivo (nessun placeholder, nessuna decisione tecnica aperta).
-- Vedi [`ambiente-test-coolify.md`](ambiente-test-coolify.md) per lo stato
-  del deploy su infrastruttura reale (Baltig/Coolify), che procede in
-  parallelo.
+- Vedi [`ambiente-test-coolify.md`](ambiente-test-coolify.md) per il flusso
+  reale BaLTIG/Coolify e per i controlli ancora da fare sul dominio test.
 
 ## Checklist di cutover (sintesi)
 

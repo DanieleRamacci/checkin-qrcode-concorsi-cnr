@@ -1,95 +1,118 @@
-# Baltig, registry e Coolify
+# Deploy Baltig + Coolify
 
-## Runner
+Aggiornato al 2026-07-08.
 
-La pipeline non parte (resta `pending`) se il progetto non ha un runner
-disponibile. Verificare prima di tutto:
+## Flusso operativo attuale
 
-1. Baltig → progetto → **Settings → CI/CD → Runners**.
-2. Controllare se sono presenti **runner condivisi dell'istanza** e se sono
-   abilitati per questo progetto (toggle "Enable instance runners").
-3. Se un runner condiviso e' disponibile ma la pipeline resta comunque
-   `pending`, verificare che sappia eseguire `image: docker:27-cli` con il
-   servizio `docker:27-dind` (serve per il job `build-images`, che builda le
-   immagini Docker) — non tutti i runner condivisi lo consentono per motivi
-   di sicurezza.
+La modalita scelta per test e produzione e:
 
-Se non esiste un runner condiviso utilizzabile, registrare un **runner di
-progetto**:
+```text
+BaLTIG repo -> Coolify private repository deploy key -> Docker Compose build -> deploy
+```
 
-1. Nella stessa pagina Runners, cliccare **New project runner**.
-2. Scegliere tag e sistema operativo della macchina che ospitera' il runner
-   (puo' essere la stessa VM/server dove gira Coolify, o una macchina
-   separata con accesso Docker).
-3. Copiare il comando di registrazione mostrato da Baltig (contiene URL e
-   token monouso) ed eseguirlo sulla macchina scelta, dopo aver installato
-   `gitlab-runner`.
-4. Configurare l'executor come **docker**, con l'immagine di default e i
-   **privileged mode abilitati** (`privileged = true` in `config.toml`,
-   sezione `[runners.docker]`): serve per eseguire `docker:27-dind` nel job
-   `build-images`. Senza `privileged = true` quel job fallisce anche se il
-   runner parte.
-5. Non salvare il token di registrazione nel repository: viene consumato
-   una sola volta da `gitlab-runner register` e non serve piu' dopo.
+Coolify clona il repository tramite deploy key SSH read-only, builda i servizi
+sulla VM e avvia lo stack Docker Compose. In questa modalita non serve un
+runner GitLab/BaLTIG per pubblicare immagini nel registry.
 
 ## Branch e ambienti
 
-| Branch | Ambiente | Tag immagini | Deploy |
+| Branch | Ambiente | Dominio | Note |
 |---|---|---|---|
-| `migration/angular-api-first` | sviluppo | commit SHA | nessuno |
-| `test` | testing | `test` e commit SHA | Coolify testing |
-| `main` | produzione | `production` e commit SHA | manuale |
+| `migration/angular-api-first` | sviluppo | nessuno | branch di lavoro della migrazione |
+| `test` | test/collaudo | `https://test-checkin.concorsi.cnr.it` | branch deployato da Coolify per provare la migrazione |
+| `checkin-dev` | produzione corrente/stabile | `https://checkin.concorsi.cnr.it` | baseline pre-migrazione, da usare per la produzione finche Angular non e validato |
+| `main` | non operativo per ora | nessuno | non usarlo per produzione finche non viene riallineato consapevolmente |
 
-`main` e `test` devono essere protetti in Baltig. Le modifiche arrivano tramite
-Merge Request; la produzione non accetta push diretto.
+Flusso di lavoro:
 
-## Registry
+```bash
+git switch migration/angular-api-first
+# sviluppo e commit
 
-La pipeline pubblica:
+git switch test
+git merge migration/angular-api-first
+git push origin test
+```
 
-- `$CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA`
-- `$CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHA`
-- alias `:test` dal branch `test`
-- alias `:production` da `main`, con job manuale
-
-Creare in Baltig un deploy token con solo `read_registry`. Inserire username e
-token nel registry privato di Coolify; non salvarli nel repository.
+Il push su `test` rende il nuovo stato visibile a Coolify. Il deploy puo essere
+automatico tramite webhook oppure manuale dalla UI Coolify.
 
 ## Risorse Coolify
 
-Creare due environment separati nello stesso progetto:
+Creare due risorse/app separate, anche se usano lo stesso repository:
 
-- `testing`: compose base + `deploy/compose.test.yml`
-- `production`: compose base + `deploy/compose.prod.yml`
+- test: branch `test`, dominio `https://test-checkin.concorsi.cnr.it`
+- produzione: branch `checkin-dev`, dominio `https://checkin.concorsi.cnr.it`
 
-Variabili minime:
+Per la risorsa test:
 
-- `BACKEND_IMAGE`
-- `FRONTEND_IMAGE`
-- tutte le variabili runtime elencate in `.env.example`
+- sorgente: `Private Repository`
+- private key: chiave ED25519 creata in Coolify
+- deploy key su BaLTIG: public key corrispondente, read-only, senza write
+  permissions
+- repository SSH: `git@baltig.cnr.it:daniele.ramacci/checkin-cnr-concorsi.git`
+- build pack: `Docker Compose`
+- base directory: `/`
+- compose location: `/docker-compose.coolify.yml`
+- dominio/FQDN sul servizio `frontend`: `https://test-checkin.concorsi.cnr.it`
+- porta servizio frontend: `8080`
 
-Database, Redis, volumi e segreti devono essere distinti fra testing e
-produzione.
+Non assegnare domini pubblici a `backend`, `db` o `redis`.
 
-Il dominio temporaneo testing può essere
-`https://checkin.concorsi.cnr.it`. Quando sarà disponibile il dominio di test:
+## Variabili ambiente
 
-1. registrare entrambi i redirect OIDC;
-2. aggiungere il nuovo FQDN alla risorsa testing e verificarlo;
-3. rimuovere il dominio produzione dalla risorsa testing;
-4. assegnarlo alla risorsa production.
+Le variabili runtime sono configurate in Coolify, non nel repository. Per
+l'ambiente test:
 
-Coolify espone soltanto `frontend:8080`. Nginx inoltra API, login e callback al
-backend sulla rete interna.
+- `OIDC_REDIRECT_URI=https://test-checkin.concorsi.cnr.it/oidc-callback`
+- `COOKIE_SECURE=1`
+- `BASE_URL=https://cool-jconon.test.si.cnr.it`
+- credenziali OIDC, JConon, PostgreSQL, Redis e SMTP gestite come secret
+  Coolify
+
+`BASE_URL` non e il dominio dell'applicazione: indica l'endpoint esterno
+Selezioni Online/JConon. Non va sostituito con `test-checkin.concorsi.cnr.it`
+o `checkin.concorsi.cnr.it`.
+
+`APP_ENV=production`, `FLASK_ENV=production` e `DEBUG=0` sono corretti anche
+per l'ambiente test pubblico: significano runtime non-debug.
+
+## Compose
+
+Il file usato da Coolify e:
+
+```text
+docker-compose.coolify.yml
+```
+
+Contiene:
+
+- `frontend`: build da `frontend/Dockerfile`, Nginx su porta interna `8080`
+- `backend`: build da `Dockerfile`, Gunicorn su porta interna `5050`
+- `db`: PostgreSQL con volume dedicato
+- `redis`: Redis con volume dedicato
+
+Il frontend e il punto di ingresso pubblico. Nginx inoltra API, login,
+callback OIDC e route legacy al backend sulla rete interna.
+
+## Runner e registry
+
+La pipeline `.gitlab-ci.yml` resta nel repository come opzione futura per un
+flusso piu pulito:
+
+```text
+runner esterno -> build immagini -> registry -> Coolify pull/deploy
+```
+
+Al momento non e il flusso operativo scelto, per evitare di installare un
+runner privilegiato sulla VM di produzione/test. Se in futuro BaLTIG/CNR mette
+a disposizione runner condivisi di istanza, si puo rivalutare questa strada.
 
 ## Rollback
 
-Non ricostruire l'immagine. Impostare in Coolify i due riferimenti immutabili al
-precedente commit SHA e avviare Redeploy. Eseguire poi:
+Con il flusso attuale, il rollback si fa da Coolify scegliendo un deployment
+precedente oppure riportando il branch `test`/`checkin-dev` a un commit noto e
+rilanciando il deploy.
 
-```bash
-scripts/smoke-deployment.sh https://hostname
-```
-
-Il rollback dell'applicazione non implica automaticamente il rollback del
-database: prima di modifiche schema incompatibili serve un backup verificato.
+Prima di modifiche schema incompatibili serve un backup verificato del database:
+il rollback applicativo non implica automaticamente rollback dei dati.

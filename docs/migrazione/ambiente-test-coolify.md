@@ -1,84 +1,102 @@
 # Ambiente di test su Coolify
 
-Fonte: [`specs/003-coolify-test-environment/`](../../specs/003-coolify-test-environment/)
-(spec, piano, task, log operativo). Aggiornato al 2026-07-03.
-
-## Obiettivo
-
-Validare, con rischio crescente per passi, che la catena
-**Baltig (build/registry) → Coolify (deploy) → dominio pubblico** funzioni
-davvero, prima con un'immagine nota e stabile (legacy) e poi con lo stack
-completo a due immagini della migrazione (backend + frontend Angular).
+Fonte: `specs/003-coolify-test-environment/`. Aggiornato al 2026-07-08.
 
 ## Stato attuale
 
-### Fatto
+L'ambiente di test e operativo con questo flusso:
 
-- Repository migrato da GitHub a Baltig (`origin` punta ora a
-  `baltig.cnr.it/daniele.ramacci/checkin-cnr-concorsi`; GitHub resta mirror
-  secondario).
-- Macchina virtuale di test configurata con **Coolify** (reverse proxy
-  Traefik, gestione domini/certificati TLS).
-- Primo deploy di test eseguito con successo: stack Docker Compose a due
-  immagini (`frontend`, `backend`) avviato, healthcheck passanti, login
-  OIDC completato sul dominio reale `checkin.concorsi.cnr.it`. Questo primo
-  giro ha usato immagini pubblicate su **GHCR** (percorso alternativo, vedi
-  sotto), non ancora la pipeline Baltig.
+```text
+branch test su BaLTIG -> Coolify private repo -> docker-compose.coolify.yml -> test-checkin.concorsi.cnr.it
+```
 
-### Percorso alternativo via GHCR
+Coolify clona il repository tramite deploy key SSH read-only, builda i servizi
+direttamente sulla VM e pubblica il servizio `frontend` sul dominio di test.
 
-La pipeline Baltig richiede un runner (vedi sotto), non ancora disponibile
-in modo definitivo. Per non bloccare la verifica, si e' usato in parallelo
-il workflow GitHub Actions gia' esistente per pubblicare immagini di prova
-su GHCR (`ghcr.io/danieleramacci/...`), sia per l'immagine legacy sia per
-uno snapshot del branch di migrazione. Utile per iterare rapidamente, ma
-**non sostituisce** la validazione della pipeline Baltig definitiva.
+## Branch
 
-### Problemi reali incontrati e risolti
+| Branch | Uso |
+|---|---|
+| `migration/angular-api-first` | sviluppo della migrazione Angular |
+| `test` | branch pubblicato su `https://test-checkin.concorsi.cnr.it` |
+| `checkin-dev` | baseline stabile pre-migrazione, candidata alla produzione corrente |
+| `main` | non usare per produzione finche non viene riallineato consapevolmente |
 
-Utile per chi ripete il deploy altrove:
+Per pubblicare una nuova versione test:
 
-1. **Container Postgres senza healthcheck**: il servizio `backend` usa
-   `depends_on: db: condition: service_healthy`, che richiede un healthcheck
-   esplicito su `db` (`pg_isready`) — va sempre incluso quando si adatta un
-   compose file da uno schema a container singolo a uno multi-servizio.
-2. **Routing Coolify verso la porta sbagliata**: passando da un solo
-   servizio (`web`, porta 5050) a due (`frontend` 8080 + `backend` 5050),
-   il dominio pubblico va riassociato esplicitamente al servizio
-   `frontend`, sulla porta 8080 — altrimenti Traefik risponde `Bad Gateway`.
-3. **Variabile `OIDC_REDIRECT_URI` non aggiornata**: un dominio gia'
-   configurato in Coolify aveva ancora il valore di un vecchio tunnel ngrok
-   usato in sviluppo locale — va sempre aggiornato al dominio pubblico reale
-   quando si promuove un ambiente.
-4. **Variabili di validazione OIDC mancanti**: `OIDC_ISSUER`,
-   `OIDC_AUDIENCE`, `OIDC_JWKS_URL` (richieste dall'hardening OIDC) mancavano
-   nel file `.env` copiato da un ambiente precedente — senza di esse il
-   login fallisce con "Configurazione validazione OIDC incompleta".
-5. **Attenzione a `BASE_URL`**: nel codice questa variabile rappresenta
-   l'endpoint dell'API esterna Selezioni Online/JConon, **non** il dominio
-   dell'applicazione — non va mai puntata al dominio dove gira l'app.
+```bash
+git switch migration/angular-api-first
+# sviluppo e commit
 
-## Decisioni operative aperte
+git switch test
+git merge migration/angular-api-first
+git push origin test
+```
 
-Punti di coordinamento/decisione, non blocchi tecnici immediati:
+Poi Coolify puo fare deploy automatico via webhook oppure manuale dalla UI.
 
-| # | Tema | Stato |
-|---|---|---|
-| 1 | **Domini**: oggi un solo dominio (`checkin.concorsi.cnr.it`), usato di fatto per il test | Da creare un dominio dedicato `test-checkin.concorsi.cnr.it` |
-| 2 | **Stessa VM per test e produzione?** | Da decidere |
-| 3 | **Runner CI/CD Baltig**: nessun runner condiviso di istanza disponibile | Serve un runner di progetto (richiede accesso SSH a una VM) oppure un amministratore Baltig che abiliti runner condivisi di istanza (preferibile) |
-| 4 | **Separazione immagini test/produzione** | Da impostare una volta scelta la modalita' di build (gia' predisposta nella pipeline con i tag `:test`/`:production`) |
-| 5 | **Utenza di servizio per le API Selezioni Online** | Oggi si usa l'utenza personale; da definire un'utenza dedicata |
-| 6 | **Keycloak produzione** | Servono i dati del client di produzione (o conferma di riuso di quello attuale) e la registrazione del redirect URI di produzione lato IdP |
+## Configurazione Coolify test
 
-## Runner Baltig: come procedere
+- sorgente: Private Repository
+- repository: `git@baltig.cnr.it:daniele.ramacci/checkin-cnr-concorsi.git`
+- branch: `test`
+- build pack: Docker Compose
+- compose location: `/docker-compose.coolify.yml`
+- dominio/FQDN sul servizio `frontend`: `https://test-checkin.concorsi.cnr.it`
+- porta frontend: `8080`
 
-Baltig non fornisce runner condivisi di istanza al momento. Per registrarne
-uno di progetto: **Settings → CI/CD → Runners → New project runner**,
-scegliere tag `docker` con "Run untagged jobs" attivo (i job della pipeline
-non usano tag), poi sulla macchina scelta installare `gitlab-runner`,
-eseguire il comando di registrazione mostrato da Baltig, scegliere executor
-`docker` e **abilitare `privileged = true`** in
-`/etc/gitlab-runner/config.toml` (necessario per il job che builda le
-immagini con Docker-in-Docker). Dettaglio completo in
-[`docs/deployment/baltig-ci-cd.md`](../deployment/baltig-ci-cd.md).
+Nessun dominio pubblico va assegnato a `backend`, `db` o `redis`.
+
+## Variabili ambiente
+
+Le variabili sono gestite nella UI Coolify. Per test:
+
+- `APP_ENV=production`
+- `FLASK_ENV=production`
+- `DEBUG=0`
+- `OIDC_REDIRECT_URI=https://test-checkin.concorsi.cnr.it/oidc-callback`
+- `COOKIE_SECURE=1`
+- `BASE_URL=https://cool-jconon.test.si.cnr.it`
+
+`BASE_URL` resta l'endpoint esterno Selezioni Online/JConon; non e il dominio
+dell'applicazione.
+
+Le credenziali OIDC, JConon, PostgreSQL, Redis e SMTP restano secret Coolify e
+non devono essere salvate nel repository.
+
+## Problemi incontrati e risolti
+
+1. **Deploy key non selezionabile**: e' stata creata una nuova chiave ED25519
+   in Coolify; la public key e' stata aggiunta in BaLTIG come deploy key
+   read-only, senza write permissions.
+2. **Compose non trovato**: Coolify cercava il default
+   `/docker-compose.yaml`; il percorso corretto e `/docker-compose.coolify.yml`
+   e va salvato prima di premere "Load Compose File".
+3. **Bad Gateway**: il dominio era associato alla porta/servizio sbagliato. Il
+   dominio pubblico deve puntare al servizio `frontend`, porta interna `8080`,
+   senza aggiungere `:8080` nel FQDN.
+4. **Variabili JConon mancanti**: `docker-compose.coolify.yml` passa al backend
+   anche `JCONON_USERNAME`, `JCONON_PASSWORD`, `AUTH_B64` e
+   `JCONON_BEARER_TOKEN`.
+
+## Flussi non piu operativi
+
+La prima ipotesi prevedeva:
+
+```text
+GitLab runner -> build immagini -> registry BaLTIG -> Coolify pull
+```
+
+Per ora e stata accantonata. Resta una possibile evoluzione futura se CNR/BaLTIG
+mette a disposizione runner condivisi o una VM CI separata.
+
+Il percorso GHCR usato nei primi esperimenti resta storico e non e il flusso
+operativo corrente.
+
+## Prossime verifiche
+
+- eseguire smoke test sul dominio reale
+- completare login OIDC reale su `test-checkin.concorsi.cnr.it`
+- ripetere i flussi manuali ancora aperti della spec 002
+- dopo collaudo, creare/configurare la risorsa produzione su branch
+  `checkin-dev` e dominio `https://checkin.concorsi.cnr.it`

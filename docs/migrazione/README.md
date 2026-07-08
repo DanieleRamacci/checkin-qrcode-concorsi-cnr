@@ -27,7 +27,8 @@ specifiche Spec Kit nel repository:
 - [`specs/003-coolify-test-environment/`](../../specs/003-coolify-test-environment/) —
   spec, piano e task della validazione dell'ambiente di test su Coolify/Baltig
 - [`docs/deployment/baltig-ci-cd.md`](../deployment/baltig-ci-cd.md) —
-  runbook pipeline, registry, runner e rollback
+  runbook del deploy Coolify branch-based e note su runner/registry come
+  evoluzione futura
 - [`readme.md`](../../readme.md) — documentazione tecnica completa
   dell'applicazione (architettura legacy, modello dati, endpoint, ruoli)
 

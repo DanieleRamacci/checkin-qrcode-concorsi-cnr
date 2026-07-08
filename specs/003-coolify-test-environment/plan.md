@@ -1,102 +1,81 @@
-# Implementation Plan: Ambiente di test su Coolify (Baltig registry)
+# Implementation Plan: Ambiente test e produzione con Coolify branch-based
 
-**Branch**: `003-coolify-test-environment` | **Date**: 2026-07-03 | **Spec**: `specs/003-coolify-test-environment/spec.md`
-
-**Input**: Feature specification from `specs/003-coolify-test-environment/spec.md`
+**Branch**: `003-coolify-test-environment` | **Date**: 2026-07-03 | **Updated**: 2026-07-08 | **Spec**: `specs/003-coolify-test-environment/spec.md`
 
 ## Summary
 
-Validare, in due passi indipendenti, che la pipeline Baltig→Coolify gia
-implementata (`.gitlab-ci.yml`, `deploy/compose*.yml`,
-`docs/deployment/baltig-ci-cd.md`) funzioni davvero su un dominio reale: prima
-con l'immagine legacy (rischio minimo, per isolare problemi di infrastruttura
-da problemi applicativi), poi con lo stack a due immagini della migrazione
-Angular. Nessuna riga di codice applicativo cambia per questa feature: e'
-lavoro di configurazione ambiente (variabili, Coolify, deploy token) più
-eventuali correzioni puntuali se qualcosa non si comporta come in locale.
+Configurare e documentare il deploy tramite Coolify collegato direttamente al
+repository BaLTIG. Coolify usa deploy key SSH read-only, clona il branch
+configurato, builda `docker-compose.coolify.yml` e pubblica il servizio
+`frontend` dietro reverse proxy HTTPS.
+
+Il flusso runner/registry BaLTIG e stato accantonato per ora: resta una
+possibile evoluzione futura, ma non e necessario per pubblicare l'ambiente test.
 
 ## Technical Context
 
-**Language/Version**: N/A — feature di configurazione infrastrutturale, non di
-codice applicativo (Python 3.11 / Node 24 / Angular 21 restano invariati)
+**Primary Dependencies**: BaLTIG repository, Coolify, Docker Compose, Traefik,
+Nginx frontend, backend Flask/Gunicorn, PostgreSQL, Redis, IdP OIDC test.
 
-**Primary Dependencies**: GitLab CI (Baltig), registry Docker Baltig, Coolify,
-Nginx (frontend), Gunicorn (backend), OIDC IdP di test (`traefik.test.si.cnr.it`)
+**Testing**: smoke test contro `https://test-checkin.concorsi.cnr.it`, login
+OIDC reale, ripetizione dei flussi manuali tracciati nella spec 002.
 
-**Storage**: PostgreSQL + Redis gia' gestiti da `deploy/compose.yml`; nessuno
-schema nuovo
+**Target Platform**: VM Coolify con reverse proxy HTTPS.
 
-**Testing**: `scripts/smoke-deployment.sh` contro il dominio reale; ripetizione
-manuale del flusso E2E segretario→esperto gia' documentato in
-`specs/002-angular-api-first-migration/contracts/cutover-readiness.md`
+**Constraints**:
 
-**Target Platform**: Coolify (containerizzato, Linux), dominio pubblico HTTPS
-
-**Project Type**: Deploy/infrastruttura (web application gia' esistente, due
-immagini: backend Flask + frontend Angular/Nginx)
-
-**Performance Goals**: nessuna richiesta > timeout Nginx/Gunicorn allineati
-(120s), coerente con le chiamate lente a Selezioni Online gia' osservate in
-locale (~54s)
-
-**Constraints**: nessuna porta dati o backend diretta esposta pubblicamente;
-credenziali/token mai salvati nel repository; `main`/`test` protetti su
-Baltig, niente push diretto
-
-**Scale/Scope**: singolo ambiente di test (poi produzione, fuori scope di
-questa spec se non come estensione naturale dopo la validazione)
+- segreti solo in Coolify, non nel repository;
+- deploy key BaLTIG read-only, senza write permissions;
+- frontend come unico servizio pubblico;
+- `BASE_URL` resta l'endpoint Selezioni Online/JConon;
+- produzione corrente separata su `checkin-dev`.
 
 ## Constitution Check
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+- **I. Stato Applicativo Esplicito**: non impattato.
+- **II. Autorizzazione Prima della Logica**: rispettato tramite deploy key
+  read-only e segreti fuori repository.
+- **III. Backend Come Fonte di Verita**: non impattato.
+- **IV. Integrazioni Isolate e Tracciabili**: OIDC e JConon restano configurati
+  via variabili ambiente.
+- **V. Migrazione Incrementale e Verificabile**: rispettato tramite branch
+  separati `test` e `checkin-dev`.
 
-- **I. Stato Applicativo Esplicito**: non impattato — nessuna modifica alla
-  macchina a stati sessione.
-- **II. Autorizzazione Prima della Logica**: non impattato — nessuna modifica
-  ad auth/ownership; il deploy token Baltig usa il minimo permesso
-  (`read_registry`), coerente col principio applicato all'infrastruttura.
-- **III. Backend Come Fonte di Verita**: non impattato — nessuna logica
-  duplicata nel frontend.
-- **IV. Integrazioni Isolate e Tracciabili**: rilevante solo indirettamente —
-  si verifica che le integrazioni esterne (OIDC, Selezioni Online) continuino
-  a funzionare isolate e con errori tracciabili anche fuori da localhost/ngrok.
-- **V. Migrazione Incrementale e Verificabile**: applicato direttamente — la
-  validazione e' volutamente incrementale (legacy prima, poi migrazione) e
-  ogni passo ha criteri di successo verificabili prima di procedere al
-  successivo.
-
-Nessuna violazione. Gate superato senza eccezioni da giustificare.
+Gate superato.
 
 ## Project Structure
 
-### Documentation (this feature)
-
 ```text
+docker-compose.coolify.yml             # compose usato dalla risorsa Coolify
+docs/deployment/baltig-ci-cd.md        # runbook deploy aggiornato
+docs/migrazione/ambiente-test-coolify.md
+scripts/smoke-deployment.sh            # validazione HTTP
 specs/003-coolify-test-environment/
-├── spec.md               # Requisiti e user story (questo output)
-├── plan.md               # Questo file
-├── quickstart.md         # Passi operativi Coolify/Baltig, variabili richieste
-└── tasks.md              # Task eseguibili in ordine (Fase 1: legacy, Fase 2: migrazione)
+├── spec.md
+├── plan.md
+├── quickstart.md
+└── tasks.md
 ```
 
-### Risorse coinvolte (repository esistente, nessuna nuova struttura di codice)
+## Deployment Decision
 
-```text
-.gitlab-ci.yml                         # pipeline gia' esistente (test/build/release)
-deploy/
-├── compose.yml                        # base condivisa test+prod
-├── compose.test.yml                   # override ambiente test
-├── compose.prod.yml                   # override ambiente produzione
-└── compose.local.yml                  # riferimento per confronto con locale gia' validato
-docs/deployment/baltig-ci-cd.md        # runbook da seguire ed eventualmente correggere
-scripts/smoke-deployment.sh            # usato per validare ogni stadio
-.env.example                           # base per le variabili da impostare in Coolify
-```
+| Decisione | Esito |
+|---|---|
+| Build immagini via runner GitLab | Rinviata |
+| Coolify collegato al repo | Scelta operativa |
+| Test | branch `test`, dominio `test-checkin.concorsi.cnr.it` |
+| Produzione corrente | branch `checkin-dev`, dominio `checkin.concorsi.cnr.it` |
+| `main` | non operativo finche non riallineato |
 
-**Structure Decision**: nessuna nuova struttura di codice. Il lavoro consiste
-nell'eseguire ed eventualmente correggere quanto gia' pianificato in
-`deploy/` e `.gitlab-ci.yml`, con evidenze e task tracciati in questa spec.
+## Validation Strategy
+
+1. Deploy branch `test` su Coolify.
+2. Verificare frontend pubblico su `https://test-checkin.concorsi.cnr.it`.
+3. Eseguire smoke test.
+4. Completare login OIDC reale.
+5. Ripetere i flussi manuali rimasti aperti nella spec 002.
+6. Solo dopo collaudo: configurare produzione su `checkin-dev`.
 
 ## Complexity Tracking
 
-Nessuna violazione della Constitution Check: sezione non applicabile.
+Nessuna violazione della Constitution Check.
