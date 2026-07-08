@@ -74,7 +74,7 @@ def _payload(allowed_fields: set[str]):
 
 @configurazioni_api_bp.get("/bandi/<commission_id>/config")
 @api_auth_required
-@commission_access_required()
+@commission_access_required(allow_referente=True)
 def bando_config_get(commission_id):
     config = get_bando_config(commission_id) or {}
     return jsonify(
@@ -86,7 +86,7 @@ def bando_config_get(commission_id):
 
 @configurazioni_api_bp.put("/bandi/<commission_id>/config")
 @api_auth_required
-@commission_access_required()
+@commission_access_required(allow_referente=True)
 def bando_config_put(commission_id):
     data, errors = _payload(BANDO_FIELDS)
     if errors:
@@ -116,7 +116,7 @@ def bando_config_put(commission_id):
 
 @configurazioni_api_bp.post("/bandi/<commission_id>/request-config")
 @api_auth_required
-@commission_access_required()
+@commission_access_required(allow_referente=True)
 def bando_config_request(commission_id):
     data = request.get_json(silent=True)
     if not isinstance(data, dict):

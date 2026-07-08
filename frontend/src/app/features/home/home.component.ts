@@ -41,6 +41,15 @@ import { AuthService } from '../../core/auth.service';
             </div>
           </div>
         </div>
+        <div class="col-md-4">
+          <div class="card h-100 shadow-sm">
+            <div class="card-body">
+              <h2 class="card-title h5">Referenti</h2>
+              <p class="card-text">Configura i bandi per cui risulti RDP o referente.</p>
+              <a class="btn btn-primary" routerLink="/referenti/bandi">Entra come Referente</a>
+            </div>
+          </div>
+        </div>
         @if (auth.hasCapability('expert_workflow')) {
           <div class="col-md-4">
             <div class="card h-100 shadow-sm">

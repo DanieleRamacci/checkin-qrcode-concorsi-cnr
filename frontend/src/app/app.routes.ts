@@ -43,6 +43,14 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'referenti/bandi',
+        title: 'Bandi referente — Check-in CNR Concorsi',
+        loadComponent: () =>
+          import('./features/bandi/referente-bandi.component').then(
+            (module) => module.ReferenteBandiComponent,
+          ),
+      },
+      {
         path: 'bandi/:commissionId/detail',
         title: 'Dettaglio bando — Check-in CNR Concorsi',
         loadComponent: () =>

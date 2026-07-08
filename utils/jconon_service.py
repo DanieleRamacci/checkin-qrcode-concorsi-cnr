@@ -1,10 +1,81 @@
 import os
+from datetime import datetime, timezone
 
 import requests
 from flask import current_app
 
 from db import get_db_connection
 from utils.sessioni import update_bando_da_openapi
+
+
+def _normalize_email(value: str | None) -> str:
+    return (value or "").strip().lower()
+
+
+def _person_email(person: dict) -> str:
+    return _normalize_email(
+        person.get("email")
+        or person.get("emailcertificatoperpuk")
+        or person.get("emailAddress")
+    )
+
+
+def _person_name(person: dict) -> str:
+    return (
+        person.get("name")
+        or person.get("nome")
+        or f"{person.get('firstName', '')} {person.get('lastName', '')}".strip()
+        or _person_email(person)
+    )
+
+
+def _item_id(item: dict) -> str:
+    return str(
+        item.get("cmis:objectId")
+        or item.get("id")
+        or item.get("uuid")
+        or ""
+    ).strip()
+
+
+def _item_title(item: dict) -> str:
+    return str(
+        item.get("title")
+        or item.get("titolo")
+        or item.get("jconon_call:codice")
+        or item.get("jconon_call:title")
+        or item.get("jconon_call:descrizione")
+        or _item_id(item)
+    ).strip()
+
+
+def _is_current_user_rdp(item: dict, user_email: str) -> bool:
+    normalized = _normalize_email(user_email)
+    if not normalized:
+        return False
+    return any(_person_email(rdp) == normalized for rdp in item.get("rdps", []) or [])
+
+
+def _serialize_referente_bando(item: dict, user_email: str) -> dict | None:
+    commission_id = _item_id(item)
+    if not commission_id or not _is_current_user_rdp(item, user_email):
+        return None
+    rdps = item.get("rdps", []) or []
+    commissioners = item.get("commissioners", []) or []
+    title = _item_title(item)
+    return {
+        "commission_id": commission_id,
+        "title": title,
+        "configured": False,
+        "referente_email": user_email,
+        "esperto_remoto_email": None,
+        "session_count": 0,
+        "last_sync": None,
+        "capabilities": ["configure", "view"],
+        "rdps": rdps,
+        "commissioners": commissioners,
+        "rdp_names": [_person_name(rdp) for rdp in rdps if _person_name(rdp)],
+    }
 
 
 def fetch_bando_metadata(
@@ -94,3 +165,109 @@ def sync_bando_metadata(commission_id: str, access_token: str) -> dict:
         "rdps": metadata["rdps"],
         "commissioners": metadata["commissioners"],
     }
+
+
+def fetch_referente_bandi(access_token: str, user_email: str) -> dict:
+    base_url = os.environ.get(
+        "BASE_URL",
+        "https://cool-jconon.test.si.cnr.it",
+    ).rstrip("/")
+    offset = 100
+    items: list[dict] = []
+    page = 0
+
+    try:
+        while page < 5:
+            response = requests.get(
+                f"{base_url}/openapi/v1/call",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Accept": "application/json",
+                },
+                params={
+                    "page": page,
+                    "offset": offset,
+                    "filterType": "all",
+                    "detailRdP": "true",
+                    "detailCommission": "true",
+                },
+                timeout=(5, 30),
+            )
+            response.raise_for_status()
+            batch = response.json().get("items", [])
+            if not isinstance(batch, list):
+                break
+            items.extend(batch)
+            if len(batch) < offset:
+                break
+            page += 1
+    except (requests.RequestException, ValueError) as error:
+        current_app.logger.warning(
+            "[jconon] referente bandi user=%s fallita: %s",
+            user_email,
+            error,
+        )
+        return {
+            "success": False,
+            "message": "Metadati referente non disponibili.",
+            "items": [],
+        }
+
+    referenti = [
+        serialized
+        for item in items
+        if (serialized := _serialize_referente_bando(item, user_email)) is not None
+    ]
+    _persist_referente_bandi(user_email, referenti)
+    return {
+        "success": True,
+        "items": referenti,
+    }
+
+
+def _persist_referente_bandi(user_email: str, items: list[dict]) -> None:
+    """Sincronizza la relazione bando<->referente in bando_referenti.
+
+    A differenza del vecchio meccanismo (che inseriva l'RDP come riga
+    fittizia in `commissions`), qui la fonte istituzionale è considerata
+    autorevole anche in negativo: i bandi non più restituiti per questo
+    utente vengono cancellati, così un vecchio RDP perde l'accesso invece
+    di restare autorizzato per sempre.
+    """
+    normalized_email = _normalize_email(user_email)
+    synced_at = datetime.now(timezone.utc)
+    remote_ids = {item["commission_id"] for item in items}
+
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            for item in items:
+                cursor.execute(
+                    """
+                    INSERT INTO bando_referenti (commission_id, user_email, nome, synced_at)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (commission_id, user_email)
+                    DO UPDATE SET nome = EXCLUDED.nome, synced_at = EXCLUDED.synced_at
+                    """,
+                    (item["commission_id"], normalized_email, item["title"], synced_at),
+                )
+            if remote_ids:
+                cursor.execute(
+                    """
+                    DELETE FROM bando_referenti
+                     WHERE user_email = %s
+                       AND commission_id != ALL(%s)
+                    """,
+                    (normalized_email, list(remote_ids)),
+                )
+            else:
+                cursor.execute(
+                    "DELETE FROM bando_referenti WHERE user_email = %s",
+                    (normalized_email,),
+                )
+        conn.commit()
+    for item in items:
+        update_bando_da_openapi(
+            item["commission_id"],
+            rdps=item.get("rdps", []),
+            commissioners=item.get("commissioners", []),
+        )

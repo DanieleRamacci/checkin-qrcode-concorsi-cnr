@@ -19,6 +19,10 @@ export interface BandoSummary {
   capabilities: string[];
 }
 
+export interface ReferenteBandoSummary extends BandoSummary {
+  rdp_names?: string[];
+}
+
 export interface BandoPerson {
   name?: string;
   nome?: string;
@@ -63,6 +67,11 @@ export interface ApiList<T> {
 }
 
 export interface BandiResponse extends ApiList<BandoSummary> {
+  sync_error?: string | null;
+  sync_source?: string | null;
+}
+
+export interface ReferenteBandiResponse extends ApiList<ReferenteBandoSummary> {
   sync_error?: string | null;
   sync_source?: string | null;
 }

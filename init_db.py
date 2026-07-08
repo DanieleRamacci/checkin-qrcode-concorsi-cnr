@@ -29,6 +29,7 @@ try:
         print("  Ambiente di sviluppo: elimino le tabelle esistenti...")
         cursor.execute("DROP TABLE IF EXISTS sessione_config CASCADE")
         cursor.execute("DROP TABLE IF EXISTS bando_config CASCADE")
+        cursor.execute("DROP TABLE IF EXISTS bando_referenti CASCADE")
         cursor.execute("DROP TABLE IF EXISTS candidati CASCADE")
         cursor.execute("DROP TABLE IF EXISTS sessioni CASCADE")
         cursor.execute("DROP TABLE IF EXISTS commissions CASCADE")
@@ -111,6 +112,21 @@ try:
         fetched_at TIMESTAMP,
         configured_at TIMESTAMP,
         configured_by TEXT
+    );
+    """)
+
+    # Relazione esplicita bando <-> referente/RDP, sincronizzata da Selezioni
+    # Online/JConon usando il token OIDC dell'utente loggato. Sostituisce il
+    # riuso di `commissions` come proxy di autorizzazione: qui l'email è
+    # sempre normalizzata e le righe non più restituite dalla fonte
+    # istituzionale vengono cancellate (revoca) invece di restare valide.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS bando_referenti (
+        commission_id TEXT NOT NULL,
+        user_email TEXT NOT NULL,
+        nome TEXT,
+        synced_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (commission_id, user_email)
     );
     """)
 

@@ -17,6 +17,7 @@ def can_access_commission(
     commission_id: str,
     *,
     allowed_roles: Iterable[str] = (),
+    allow_referente: bool = False,
 ) -> bool:
     if not user_email:
         return False
@@ -25,16 +26,41 @@ def can_access_commission(
 
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT 1
-                  FROM commissions
-                 WHERE commission_id = %s
-                   AND user_email = %s
-                 LIMIT 1
-                """,
-                (commission_id, user_email),
-            )
+            if allow_referente:
+                # L'RDP/referente è autorizzato tramite la relazione esplicita
+                # in bando_referenti, non tramite il possesso della
+                # commissione: le due platee restano distinte.
+                cursor.execute(
+                    """
+                    SELECT 1
+                      FROM commissions
+                     WHERE commission_id = %s
+                       AND user_email = %s
+                     UNION ALL
+                    SELECT 1
+                      FROM bando_referenti
+                     WHERE commission_id = %s
+                       AND user_email = %s
+                     LIMIT 1
+                    """,
+                    (
+                        commission_id,
+                        user_email,
+                        commission_id,
+                        user_email.strip().lower(),
+                    ),
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT 1
+                      FROM commissions
+                     WHERE commission_id = %s
+                       AND user_email = %s
+                     LIMIT 1
+                    """,
+                    (commission_id, user_email),
+                )
             return cursor.fetchone() is not None
 
 
@@ -70,6 +96,7 @@ def commission_access_required(
     *,
     parameter: str = "commission_id",
     allowed_roles: Iterable[str] = (),
+    allow_referente: bool = False,
 ) -> Callable:
     def decorator(view: Callable) -> Callable:
         @wraps(view)
@@ -81,6 +108,7 @@ def commission_access_required(
                 user_email,
                 kwargs[parameter],
                 allowed_roles=allowed_roles,
+                allow_referente=allow_referente,
             ):
                 abort(403)
             return view(*args, **kwargs)

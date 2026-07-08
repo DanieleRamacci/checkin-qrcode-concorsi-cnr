@@ -1,6 +1,11 @@
 import { inject, Injectable } from '@angular/core';
 import { ApiClient } from '../../core/api-client';
-import { BandiResponse, BandoDetail, BandoMetadata } from '../../core/models/api.models';
+import {
+  BandiResponse,
+  BandoDetail,
+  BandoMetadata,
+  ReferenteBandiResponse,
+} from '../../core/models/api.models';
 
 @Injectable({ providedIn: 'root' })
 export class BandiService {
@@ -12,6 +17,10 @@ export class BandiService {
 
   sync() {
     return this.api.post<BandiResponse>('/bandi/sync');
+  }
+
+  syncReferente() {
+    return this.api.post<ReferenteBandiResponse>('/referenti/bandi/sync');
   }
 
   detail(commissionId: string) {

@@ -102,6 +102,65 @@ def test_bandi_sync_preserves_cache_error_context(monkeypatch):
     assert response.get_json()["sync_error"]
 
 
+def test_referente_bandi_sync_returns_remote_rdp_bandi(monkeypatch):
+    from routes.api_v1 import bandi
+
+    monkeypatch.setattr(
+        bandi,
+        "ensure_fresh_access_token",
+        lambda **kwargs: "fresh-token",
+    )
+    monkeypatch.setattr(
+        bandi,
+        "fetch_referente_bandi",
+        lambda token, email: {
+            "success": True,
+            "items": [
+                {
+                    "commission_id": "rdp-1",
+                    "title": "Bando RDP",
+                    "configured": False,
+                    "session_count": 0,
+                    "capabilities": ["configure", "view"],
+                    "rdp_names": ["Rita Verdi"],
+                }
+            ],
+        },
+    )
+    app = create_test_app()
+    client = authenticated_client(app, "rita.verdi@cnr.it")
+    with client.session_transaction() as flask_session:
+        csrf_token = get_csrf_token(flask_session)
+
+    response = client.post(
+        "/api/v1/referenti/bandi/sync",
+        headers={"X-CSRF-Token": csrf_token},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["items"][0]["commission_id"] == "rdp-1"
+    assert payload["items"][0]["rdp_names"] == ["Rita Verdi"]
+
+
+def test_referente_bandi_sync_requires_fresh_oidc_token(monkeypatch):
+    from routes.api_v1 import bandi
+
+    monkeypatch.setattr(bandi, "ensure_fresh_access_token", lambda **kwargs: None)
+    app = create_test_app()
+    client = authenticated_client(app, "rita.verdi@cnr.it")
+    with client.session_transaction() as flask_session:
+        csrf_token = get_csrf_token(flask_session)
+
+    response = client.post(
+        "/api/v1/referenti/bandi/sync",
+        headers={"X-CSRF-Token": csrf_token},
+    )
+
+    assert response.status_code == 401
+    assert response.get_json()["error"]["code"] == "reauthentication_required"
+
+
 def test_bando_detail_rejects_unrelated_user(monkeypatch):
     from utils import authorization
 

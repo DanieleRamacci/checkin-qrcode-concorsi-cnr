@@ -92,6 +92,46 @@ def test_explicit_role_can_be_allowed(monkeypatch):
     )
 
 
+def test_referente_can_access_assigned_bando(monkeypatch):
+    from utils import authorization
+
+    monkeypatch.setattr(authorization, "get_user_roles", lambda email: set())
+    monkeypatch.setattr(
+        authorization, "get_db_connection", connection_factory((1,))
+    )
+
+    assert authorization.can_access_commission(
+        "Referente@Cnr.it", "commission-1", allow_referente=True
+    )
+
+
+def test_referente_without_assignment_is_denied(monkeypatch):
+    from utils import authorization
+
+    monkeypatch.setattr(authorization, "get_user_roles", lambda email: set())
+    monkeypatch.setattr(
+        authorization, "get_db_connection", connection_factory(None)
+    )
+
+    assert not authorization.can_access_commission(
+        "referente@cnr.it", "commission-1", allow_referente=True
+    )
+
+
+def test_referente_flag_off_does_not_check_bando_referenti(monkeypatch):
+    from utils import authorization
+
+    monkeypatch.setattr(authorization, "get_user_roles", lambda email: set())
+    monkeypatch.setattr(
+        authorization, "get_db_connection", connection_factory((1,))
+    )
+
+    # allow_referente non passato: stesso comportamento di prima, usato ad
+    # esempio dagli endpoint sessioni/candidati riservati a segretario e
+    # membri di commissione.
+    assert authorization.can_access_commission("owner@cnr.it", "commission-1")
+
+
 def test_session_decorator_rejects_unrelated_user(monkeypatch):
     from utils import authorization
 

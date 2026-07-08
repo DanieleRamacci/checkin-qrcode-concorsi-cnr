@@ -9,7 +9,7 @@ from routes.api_v1.errors import error_response
 from utils.authorization import commission_access_required
 from utils.commissioni import get_commissioni_sincronizzate_with_status
 from utils.roles import ROLE_ADMIN, get_user_roles
-from utils.jconon_service import sync_bando_metadata
+from utils.jconon_service import fetch_referente_bandi, sync_bando_metadata
 from utils.oidc import ensure_fresh_access_token
 from utils.sessioni import get_bando_config
 
@@ -90,6 +90,29 @@ def get_bando(commission_id: str) -> dict | None:
                 (commission_id,),
             )
             row = cursor.fetchone()
+            if not row:
+                # Nessun segretario ha ancora sincronizzato questo bando in
+                # `commissions`: se esiste una relazione RDP/referente
+                # recuperiamo comunque titolo e stato configurazione da lì,
+                # invece di rispondere 404 a chi è autorizzato.
+                cursor.execute(
+                    """
+                    SELECT r.commission_id,
+                           MAX(r.nome) AS title,
+                           BOOL_OR(b.commission_id IS NOT NULL) AS configured,
+                           MAX(b.email_referente) AS referente_email,
+                           MAX(b.email_esperto_remoto) AS esperto_remoto_email,
+                           0 AS session_count,
+                           MAX(COALESCE(b.configured_at, r.synced_at)) AS last_sync
+                      FROM bando_referenti AS r
+                 LEFT JOIN bando_config AS b
+                        ON b.commission_id = r.commission_id
+                     WHERE r.commission_id = %s
+                  GROUP BY r.commission_id
+                    """,
+                    (commission_id,),
+                )
+                row = cursor.fetchone()
     if not row:
         return None
     return {
@@ -138,9 +161,34 @@ def bandi_sync():
     )
 
 
+@bandi_api_bp.post("/referenti/bandi/sync")
+@api_auth_required
+def referente_bandi_sync():
+    email = session["user_email"]
+    token = ensure_fresh_access_token(skew_sec=60)
+    if not token:
+        return error_response(
+            "reauthentication_required",
+            "Sessione OIDC scaduta.",
+            401,
+        )
+    result = fetch_referente_bandi(token, email)
+    if not result["success"]:
+        return error_response(
+            "external_service_unavailable",
+            result["message"],
+            502,
+        )
+    return jsonify(
+        items=result["items"],
+        sync_error=None,
+        sync_source="remote",
+    )
+
+
 @bandi_api_bp.get("/bandi/<commission_id>")
 @api_auth_required
-@commission_access_required()
+@commission_access_required(allow_referente=True)
 def bando_detail(commission_id):
     bando = get_bando(commission_id)
     if not bando:
@@ -158,7 +206,7 @@ def bando_detail(commission_id):
 
 @bandi_api_bp.post("/bandi/<commission_id>/sync-meta")
 @api_auth_required
-@commission_access_required()
+@commission_access_required(allow_referente=True)
 def bando_sync_metadata(commission_id):
     token = ensure_fresh_access_token(skew_sec=60)
     if not token:
