@@ -1,10 +1,18 @@
+workflow:
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "test"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - when: never
+
 stages:
   - test
   - build
   - release
 
 variables:
-  DOCKER_TLS_CERTDIR: "/certs"
+  DOCKER_HOST: "tcp://docker:2375"
+  DOCKER_TLS_CERTDIR: ""
   BACKEND_SHA_IMAGE: "$CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA"
   FRONTEND_SHA_IMAGE: "$CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHA"
 
@@ -32,6 +40,9 @@ build-images:
   services:
     - name: docker:27-dind
       alias: docker
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "test"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
   before_script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
   script:
@@ -59,7 +70,7 @@ release-test:
     - docker push "$CI_REGISTRY_IMAGE/frontend:test"
   environment:
     name: testing
-    url: https://checkin.concorsi.cnr.it
+    url: $TEST_ENVIRONMENT_URL
 
 release-production:
   stage: release
@@ -73,12 +84,12 @@ release-production:
   before_script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
   script:
-    - docker pull "$CI_REGISTRY_IMAGE/backend:test"
-    - docker pull "$CI_REGISTRY_IMAGE/frontend:test"
-    - docker tag "$CI_REGISTRY_IMAGE/backend:test" "$CI_REGISTRY_IMAGE/backend:production"
-    - docker tag "$CI_REGISTRY_IMAGE/frontend:test" "$CI_REGISTRY_IMAGE/frontend:production"
+    - docker pull "$BACKEND_SHA_IMAGE"
+    - docker pull "$FRONTEND_SHA_IMAGE"
+    - docker tag "$BACKEND_SHA_IMAGE" "$CI_REGISTRY_IMAGE/backend:production"
+    - docker tag "$FRONTEND_SHA_IMAGE" "$CI_REGISTRY_IMAGE/frontend:production"
     - docker push "$CI_REGISTRY_IMAGE/backend:production"
     - docker push "$CI_REGISTRY_IMAGE/frontend:production"
   environment:
     name: production
-    url: https://checkin.concorsi.cnr.it
+    url: $PRODUCTION_ENVIRONMENT_URL
