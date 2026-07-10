@@ -42,13 +42,15 @@ import { SessioniService } from './sessioni.service';
         <div class="alert alert-warning d-flex align-items-center py-2 mb-3" role="alert">
           <span class="flex-grow-1">
             <strong>Bando non configurato.</strong>
-            Inserisci i riferimenti operativi prima di gestire le sessioni.
+            Il referente deve completare i riferimenti operativi del bando. Puoi gestire la sessione dalla scheda azioni.
           </span>
-          <a [routerLink]="['/bandi', commissionId, 'config']" class="btn btn-sm btn-warning ms-3 text-nowrap">
-            Configura Bando
-          </a>
+          @if (canConfigureBando()) {
+            <a [routerLink]="['/bandi', commissionId, 'config']" class="btn btn-sm btn-warning ms-3 text-nowrap">
+              Configura Bando
+            </a>
+          }
         </div>
-      } @else if (bando()?.configured) {
+      } @else if (bando()?.configured && canConfigureBando()) {
         <div class="d-flex justify-content-end mb-2">
           <a [routerLink]="['/bandi', commissionId, 'config']" class="btn btn-sm btn-outline-secondary">
             Modifica config bando
@@ -113,6 +115,10 @@ export class SessioniComponent {
   readonly bando = signal<BandoDetail | null>(null);
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
+
+  canConfigureBando(): boolean {
+    return this.mode === 'referente' || this.auth.hasCapability('admin') || !!this.auth.user()?.dev_mode;
+  }
 
   constructor() {
     this.bandiService.detail(this.commissionId).subscribe({

@@ -83,8 +83,18 @@ import { BandiService } from '../bandi/bandi.service';
           <div class="card-body row g-3">
             <div class="col-md-6">
               <label class="form-label" for="email_segretario">Email segretario</label>
-              <input class="form-control" id="email_segretario" name="email_segretario" type="email"
-                     [(ngModel)]="model['email_segretario']" />
+              @if (secretaryOptions().length) {
+                <select class="form-select" id="email_segretario" name="email_segretario"
+                        [(ngModel)]="model['email_segretario']">
+                  <option value="">Seleziona segretario</option>
+                  @for (secretary of secretaryOptions(); track secretary.email) {
+                    <option [value]="secretary.email">{{ secretary.nome || secretary.email }} — {{ secretary.email }}</option>
+                  }
+                </select>
+              } @else {
+                <input class="form-control" id="email_segretario" name="email_segretario" type="email"
+                       [(ngModel)]="model['email_segretario']" />
+              }
             </div>
             <div class="col-md-6">
               <label class="form-label" for="telefono_segretario">Telefono segretario</label>
@@ -96,6 +106,11 @@ import { BandiService } from '../bandi/bandi.service';
               <input class="form-control" id="durata_prova_minuti" name="durata_prova_minuti" type="number" min="1"
                      [(ngModel)]="model['durata_prova_minuti']" />
             </div>
+            <div class="col-md-6">
+              <label class="form-label" for="data_accesso_piattaforma">Data accesso piattaforma</label>
+              <input class="form-control" id="data_accesso_piattaforma" name="data_accesso_piattaforma" type="date"
+                     [(ngModel)]="model['data_accesso_piattaforma']" />
+            </div>
           </div>
         </div>
 
@@ -105,6 +120,11 @@ import { BandiService } from '../bandi/bandi.service';
             <button type="button" class="btn btn-sm btn-outline-primary" (click)="addCommissioner()">Aggiungi</button>
           </div>
           <div class="card-body">
+            @if (!commissionMembers.length) {
+              <div class="alert alert-warning">
+                Mancano i componenti commissione da Selezioni Online. Verificare la configurazione del bando sulla fonte dati prima di completare la configurazione operativa.
+              </div>
+            }
             @for (member of commissionMembers; track $index; let i = $index) {
               <div class="row g-2 mb-2">
                 <div class="col-md-5">
@@ -147,6 +167,7 @@ export class BandoConfigComponent {
   readonly title = signal('');
   readonly expertOptions = signal<string[]>([]);
   readonly rdpOptions = signal<Array<{ nome: string; email: string }>>([]);
+  readonly secretaryOptions = signal<Array<{ nome: string; email: string }>>([]);
   model: Record<string, any> = {};
   commissionMembers: Array<{ nome: string; email: string }> = [];
 
@@ -161,6 +182,7 @@ export class BandoConfigComponent {
       this.model = { ...data };
       this.expertOptions.set(data['expert_options'] ?? []);
       this.rdpOptions.set(data['rdp_options'] ?? []);
+      this.secretaryOptions.set(data['secretary_options'] ?? []);
       this.commissionMembers = [...(data['commissione_members'] ?? [])];
     });
   }
@@ -185,10 +207,14 @@ export class BandoConfigComponent {
   save(): void {
     this.busy.set(true);
     const payload: Record<string, any> = {
-      ...this.model,
+      email_referente: this.model['email_referente'] ?? '',
+      email_esperto_remoto: this.model['email_esperto_remoto'] ?? '',
+      email_segretario: this.model['email_segretario'] ?? '',
+      telefono_segretario: this.model['telefono_segretario'] ?? '',
+      durata_prova_minuti: this.model['durata_prova_minuti'] ?? '',
+      data_accesso_piattaforma: this.model['data_accesso_piattaforma'] ?? '',
       commissione_members: this.commissionMembers,
     };
-    delete payload['expert_options'];
     this.api.put(`/bandi/${this.id}/config`, payload).subscribe({
       next: () => {
         this.busy.set(false);

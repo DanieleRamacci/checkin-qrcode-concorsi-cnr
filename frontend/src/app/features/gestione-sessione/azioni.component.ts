@@ -11,6 +11,7 @@ interface MergedConfig {
   durata_prova_minuti?: number;
   nome_informatico_sede?: string;
   email_informatico_sede?: string;
+  telefono_informatico_sede?: string;
 }
 
 /**
@@ -82,6 +83,9 @@ interface MergedConfig {
             @case ('esame_concluso') {
               <div class="alert alert-success mb-0">Esame concluso.</div>
             }
+            @case ('liste_generate') {
+              <div class="alert alert-info mb-0">Liste generate. In attesa che il segretario le invii all'esperto informatico.</div>
+            }
             @default {
               <div class="alert alert-info mb-0">In attesa che il segretario generi e invii le liste.</div>
             }
@@ -92,56 +96,52 @@ interface MergedConfig {
     } @else {
     @switch (currentState()) {
       @case ('iniziale') {
-        @if (!bandoConfigured()) {
-          <div class="it-card-wrapper mb-3">
-            <div class="it-card shadow-sm p-3 bg-light">
-              <h5 class="mb-1">Configura il Bando</h5>
-              <p class="mb-3 text-muted small">
-                Prima di gestire questa sessione occorre configurare i riferimenti operativi del bando
-                (esperto remoto, segretario, durata prova). La configurazione vale per tutte le sessioni.
-              </p>
-              <a [routerLink]="['/bandi', commissionId(), 'config']" class="btn btn-primary">Configura Bando</a>
-            </div>
-          </div>
-        } @else {
-          <div class="it-card-wrapper mb-3">
-            <div class="it-card shadow-sm p-3 bg-light">
-              <h5 class="mb-1">Configura Informatico in Sede</h5>
+        <div class="it-card-wrapper mb-3">
+          <div class="it-card shadow-sm p-3 bg-light">
+            <h5 class="mb-1">Configura Informatico in Sede</h5>
+            @if (!bandoConfigured()) {
+              <div class="alert alert-warning mt-3 mb-3">
+                I dati del bando non risultano ancora completi. Il referente deve configurare almeno esperto informatico remoto e segretario.
+              </div>
+            } @else {
               <p class="mb-2 text-muted small">
                 I dati del bando sono già configurati. Inserisci l'informatico in sede per questa sessione.
               </p>
-              <form (ngSubmit)="saveSessionConfig()">
-                <div class="row g-2 mb-2">
-                  <div class="col-md-6">
-                    <label class="form-label" for="nome_informatico_sede">Nome</label>
-                    <input type="text" class="form-control" id="nome_informatico_sede" placeholder="es. Mario Rossi" [(ngModel)]="sessionConfigModel.nome_informatico_sede" name="nome_informatico_sede" />
-                  </div>
-                  <div class="col-md-6">
-                    <label class="form-label" for="email_informatico_sede">Email</label>
-                    <input type="email" class="form-control" id="email_informatico_sede" placeholder="es. nome.cognome@cnr.it" [(ngModel)]="sessionConfigModel.email_informatico_sede" name="email_informatico_sede" />
-                  </div>
+            }
+            <form (ngSubmit)="saveSessionConfig()">
+              <div class="row g-2 mb-3">
+                <div class="col-md-4">
+                  <label class="form-label" for="nome_informatico_sede">Nome</label>
+                  <input type="text" class="form-control" id="nome_informatico_sede" placeholder="es. Mario Rossi" [(ngModel)]="sessionConfigModel.nome_informatico_sede" name="nome_informatico_sede" />
                 </div>
-                <div class="row g-2 mb-3">
-                  <div class="col-md-6">
-                    <label class="form-label" for="telefono_informatico_sede">Telefono</label>
-                    <input type="tel" class="form-control" id="telefono_informatico_sede" placeholder="es. +39 06 1234567" [(ngModel)]="sessionConfigModel.telefono_informatico_sede" name="telefono_informatico_sede" />
-                  </div>
-                  <div class="col-md-6">
-                    <label class="form-label" for="data_accesso_piattaforma">Data accesso piattaforma</label>
-                    <input type="date" class="form-control" id="data_accesso_piattaforma" [(ngModel)]="sessionConfigModel.data_accesso_piattaforma" name="data_accesso_piattaforma" />
-                    <div class="form-text small">Data indicata in convocazione per accesso esami.concorsi</div>
-                  </div>
+                <div class="col-md-4">
+                  <label class="form-label" for="email_informatico_sede">Email</label>
+                  <input type="email" class="form-control" id="email_informatico_sede" placeholder="es. nome.cognome@cnr.it" [(ngModel)]="sessionConfigModel.email_informatico_sede" name="email_informatico_sede" />
                 </div>
-                <div class="d-flex justify-content-end border-top pt-3">
-                  <button type="submit" class="btn btn-primary">Salva e prosegui</button>
+                <div class="col-md-4">
+                  <label class="form-label" for="telefono_informatico_sede">Telefono</label>
+                  <input type="tel" class="form-control" id="telefono_informatico_sede" placeholder="es. +39 06 1234567" [(ngModel)]="sessionConfigModel.telefono_informatico_sede" name="telefono_informatico_sede" />
                 </div>
-              </form>
-              @if (error()) { <div class="alert alert-danger mt-3 mb-0" role="alert">{{ error() }}</div> }
-            </div>
+              </div>
+              <div class="d-flex justify-content-end border-top pt-3">
+                <button type="submit" class="btn btn-primary">Salva e prosegui</button>
+              </div>
+            </form>
+            @if (error()) { <div class="alert alert-danger mt-3 mb-0" role="alert">{{ error() }}</div> }
+          </div>
+        </div>
+        @if (!bandoConfigured()) {
+          <div class="alert alert-info mb-3">
+            Se mancano i componenti della commissione su Selezioni Online, la configurazione del bando non potrà precompilare segretario e componenti.
           </div>
         }
       }
       @case ('configurata') {
+        @if (!bandoConfigured()) {
+          <div class="alert alert-warning mb-3">
+            Attenzione: il bando non risulta configurato. L'invio delle liste richiede un esperto informatico remoto.
+          </div>
+        }
         <div class="it-card-wrapper mb-3">
           <div class="it-card shadow-sm p-3 bg-light">
             <div class="d-flex justify-content-between align-items-start">
@@ -309,7 +309,6 @@ export class AzioniComponent {
     nome_informatico_sede: '',
     email_informatico_sede: '',
     telefono_informatico_sede: '',
-    data_accesso_piattaforma: '',
   };
 
   ngOnInit(): void {
@@ -321,13 +320,12 @@ export class AzioniComponent {
   }
 
   private loadContextData(): void {
-    if (this.currentState() === 'iniziale' && this.bandoConfigured()) {
+    if (this.currentState() === 'iniziale') {
       this.api.get<Record<string, string>>(`/sessioni/${this.sessionId()}/config`).subscribe((data) => {
         this.sessionConfigModel = {
           nome_informatico_sede: data['nome_informatico_sede'] ?? '',
           email_informatico_sede: data['email_informatico_sede'] ?? '',
           telefono_informatico_sede: data['telefono_informatico_sede'] ?? '',
-          data_accesso_piattaforma: data['data_accesso_piattaforma'] ?? '',
         };
       });
     }

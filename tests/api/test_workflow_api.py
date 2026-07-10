@@ -51,7 +51,11 @@ def test_get_bando_config(monkeypatch):
             "rdp_members": [
                 {"nome": "Referente CNR", "email": "referente@cnr.it"}
             ],
-            "commissione_members": [],
+            "commissione_members": [
+                {"nome": "Segretaria Uno", "email": "segretaria1@cnr.it", "ruolo": "SEGRETARIO"},
+                {"nome": "Presidente", "email": "presidente@cnr.it", "ruolo": "PRESIDENTE"},
+                {"nome": "Segretaria Due", "email": "segretaria2@cnr.it", "ruolo": "SEGRETARIO"},
+            ],
         },
     )
     monkeypatch.setattr(
@@ -68,6 +72,10 @@ def test_get_bando_config(monkeypatch):
     assert response.get_json()["email_referente"] == "referente@cnr.it"
     assert response.get_json()["rdp_options"] == [
         {"nome": "Referente CNR", "email": "referente@cnr.it"}
+    ]
+    assert response.get_json()["secretary_options"] == [
+        {"nome": "Segretaria Uno", "email": "segretaria1@cnr.it"},
+        {"nome": "Segretaria Due", "email": "segretaria2@cnr.it"},
     ]
     assert response.get_json()["expert_options"] == ["esperto@cnr.it"]
 
@@ -145,6 +153,56 @@ def test_request_bando_configuration_rejects_invalid_email(monkeypatch):
 
     assert response.status_code == 422
     assert response.get_json()["error"]["details"]["email_referente"]
+
+
+def test_put_bando_config_ignores_readonly_response_fields(monkeypatch):
+    from routes.api_v1 import configurazioni
+
+    allow_resource_access(monkeypatch)
+    saved = {}
+    monkeypatch.setattr(
+        configurazioni,
+        "get_bando_config",
+        lambda commission_id: {
+            "email_referente": "referente@cnr.it",
+            "rdp_members": [
+                {"nome": "Referente CNR", "email": "referente@cnr.it"}
+            ],
+            "commissione_members": [],
+        },
+    )
+
+    def fake_save_bando_config(commission_id, *args, **kwargs):
+        saved["commission_id"] = commission_id
+        saved["args"] = args
+        saved["kwargs"] = kwargs
+
+    monkeypatch.setattr(configurazioni, "save_bando_config", fake_save_bando_config)
+
+    app = create_test_app()
+    client, csrf_token = authenticated_client(app)
+    response = client.put(
+        "/api/v1/bandi/commission-1/config",
+        json={
+            "commission_id": "commission-1",
+            "email_referente": "referente@cnr.it",
+            "email_esperto_remoto": "esperto@cnr.it",
+            "email_segretario": "segretario@cnr.it",
+            "data_accesso_piattaforma": "2026-07-20",
+            "commissione_members": [],
+            "rdp_options": [{"nome": "Referente CNR", "email": "referente@cnr.it"}],
+            "secretary_options": [{"nome": "Segretaria Uno", "email": "segretaria1@cnr.it"}],
+            "rdp_members": [{"nome": "Referente CNR", "email": "referente@cnr.it"}],
+            "config_status": "esperto_assegnato",
+            "configured_at": "2026-07-10T10:00:00",
+            "required_data_complete": False,
+        },
+        headers={"X-CSRF-Token": csrf_token},
+    )
+
+    assert response.status_code == 200
+    assert saved["commission_id"] == "commission-1"
+    assert saved["kwargs"]["data_accesso_piattaforma"] == "2026-07-20"
 
 
 def test_put_session_config_rejects_invalid_email(monkeypatch):

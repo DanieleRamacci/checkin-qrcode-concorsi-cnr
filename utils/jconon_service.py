@@ -216,7 +216,7 @@ def fetch_referente_bandi(access_token: str, user_email: str) -> dict:
                     "offset": offset,
                     "filterType": "all",
                     "detailRdP": "true",
-                    "detailCommission": "true",
+                    "detailCommission": "false",
                 },
                 timeout=(5, 30),
             )
@@ -245,6 +245,22 @@ def fetch_referente_bandi(access_token: str, user_email: str) -> dict:
         for item in items
         if (serialized := _serialize_referente_bando(item, user_email)) is not None
     ]
+    for item in referenti:
+        if item.get("commissioners"):
+            continue
+        metadata = fetch_bando_metadata(
+            item["commission_id"],
+            item["title"],
+            access_token,
+        )
+        if metadata:
+            item["rdps"] = metadata.get("rdps") or item.get("rdps", [])
+            item["commissioners"] = metadata.get("commissioners") or []
+            item["rdp_names"] = [
+                _person_name(rdp)
+                for rdp in item["rdps"]
+                if _person_name(rdp)
+            ]
     _persist_referente_bandi(user_email, referenti)
     referenti = [_with_local_config_status(item) for item in referenti]
     return {

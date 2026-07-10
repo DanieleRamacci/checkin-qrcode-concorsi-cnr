@@ -56,6 +56,7 @@ def request_bando_configuration(
         durata_prova_minuti=config.get("durata_prova_minuti"),
         commissione_members=config.get("commissione_members"),
         configured_by=actor_email,
+        data_accesso_piattaforma=config.get("data_accesso_piattaforma"),
     )
 
     title = _get_bando_title(commission_id)

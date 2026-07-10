@@ -71,5 +71,6 @@ describe('SessioniComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Prova scritta');
+    expect(fixture.nativeElement.textContent).not.toContain('Modifica config bando');
   });
 });

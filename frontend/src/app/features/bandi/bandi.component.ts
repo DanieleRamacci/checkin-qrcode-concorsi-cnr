@@ -71,12 +71,14 @@ import { BandiService } from './bandi.service';
                     >
                       Visualizza Sessioni
                     </a>
-                    <a
-                      class="btn btn-sm btn-outline-primary ms-2"
-                      [routerLink]="['/bandi', bando.commission_id, 'config']"
-                    >
-                      Configura
-                    </a>
+                    @if (canConfigureBando()) {
+                      <a
+                        class="btn btn-sm btn-outline-primary ms-2"
+                        [routerLink]="['/bandi', bando.commission_id, 'config']"
+                      >
+                        Configura
+                      </a>
+                    }
                   </td>
                 </tr>
               } @empty {
@@ -131,6 +133,10 @@ export class BandiComponent {
     if (!q) return this.items();
     return this.items().filter((bando) => bando.title.toLowerCase().includes(q));
   });
+
+  canConfigureBando(): boolean {
+    return this.mode === 'referente' || this.auth.hasCapability('admin') || !!this.auth.user()?.dev_mode;
+  }
 
   constructor() {
     this.reload();

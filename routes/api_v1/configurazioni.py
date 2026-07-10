@@ -25,7 +25,23 @@ BANDO_FIELDS = {
     "email_segretario",
     "telefono_segretario",
     "durata_prova_minuti",
+    "data_accesso_piattaforma",
     "commissione_members",
+}
+BANDO_READONLY_FIELDS = {
+    "commission_id",
+    "commissione_nomi",
+    "config_status",
+    "configured_at",
+    "configured_by",
+    "expert_assigned",
+    "expert_options",
+    "fetched_at",
+    "rdp_members",
+    "rdp_nomi",
+    "rdp_options",
+    "required_data_complete",
+    "secretary_options",
 }
 SESSION_FIELDS = {
     "nome_informatico_sede",
@@ -45,15 +61,16 @@ def _serialize(value):
     return value
 
 
-def _payload(allowed_fields: set[str]):
+def _payload(allowed_fields: set[str], ignored_fields: set[str] | None = None):
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return None, {"body": "È richiesto un oggetto JSON."}
 
+    ignored_fields = ignored_fields or set()
     errors = {
         field: "Campo non riconosciuto."
         for field in data
-        if field not in allowed_fields
+        if field not in allowed_fields and field not in ignored_fields
     }
     cleaned = {}
     for field, value in data.items():
@@ -95,6 +112,27 @@ def _rdp_options(config: dict) -> list[dict]:
     return options
 
 
+def _secretary_options(config: dict) -> list[dict]:
+    options = []
+    seen = set()
+    for person in config.get("commissione_members") or []:
+        if not isinstance(person, dict):
+            continue
+        if (person.get("ruolo") or "").upper() != "SEGRETARIO":
+            continue
+        email = _normalize_email(person.get("email"))
+        if not email or email in seen:
+            continue
+        seen.add(email)
+        options.append(
+            {
+                "nome": person.get("nome") or person.get("name") or email,
+                "email": email,
+            }
+        )
+    return options
+
+
 def _referente_selection_error(config: dict, email: str) -> str | None:
     options = _rdp_options(config)
     if not options:
@@ -114,6 +152,7 @@ def bando_config_get(commission_id):
         commission_id=commission_id,
         expert_options=list_expert_emails(),
         rdp_options=_rdp_options(config),
+        secretary_options=_secretary_options(config),
         **_serialize(config),
     )
 
@@ -122,7 +161,7 @@ def bando_config_get(commission_id):
 @api_auth_required
 @commission_access_required(allow_referente=True)
 def bando_config_put(commission_id):
-    data, errors = _payload(BANDO_FIELDS)
+    data, errors = _payload(BANDO_FIELDS, BANDO_READONLY_FIELDS)
     if errors:
         return error_response(
             "validation_error",
@@ -152,6 +191,7 @@ def bando_config_put(commission_id):
         merged.get("durata_prova_minuti"),
         merged.get("commissione_members"),
         configured_by=session["user_email"],
+        data_accesso_piattaforma=merged.get("data_accesso_piattaforma"),
     )
     return jsonify(
         commission_id=commission_id,

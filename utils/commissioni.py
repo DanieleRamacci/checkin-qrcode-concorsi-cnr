@@ -73,6 +73,12 @@ def get_commissioni_sincronizzate_with_status(access_token, user_email, timeout_
                         cursor.execute("""
                             DELETE FROM commissions
                             WHERE commission_id = %s AND user_email = %s
+                              AND NOT EXISTS (
+                                  SELECT 1
+                                    FROM sessioni
+                                   WHERE sessioni.commission_id = commissions.commission_id
+                                     AND sessioni.user_email = commissions.user_email
+                              )
                         """, (cid, user_email))
                 else:
                     current_app.logger.warning("[comm] Sync remota non disponibile: nessuna modifica al DB locale")

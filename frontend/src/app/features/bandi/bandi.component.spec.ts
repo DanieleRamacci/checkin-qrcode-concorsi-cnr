@@ -34,7 +34,10 @@ describe('BandiComponent', () => {
         },
         {
           provide: AuthService,
-          useValue: { user: signal(null) },
+          useValue: {
+            user: signal(null),
+            hasCapability: () => false,
+          },
         },
       ],
     }).compileComponents();
@@ -45,5 +48,6 @@ describe('BandiComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Concorso CNR');
+    expect(fixture.nativeElement.textContent).not.toContain('Configura');
   });
 });

@@ -21,6 +21,7 @@ describe('BandoConfigComponent', () => {
               ? {
                   expert_options: ['expert@cnr.it'],
                   rdp_options: [{ nome: 'Rita Verdi', email: 'rita.verdi@cnr.it' }],
+                  secretary_options: [{ nome: 'Segretaria Uno', email: 'segretaria1@cnr.it' }],
                   email_segretario: 'secretary@cnr.it',
                 }
               : { title: 'Concorso prova' }),
@@ -38,5 +39,7 @@ describe('BandoConfigComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('expert@cnr.it');
     expect(fixture.nativeElement.textContent).toContain('Rita Verdi');
     expect(fixture.nativeElement.textContent).toContain('rita.verdi@cnr.it');
+    expect(fixture.nativeElement.textContent).toContain('Segretaria Uno');
+    expect(fixture.nativeElement.textContent).toContain('segretaria1@cnr.it');
   });
 });

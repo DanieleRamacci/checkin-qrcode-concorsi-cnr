@@ -686,6 +686,7 @@ def configura_bando(commission_id):
         email_segretario     = request.form.get("email_segretario", "").strip()
         telefono_segretario  = request.form.get("telefono_segretario", "").strip()
         durata_prova_minuti  = request.form.get("durata_prova_minuti", "").strip()
+        data_accesso_piattaforma = request.form.get("data_accesso_piattaforma", "").strip()
 
         # Componenti commissione: liste parallele nome[] + email[]
         nomi_comm   = request.form.getlist("commissione_nome[]")
@@ -705,6 +706,7 @@ def configura_bando(commission_id):
             durata_prova_minuti=durata_prova_minuti,
             commissione_members=commissione_members,
             configured_by=user_email,
+            data_accesso_piattaforma=data_accesso_piattaforma,
         )
         if email_referente or email_esperto_remoto:
             _avanza_sessioni_bando(commission_id, user_email)

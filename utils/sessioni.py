@@ -216,7 +216,8 @@ def get_bando_config(commission_id):
         with conn.cursor() as cursor:
             cursor.execute("""
                 SELECT email_referente, email_esperto_remoto, email_segretario,
-                       telefono_segretario, durata_prova_minuti, commissione_members,
+                       telefono_segretario, durata_prova_minuti,
+                       data_accesso_piattaforma, commissione_members,
                        rdp_members, rdp_nomi, commissione_nomi, config_status,
                        expert_assigned, required_data_complete, fetched_at,
                        configured_at, configured_by
@@ -232,16 +233,17 @@ def get_bando_config(commission_id):
         "email_segretario":      row[2],
         "telefono_segretario":   row[3],
         "durata_prova_minuti":   row[4],
-        "commissione_members":   _json.loads(row[5] or "[]"),
-        "rdp_members":           _json.loads(row[6] or "[]"),
-        "rdp_nomi":              _json.loads(row[7] or "[]"),
-        "commissione_nomi":      _json.loads(row[8] or "[]"),
-        "config_status":         row[9],
-        "expert_assigned":       bool(row[10]),
-        "required_data_complete": bool(row[11]),
-        "fetched_at":            row[12],
-        "configured_at":         row[13],
-        "configured_by":         row[14],
+        "data_accesso_piattaforma": row[5],
+        "commissione_members":   _json.loads(row[6] or "[]"),
+        "rdp_members":           _json.loads(row[7] or "[]"),
+        "rdp_nomi":              _json.loads(row[8] or "[]"),
+        "commissione_nomi":      _json.loads(row[9] or "[]"),
+        "config_status":         row[10],
+        "expert_assigned":       bool(row[11]),
+        "required_data_complete": bool(row[12]),
+        "fetched_at":            row[13],
+        "configured_at":         row[14],
+        "configured_by":         row[15],
     }
     computed = compute_bando_config_status(config)
     if not config["config_status"]:
@@ -252,7 +254,7 @@ def get_bando_config(commission_id):
 def save_bando_config(commission_id, email_referente, email_esperto_remoto,
                       email_segretario, telefono_segretario=None,
                       durata_prova_minuti=None, commissione_members=None,
-                      configured_by=None):
+                      configured_by=None, data_accesso_piattaforma=None):
     """Inserisce o aggiorna la configurazione del bando."""
     import json as _json
     from datetime import datetime as _dt
@@ -271,15 +273,16 @@ def save_bando_config(commission_id, email_referente, email_esperto_remoto,
                 INSERT INTO bando_config (
                     commission_id, email_referente, email_esperto_remoto,
                     email_segretario, telefono_segretario, durata_prova_minuti,
-                    commissione_members, config_status, expert_assigned,
+                    data_accesso_piattaforma, commissione_members, config_status, expert_assigned,
                     required_data_complete, configured_at, configured_by
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (commission_id) DO UPDATE SET
                     email_referente      = EXCLUDED.email_referente,
                     email_esperto_remoto = EXCLUDED.email_esperto_remoto,
                     email_segretario     = EXCLUDED.email_segretario,
                     telefono_segretario  = EXCLUDED.telefono_segretario,
                     durata_prova_minuti  = EXCLUDED.durata_prova_minuti,
+                    data_accesso_piattaforma = EXCLUDED.data_accesso_piattaforma,
                     commissione_members  = EXCLUDED.commissione_members,
                     config_status        = EXCLUDED.config_status,
                     expert_assigned      = EXCLUDED.expert_assigned,
@@ -293,6 +296,7 @@ def save_bando_config(commission_id, email_referente, email_esperto_remoto,
                 email_segretario or None,
                 telefono_segretario or None,
                 int(durata_prova_minuti) if durata_prova_minuti else None,
+                data_accesso_piattaforma or None,
                 _json.dumps(commissione_members or [], ensure_ascii=False),
                 status["config_status"],
                 status["expert_assigned"],
@@ -347,13 +351,18 @@ def update_bando_da_openapi(commission_id: str, rdps: list, commissioners: list)
     Aggiorna bando_config con i dati freschi dall'API /openapi/v1/call.
     - commissione_members e rdp_nomi vengono sempre sovrascritti (dati API).
     - email_referente viene impostata solo se attualmente vuota.
-    - email_segretario viene impostata solo se attualmente vuota e c'è
-      esattamente un commissioner con ruolo SEGRETARIO.
+    - email_segretario viene impostata solo se attualmente vuota e c'è almeno
+      un commissioner con ruolo SEGRETARIO; se ce ne sono più di uno usa il
+      primo restituito da Selezioni Online.
     """
     import json as _json
 
     commissione_members = [
-        {"nome": f"{c.get('firstName', '')} {c.get('lastName', '')}".strip(), "email": c.get("email", "")}
+        {
+            "nome": f"{c.get('firstName', '')} {c.get('lastName', '')}".strip(),
+            "email": c.get("email", ""),
+            "ruolo": c.get("ruolo", ""),
+        }
         for c in commissioners if c.get("email")
     ]
     rdp_members = [
@@ -384,7 +393,7 @@ def update_bando_da_openapi(commission_id: str, rdps: list, commissioners: list)
     first_rdp_email = rdp_members[0].get("email", "") if rdp_members else ""
 
     segretari = [c for c in commissioners if (c.get("ruolo") or "").upper() == "SEGRETARIO"]
-    segretario_email = segretari[0].get("email", "") if len(segretari) == 1 else ""
+    segretario_email = segretari[0].get("email", "") if segretari else ""
 
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
@@ -495,5 +504,8 @@ def get_merged_config(session_id, commission_id):
         cfg.update(bando)
     sessione = get_sessione_config(session_id)
     if sessione:
-        cfg.update({k: v for k, v in sessione.items() if v is not None})
+        session_values = {k: v for k, v in sessione.items() if v is not None}
+        if cfg.get("data_accesso_piattaforma"):
+            session_values.pop("data_accesso_piattaforma", None)
+        cfg.update(session_values)
     return cfg if cfg else None
