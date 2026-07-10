@@ -45,6 +45,7 @@ import { BandiService } from './bandi.service';
                   <th>#</th>
                   <th>Nome Concorso</th>
                   <th>RDP</th>
+                  <th>Stato</th>
                   <th>Azioni</th>
                 </tr>
               </thead>
@@ -61,6 +62,19 @@ import { BandiService } from './bandi.service';
                       }
                     </td>
                     <td>
+                      <span [class]="'badge ' + statusBadgeClass(bando.config_status)">
+                        {{ statusLabel(bando.config_status) }}
+                      </span>
+                      <div class="small text-muted mt-1">
+                        Esperto:
+                        <strong>{{ bando.expert_assigned ? 'assegnato' : 'non assegnato' }}</strong>
+                      </div>
+                      <div class="small text-muted">
+                        Dati:
+                        <strong>{{ bando.required_data_complete ? 'compilati' : 'da completare' }}</strong>
+                      </div>
+                    </td>
+                    <td>
                       <a
                         class="btn btn-sm btn-outline-primary"
                         [routerLink]="['/bandi', bando.commission_id, 'config']"
@@ -71,7 +85,7 @@ import { BandiService } from './bandi.service';
                   </tr>
                 } @empty {
                   <tr>
-                    <td colspan="4">Nessun bando corrisponde alla ricerca.</td>
+                    <td colspan="5">Nessun bando corrisponde alla ricerca.</td>
                   </tr>
                 }
               </tbody>
@@ -105,5 +119,27 @@ export class ReferenteBandiComponent {
         this.loading.set(false);
       },
     });
+  }
+
+  statusLabel(status?: string | null): string {
+    switch (status) {
+      case 'dati_compilati':
+        return 'Dati compilati';
+      case 'esperto_assegnato':
+        return 'Esperto assegnato';
+      default:
+        return 'Da configurare';
+    }
+  }
+
+  statusBadgeClass(status?: string | null): string {
+    switch (status) {
+      case 'dati_compilati':
+        return 'bg-success';
+      case 'esperto_assegnato':
+        return 'bg-primary';
+      default:
+        return 'bg-secondary';
+    }
   }
 }

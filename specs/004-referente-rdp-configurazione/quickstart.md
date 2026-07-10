@@ -1,5 +1,11 @@
 # Quickstart: validazione accesso referente/RDP configurazione bando
 
+> **Stato al 2026-07-08**: Scenario 2 e Scenario 6 sono eseguibili contro il
+> codice reale (tabella `bando_referenti` con revoca). Scenario 1, 3, 4, 5 e
+> 5b presuppongono stato/audit, eccezioni manuali o endpoint non ancora
+> costruiti — vanno adattati o trattati come backlog finché non si implementa
+> il resto di `tasks.md`.
+
 ## Prerequisites
 
 - Branch di lavoro della migrazione aggiornato.
@@ -109,6 +115,11 @@ Expected:
 
 ## Scenario 5b: verifica OIDC con utenza non admin
 
+Esito iniziale 2026-07-10: test manuale con utenza referente/RDP non admin
+confermato dall'utente. La scheda "Referenti" restituisce i bandi per cui
+l'utente risulta RDP in Selezioni Online. La verifica con segretario non admin
+resta utile per collaudo, ma non blocca il flusso primario RDP.
+
 1. Accedere come referente/RDP non admin.
 2. Dalla home aprire la scheda "Referenti".
 3. Verificare la chiamata a `/api/v1/referenti/bandi/sync`.
@@ -119,6 +130,10 @@ Expected:
 
 - con referente/RDP, Selezioni Online restituisce il bando di competenza e i
   dati `rdps`/`commissioners` necessari;
+- la lista mostra lo stato operativo del bando:
+  `da_configurare`, `esperto_assegnato` oppure `dati_compilati`;
+- la lista mostra separatamente se l'esperto informatico remoto è assegnato e
+  se i dati principali sono completi;
 - se l'utente non riceve `rdps`/`commissioners`, la evidenza viene documentata e
   attiva la valutazione della utenza di servizio fallback;
 - l'utente finale resta comunque tracciato come attore applicativo della

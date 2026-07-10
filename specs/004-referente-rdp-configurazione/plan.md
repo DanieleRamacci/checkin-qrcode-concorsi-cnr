@@ -50,6 +50,33 @@ validazione.
 revisione completa di tutti i ruoli applicativi, ne la migrazione finale in
 produzione dell'intera app.
 
+## Stato implementazione (2026-07-08)
+
+Costruito: tabella dedicata `bando_referenti`, sync con revoca (delete delle
+righe non più restituite da Selezioni Online per l'utente), flag
+`allow_referente` su `commission_access_required` applicato solo agli
+endpoint della pagina Configura Bando (`bando_detail`, `bando_sync_metadata`,
+`bando_config_get`, `bando_config_put`, `bando_config_request`). Nessuna
+pagina o endpoint duplicati: si riusa il flusso esistente. Test aggiornati in
+`tests/test_authorization.py` e `tests/test_jconon_referente_sync.py`. Gli RDP
+disponibili vengono ora salvati anche come `rdp_members`, esposti come
+`rdp_options` e usati dalla UI per scegliere il referente da menu a tendina.
+Implementato anche uno stato operativo minimo della configurazione:
+`config_status`, `expert_assigned`, `required_data_complete`, visibile nella
+pagina Referenti.
+
+Non ancora costruito: audit dedicato e stati formali di richiesta
+(`BandoConfigAssignment` con `requested`/`in_progress`/`completed`/
+`verification_required`, `BandoConfigAuditEvent`), eccezioni manuali con motivazione,
+capability `configure_assigned_bandi` su `/me` (oggi la card "Referenti" in
+home è visibile a chiunque sia autenticato), gestione completa di permessi
+extra/eccezioni manuali motivate per cambiare referente oltre gli RDP
+istituzionali, censimento formale delle credenziali
+(`ExternalIntegrationCredentialInventory`) e
+rimozione delle credenziali personali dal flusso legacy Alfresco/rest-proxy
+(`utils/jconon_referenti.py`, ancora usato da `routes/dashboard.py` e
+`routes/azioni.py`). Dettaglio task per task in `tasks.md`.
+
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*

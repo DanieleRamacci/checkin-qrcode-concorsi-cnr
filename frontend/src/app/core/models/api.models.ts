@@ -14,6 +14,9 @@ export interface BandoSummary {
   configured: boolean;
   referente_email?: string | null;
   esperto_remoto_email?: string | null;
+  config_status?: string | null;
+  expert_assigned?: boolean;
+  required_data_complete?: boolean;
   session_count: number;
   last_sync?: string | null;
   capabilities: string[];

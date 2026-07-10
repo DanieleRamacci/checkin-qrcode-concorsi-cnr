@@ -8,6 +8,7 @@ from routes.sessioni import parse_session_string  # riusa il parser già cretao
 from datetime import datetime
 from flask import current_app
 import time
+from utils.bando_config_status import compute_bando_config_status
 
 BASE_URL = os.environ.get('BASE_URL', 'https://cool-jconon.test.si.cnr.it')
 
@@ -216,26 +217,36 @@ def get_bando_config(commission_id):
             cursor.execute("""
                 SELECT email_referente, email_esperto_remoto, email_segretario,
                        telefono_segretario, durata_prova_minuti, commissione_members,
-                       rdp_nomi, commissione_nomi, fetched_at, configured_at, configured_by
+                       rdp_members, rdp_nomi, commissione_nomi, config_status,
+                       expert_assigned, required_data_complete, fetched_at,
+                       configured_at, configured_by
                 FROM bando_config
                 WHERE commission_id = %s
             """, (commission_id,))
             row = cursor.fetchone()
     if not row:
         return None
-    return {
+    config = {
         "email_referente":       row[0],
         "email_esperto_remoto":  row[1],
         "email_segretario":      row[2],
         "telefono_segretario":   row[3],
         "durata_prova_minuti":   row[4],
         "commissione_members":   _json.loads(row[5] or "[]"),
-        "rdp_nomi":              _json.loads(row[6] or "[]"),
-        "commissione_nomi":      _json.loads(row[7] or "[]"),
-        "fetched_at":            row[8],
-        "configured_at":         row[9],
-        "configured_by":         row[10],
+        "rdp_members":           _json.loads(row[6] or "[]"),
+        "rdp_nomi":              _json.loads(row[7] or "[]"),
+        "commissione_nomi":      _json.loads(row[8] or "[]"),
+        "config_status":         row[9],
+        "expert_assigned":       bool(row[10]),
+        "required_data_complete": bool(row[11]),
+        "fetched_at":            row[12],
+        "configured_at":         row[13],
+        "configured_by":         row[14],
     }
+    computed = compute_bando_config_status(config)
+    if not config["config_status"]:
+        config.update(computed)
+    return config
 
 
 def save_bando_config(commission_id, email_referente, email_esperto_remoto,
@@ -245,14 +256,24 @@ def save_bando_config(commission_id, email_referente, email_esperto_remoto,
     """Inserisce o aggiorna la configurazione del bando."""
     import json as _json
     from datetime import datetime as _dt
+    status = compute_bando_config_status(
+        {
+            "email_referente": email_referente,
+            "email_esperto_remoto": email_esperto_remoto,
+            "email_segretario": email_segretario,
+            "durata_prova_minuti": durata_prova_minuti,
+            "commissione_members": commissione_members,
+        }
+    )
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
             cursor.execute("""
                 INSERT INTO bando_config (
                     commission_id, email_referente, email_esperto_remoto,
                     email_segretario, telefono_segretario, durata_prova_minuti,
-                    commissione_members, configured_at, configured_by
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    commissione_members, config_status, expert_assigned,
+                    required_data_complete, configured_at, configured_by
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (commission_id) DO UPDATE SET
                     email_referente      = EXCLUDED.email_referente,
                     email_esperto_remoto = EXCLUDED.email_esperto_remoto,
@@ -260,6 +281,9 @@ def save_bando_config(commission_id, email_referente, email_esperto_remoto,
                     telefono_segretario  = EXCLUDED.telefono_segretario,
                     durata_prova_minuti  = EXCLUDED.durata_prova_minuti,
                     commissione_members  = EXCLUDED.commissione_members,
+                    config_status        = EXCLUDED.config_status,
+                    expert_assigned      = EXCLUDED.expert_assigned,
+                    required_data_complete = EXCLUDED.required_data_complete,
                     configured_at        = EXCLUDED.configured_at,
                     configured_by        = EXCLUDED.configured_by
             """, (
@@ -270,10 +294,37 @@ def save_bando_config(commission_id, email_referente, email_esperto_remoto,
                 telefono_segretario or None,
                 int(durata_prova_minuti) if durata_prova_minuti else None,
                 _json.dumps(commissione_members or [], ensure_ascii=False),
+                status["config_status"],
+                status["expert_assigned"],
+                status["required_data_complete"],
                 _dt.now(),
                 configured_by or None,
             ))
         conn.commit()
+
+
+def refresh_bando_config_status(commission_id: str) -> dict:
+    config = get_bando_config(commission_id) or {}
+    status = compute_bando_config_status(config)
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE bando_config
+                   SET config_status = %s,
+                       expert_assigned = %s,
+                       required_data_complete = %s
+                 WHERE commission_id = %s
+                """,
+                (
+                    status["config_status"],
+                    status["expert_assigned"],
+                    status["required_data_complete"],
+                    commission_id,
+                ),
+            )
+        conn.commit()
+    return status
 
 
 def update_commissione_members(commission_id: str, members: list):
@@ -288,6 +339,7 @@ def update_commissione_members(commission_id: str, members: list):
                     commissione_members = EXCLUDED.commissione_members
             """, (commission_id, _json.dumps(members, ensure_ascii=False)))
         conn.commit()
+    refresh_bando_config_status(commission_id)
 
 
 def update_bando_da_openapi(commission_id: str, rdps: list, commissioners: list):
@@ -304,11 +356,32 @@ def update_bando_da_openapi(commission_id: str, rdps: list, commissioners: list)
         {"nome": f"{c.get('firstName', '')} {c.get('lastName', '')}".strip(), "email": c.get("email", "")}
         for c in commissioners if c.get("email")
     ]
+    rdp_members = [
+        {
+            "nome": (
+                r.get("name")
+                or r.get("nome")
+                or f"{r.get('firstName', '')} {r.get('lastName', '')}".strip()
+            ),
+            "email": (
+                r.get("email")
+                or r.get("emailcertificatoperpuk")
+                or r.get("emailAddress")
+                or ""
+            ),
+        }
+        for r in rdps
+        if (
+            r.get("email")
+            or r.get("emailcertificatoperpuk")
+            or r.get("emailAddress")
+        )
+    ]
     rdp_nomi = [
         f"{r.get('firstName', '')} {r.get('lastName', '')}".strip()
         for r in rdps if r.get("firstName") or r.get("lastName")
     ]
-    first_rdp_email = rdps[0].get("email", "") if rdps else ""
+    first_rdp_email = rdp_members[0].get("email", "") if rdp_members else ""
 
     segretari = [c for c in commissioners if (c.get("ruolo") or "").upper() == "SEGRETARIO"]
     segretario_email = segretari[0].get("email", "") if len(segretari) == 1 else ""
@@ -316,11 +389,13 @@ def update_bando_da_openapi(commission_id: str, rdps: list, commissioners: list)
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
             cursor.execute("""
-                INSERT INTO bando_config (commission_id, commissione_members, rdp_nomi,
+                INSERT INTO bando_config (commission_id, commissione_members,
+                                          rdp_members, rdp_nomi,
                                           email_referente, email_segretario)
-                VALUES (%s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 ON CONFLICT (commission_id) DO UPDATE SET
                     commissione_members = EXCLUDED.commissione_members,
+                    rdp_members         = EXCLUDED.rdp_members,
                     rdp_nomi            = EXCLUDED.rdp_nomi,
                     email_referente     = CASE
                         WHEN bando_config.email_referente IS NULL OR bando_config.email_referente = ''
@@ -332,11 +407,13 @@ def update_bando_da_openapi(commission_id: str, rdps: list, commissioners: list)
             """, (
                 commission_id,
                 _json.dumps(commissione_members, ensure_ascii=False),
+                _json.dumps(rdp_members, ensure_ascii=False),
                 _json.dumps(rdp_nomi, ensure_ascii=False),
                 first_rdp_email or None,
                 segretario_email or None,
             ))
         conn.commit()
+    refresh_bando_config_status(commission_id)
 
 
 def get_sessione_config(session_id):

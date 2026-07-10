@@ -36,6 +36,14 @@ struttura dedicata rende testabile l'autorizzazione e mantiene storico minimo.
 - Salvare solo nomi RDP in JSON: insufficiente per autorizzare per email.
 - Chiamare sempre Selezioni Online a ogni accesso: fragile in caso di downtime e
   meno tracciabile.
+- Riusare la tabella `commissions` (approccio inizialmente in codice, poi
+  scartato il 2026-07-08): la sync RDP inseriva una riga fittizia in
+  `commissions` solo per far passare il controllo di autorizzazione
+  esistente. Scartato perché non distingueva concettualmente RDP da
+  segretario, e soprattutto perché non prevedeva revoca: un vecchio RDP
+  restava autorizzato indefinitamente anche dopo un cambio rilevato da
+  Selezioni Online. Sostituito dalla tabella dedicata `bando_referenti` con
+  sync che fa anche `DELETE` delle righe non più restituite per l'utente.
 
 ## Decisione: sincronizzazione da Selezioni Online/JConon con fallback manuale
 

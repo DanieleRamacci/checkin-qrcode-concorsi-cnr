@@ -59,6 +59,20 @@ scenario reale. Gap reali trovati e risolti finora:
 4. **Pagina Sessioni silenziosa se i componenti commissione non sono
    sincronizzati**: aggiunto un avviso esplicito (non presente nel legacy,
    richiesta esplicita durante la validazione).
+5. **Autorizzazione referente/RDP basata su un trucco senza revoca**: la
+   sincronizzazione dei bandi per cui l'utente e RDP scriveva una riga
+   fittizia nella tabella `commissions` (quella dei segretari) solo per far
+   passare il controllo di accesso a "Configura bando" — senza mai
+   cancellarla, un vecchio RDP restava autorizzato anche dopo un cambio
+   rilevato da Selezioni Online. Sostituito con una tabella dedicata
+   `bando_referenti`, sincronizzata con upsert **e cancellazione** delle
+   righe non piu' restituite per l'utente (stessa logica di revoca gia'
+   usata per i segretari). Stesso endpoint/pagina di configurazione riusati,
+   nessuna duplicazione. Dettaglio in
+   [`specs/004-referente-rdp-configurazione/`](../../specs/004-referente-rdp-configurazione/),
+   gap ancora aperti (stato/audit, blocco campo referente, credenziali
+   personali legacy) elencati in
+   [`tasks.md`](../../specs/004-referente-rdp-configurazione/tasks.md).
 
 ## Cosa resta da fare
 

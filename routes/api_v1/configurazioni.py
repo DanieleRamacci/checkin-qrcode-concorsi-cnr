@@ -72,6 +72,39 @@ def _payload(allowed_fields: set[str]):
     return cleaned, errors
 
 
+def _normalize_email(value: str | None) -> str:
+    return (value or "").strip().lower()
+
+
+def _rdp_options(config: dict) -> list[dict]:
+    options = []
+    seen = set()
+    for person in config.get("rdp_members") or []:
+        if not isinstance(person, dict):
+            continue
+        email = _normalize_email(person.get("email"))
+        if not email or email in seen:
+            continue
+        seen.add(email)
+        options.append(
+            {
+                "nome": person.get("nome") or person.get("name") or email,
+                "email": email,
+            }
+        )
+    return options
+
+
+def _referente_selection_error(config: dict, email: str) -> str | None:
+    options = _rdp_options(config)
+    if not options:
+        return None
+    allowed = {_normalize_email(option["email"]) for option in options}
+    if _normalize_email(email) not in allowed:
+        return "Selezionare uno degli RDP disponibili per il bando."
+    return None
+
+
 @configurazioni_api_bp.get("/bandi/<commission_id>/config")
 @api_auth_required
 @commission_access_required(allow_referente=True)
@@ -80,6 +113,7 @@ def bando_config_get(commission_id):
     return jsonify(
         commission_id=commission_id,
         expert_options=list_expert_emails(),
+        rdp_options=_rdp_options(config),
         **_serialize(config),
     )
 
@@ -97,6 +131,17 @@ def bando_config_put(commission_id):
             details=errors,
         )
     current = get_bando_config(commission_id) or {}
+    if "email_referente" in data:
+        selection_error = _referente_selection_error(current, data.get("email_referente"))
+        current_email = _normalize_email(current.get("email_referente"))
+        new_email = _normalize_email(data.get("email_referente"))
+        if selection_error and new_email != current_email:
+            return error_response(
+                "validation_error",
+                "Dati di configurazione non validi.",
+                422,
+                details={"email_referente": selection_error},
+            )
     merged = {**current, **data}
     save_bando_config(
         commission_id,
@@ -137,6 +182,15 @@ def bando_config_request(commission_id):
             "Dati della richiesta non validi.",
             422,
             details={"email_referente": "Indirizzo email non valido."},
+        )
+    config = get_bando_config(commission_id) or {}
+    selection_error = _referente_selection_error(config, referente_email)
+    if selection_error:
+        return error_response(
+            "validation_error",
+            "Dati della richiesta non validi.",
+            422,
+            details={"email_referente": selection_error},
         )
 
     config_url = (

@@ -107,8 +107,12 @@ try:
         telefono_segretario TEXT,
         durata_prova_minuti INTEGER,
         commissione_members TEXT DEFAULT '[]',
+        rdp_members TEXT DEFAULT '[]',
         rdp_nomi TEXT DEFAULT '[]',
         commissione_nomi TEXT DEFAULT '[]',
+        config_status TEXT DEFAULT 'da_configurare',
+        expert_assigned BOOLEAN NOT NULL DEFAULT FALSE,
+        required_data_complete BOOLEAN NOT NULL DEFAULT FALSE,
         fetched_at TIMESTAMP,
         configured_at TIMESTAMP,
         configured_by TEXT
@@ -412,9 +416,21 @@ try:
         ("telefono_segretario", "TEXT"),
         ("durata_prova_minuti", "INTEGER"),
         ("commissione_members", "TEXT"),
+        ("rdp_members", "TEXT"),
+        ("rdp_nomi", "TEXT"),
+        ("commissione_nomi", "TEXT"),
+        ("config_status", "TEXT"),
+        ("expert_assigned", "BOOLEAN NOT NULL DEFAULT FALSE"),
+        ("required_data_complete", "BOOLEAN NOT NULL DEFAULT FALSE"),
     ]:
         cursor.execute(f"ALTER TABLE bando_config ADD COLUMN IF NOT EXISTS {col} {tipo};")
     cursor.execute("UPDATE bando_config SET commissione_members = '[]' WHERE commissione_members IS NULL;")
+    cursor.execute("UPDATE bando_config SET rdp_members = '[]' WHERE rdp_members IS NULL;")
+    cursor.execute("UPDATE bando_config SET rdp_nomi = '[]' WHERE rdp_nomi IS NULL;")
+    cursor.execute("UPDATE bando_config SET commissione_nomi = '[]' WHERE commissione_nomi IS NULL;")
+    cursor.execute("UPDATE bando_config SET config_status = 'da_configurare' WHERE config_status IS NULL;")
+    cursor.execute("UPDATE bando_config SET expert_assigned = FALSE WHERE expert_assigned IS NULL;")
+    cursor.execute("UPDATE bando_config SET required_data_complete = FALSE WHERE required_data_complete IS NULL;")
 
     # sessione_config: migrazioni additive
     cursor.execute("ALTER TABLE sessione_config ADD COLUMN IF NOT EXISTS data_accesso_piattaforma TEXT;")

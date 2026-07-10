@@ -1,5 +1,12 @@
 # Contract: API accesso referente/RDP configurazione bando
 
+> **Stato al 2026-07-08**: la sezione "Referente/RDP Area" descrive gli
+> endpoint realmente implementati (con lo shape di risposta reale, non quello
+> aspirazionale). Le sezioni "Auth Context" (capability `configure_assigned_bandi`),
+> "Informatico/Admin Assignment Management" e "Integration Credential
+> Inventory" restano design target: nessuno di questi endpoint esiste oggi nel
+> codice. Vedi `tasks.md` per cosa manca.
+
 Base path: `/api/v1`
 
 All mutating requests follow the existing CSRF rule: authenticated cookie
@@ -20,11 +27,16 @@ Errors follow the existing JSON shape:
 
 ## Auth Context
 
+**Non implementato.** `GET /me` oggi non include `configure_assigned_bandi` né
+`assigned_bandi_count`; la card "Referenti" in home è visibile a chiunque sia
+autenticato, indipendentemente dal fatto che abbia bandi assegnati (vedi
+`frontend/src/app/features/home/home.component.ts`).
+
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/me` | Include `configure_assigned_bandi` and `assigned_bandi_count` when applicable |
 
-Expected extension:
+Expected extension (design target, non costruito):
 
 ```json
 {
@@ -45,7 +57,8 @@ Expected extension:
 
 ### POST `/referenti/bandi/sync`
 
-Response:
+Response (shape reale, `routes/api_v1/bandi.py::referente_bandi_sync` +
+`utils/jconon_service.py::_serialize_referente_bando`):
 
 ```json
 {
@@ -53,90 +66,108 @@ Response:
     {
       "commission_id": "string",
       "title": "string",
-      "assignment_status": "requested",
-      "assignee_email": "referente@cnr.it",
-      "assignee_role": "rdp",
-      "requested_at": "2026-07-08T10:00:00Z",
-      "completed_at": null,
-      "last_updated_at": "2026-07-08T10:00:00Z",
-      "capabilities": ["view", "configure"]
+      "configured": false,
+      "referente_email": "referente@cnr.it",
+      "esperto_remoto_email": null,
+      "config_status": "da_configurare",
+      "expert_assigned": false,
+      "required_data_complete": false,
+      "session_count": 0,
+      "last_sync": null,
+      "capabilities": ["configure", "view"],
+      "rdps": [],
+      "commissioners": [],
+      "rdp_names": ["Rita Verdi"]
     }
-  ]
+  ],
+  "sync_error": null,
+  "sync_source": "remote"
 }
 ```
+
+Non ci sono ancora `assignment_status`/`assignee_role`/`requested_at`: quei
+campi restano design target (richiedono audit richiesta non ancora costruito).
+Lo stato operativo minimo e invece presente tramite `config_status`,
+`expert_assigned` e `required_data_complete`.
 
 Authorization:
 
 - Requires authenticated user.
 - Calls Selezioni Online/JConon with the current user's OIDC token.
 - Returns only bandi where current normalized email appears in `rdps`.
-- Persists returned bandi locally so existing Configura Bando authorization can
-  be reused.
-- Admin/commission-owner paths should continue using existing bando endpoints.
+- Persists returned bandi in `bando_referenti` (upsert + delete delle righe
+  non più restituite per l'utente = revoca), non più in `commissions`.
+- Admin/commission-owner paths continue using existing bando endpoints.
 
 ### GET `/bandi/{commission_id}/config`
 
-Response includes only data needed by the assigned referente/RDP:
+Response reale (`routes/api_v1/configurazioni.py::bando_config_get`): tutti i
+campi di `bando_config` più `expert_options`, senza filtro per ruolo — non
+esistono ancora `assignment_status`, `editable_fields`, `locked_fields` né
+`audit_summary` (design target, non costruiti):
 
 ```json
 {
   "commission_id": "string",
-  "title": "string",
-  "assignment_status": "in_progress",
   "email_referente": "referente@cnr.it",
   "email_esperto_remoto": "esperto@cnr.it",
   "email_segretario": "segretario@cnr.it",
   "telefono_segretario": "string",
   "durata_prova_minuti": 60,
+  "config_status": "dati_compilati",
+  "expert_assigned": true,
+  "required_data_complete": true,
   "commissione_members": [],
-  "rdp_members": [],
-  "editable_fields": [
-    "email_esperto_remoto",
-    "email_segretario",
-    "telefono_segretario",
-    "durata_prova_minuti"
+  "rdp_members": [
+    {"nome": "Rita Verdi", "email": "rita.verdi@cnr.it"}
   ],
-  "locked_fields": [
-    "referente_assignments"
+  "rdp_nomi": [],
+  "commissione_nomi": [],
+  "rdp_options": [
+    {"nome": "Rita Verdi", "email": "rita.verdi@cnr.it"}
   ],
-  "audit_summary": {
-    "requested_at": "2026-07-08T10:00:00Z",
-    "requested_by": "informatico@cnr.it",
-    "completed_at": null
-  }
+  "expert_options": ["esperto@cnr.it"]
 }
 ```
 
 Errors:
 
 - `401 authentication_required`
-- `403 bando_assignment_required`
-- `403 rdp_assignment_stale`
+- `403 forbidden` (utente non trovato né in `commissions` né, se
+  `allow_referente`, in `bando_referenti`)
 - `404 bando_not_found`
+
+Non ancora implementati: `403 bando_assignment_required` /
+`403 rdp_assignment_stale` come codici distinti (oggi entrambi i casi
+rispondono `403 forbidden`, senza distinguere "mai autorizzato" da "RDP
+revocato").
 
 ### PUT `/bandi/{commission_id}/config`
 
-Request:
+Request: qualunque sottoinsieme di `email_referente`, `email_esperto_remoto`,
+`email_segretario`, `telefono_segretario`, `durata_prova_minuti`,
+`commissione_members` (vedi `BANDO_FIELDS` in
+`routes/api_v1/configurazioni.py`).
 
-```json
-{
-  "email_esperto_remoto": "esperto@cnr.it",
-  "email_segretario": "segretario@cnr.it",
-  "telefono_segretario": "string",
-  "durata_prova_minuti": 60
-}
-```
+Behavior reale:
 
-Behavior:
+- Chi passa `commission_access_required(allow_referente=True)` (segretario
+  proprietario o RDP tramite `bando_referenti`) può modificare i campi della
+  configurazione.
+- Se `bando_config.rdp_members` contiene RDP con email, `email_referente` deve
+  essere una delle email RDP disponibili; email arbitrarie vengono rifiutate
+  con `422 validation_error`. Se la fonte istituzionale non ha ancora fornito
+  email RDP, resta il fallback manuale esistente.
+- **Gap residuo FR-010**: non esiste ancora una gestione completa dei permessi
+  extra/eccezioni manuali con motivazione; la chiusura attuale impedisce la
+  scelta arbitraria quando il dato istituzionale è disponibile.
+- Ogni salvataggio ricalcola lo stato operativo minimo:
+  `da_configurare`, `esperto_assegnato` o `dati_compilati`.
+- Non esistono ancora audit event né stati formali di richiesta
+  (`requested`/`in_progress`/`completed`/`verification_required`): il
+  salvataggio aggiorna `bando_config.configured_at`/`configured_by`.
 
-- Ignores or rejects fields outside `editable_fields`.
-- Always rejects attempts to change referente/RDP assignments from this area.
-- Rejects modifications when the current user matches an assignment that is no
-  longer valid because institutional data changed.
-- Sets assignment status to `in_progress` if it was `requested`.
-- Writes audit event `config_saved`.
-
-## Informatico/Admin Assignment Management
+## Informatico/Admin Assignment Management (non implementato)
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -158,7 +189,7 @@ Authorization:
   completed bando configuration, but old RDP assignments must not authorize new
   modifications.
 
-## Integration Credential Inventory
+## Integration Credential Inventory (non implementato)
 
 | Method | Path | Purpose |
 |---|---|---|

@@ -18,7 +18,11 @@ describe('BandoConfigComponent', () => {
           provide: ApiClient,
           useValue: {
             get: (path: string) => of(path.endsWith('/config')
-              ? { expert_options: ['expert@cnr.it'], email_segretario: 'secretary@cnr.it' }
+              ? {
+                  expert_options: ['expert@cnr.it'],
+                  rdp_options: [{ nome: 'Rita Verdi', email: 'rita.verdi@cnr.it' }],
+                  email_segretario: 'secretary@cnr.it',
+                }
               : { title: 'Concorso prova' }),
             put: () => of({}),
             post: () => of({}),
@@ -32,5 +36,7 @@ describe('BandoConfigComponent', () => {
 
     expect(fixture.nativeElement.textContent).toContain('Concorso prova');
     expect(fixture.nativeElement.textContent).toContain('expert@cnr.it');
+    expect(fixture.nativeElement.textContent).toContain('Rita Verdi');
+    expect(fixture.nativeElement.textContent).toContain('rita.verdi@cnr.it');
   });
 });

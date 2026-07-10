@@ -1,5 +1,37 @@
 # Data Model: Accesso referente/RDP alla configurazione bando
 
+## Stato implementazione (aggiornato 2026-07-08)
+
+Implementato con uno scope ridotto rispetto al design completo descritto sotto:
+
+- **`bando_referenti`** (tabella reale, vedi `init_db.py`): relazione esplicita
+  `commission_id` + `user_email` normalizzata, con `nome` e `synced_at`.
+  Sostituisce il riuso di `commissions` come proxy di autorizzazione.
+  Sincronizzata da `utils/jconon_service.py::_persist_referente_bandi`, che fa
+  upsert dei bandi correnti e **cancella** (revoca) le righe non più
+  restituite da Selezioni Online per quell'utente — copre FR-002, FR-003
+  (parzialmente: niente `source`/`status`), FR-019, FR-020.
+- **Autorizzazione**: `utils/authorization.py::can_access_commission` accetta
+  `allow_referente: bool`; quando attivo controlla anche `bando_referenti`.
+  Il flag è acceso solo su `GET/POST /bandi/{id}` (detail, sync-meta) e
+  `GET/PUT/POST /bandi/{id}/config` (get, put, request-config) — non su
+  sessioni/candidati/dispositivi, che restano riservati a segretario/
+  commissione. Nessun endpoint o pagina duplicati: si riusano quelli
+  esistenti.
+- **`bando_config` stato operativo minimo**: campi reali `config_status`,
+  `expert_assigned`, `required_data_complete`. Lo stato è derivato dai campi
+  compilati: `da_configurare`, `esperto_assegnato`, `dati_compilati`. Serve a
+  mostrare nella pagina Referenti se l'esperto informatico remoto è assegnato
+  e se i dati principali sono completi.
+
+**Non ancora implementato** (resta il design target nelle sezioni sotto):
+`BandoConfigAssignment` come entità con stato (`suggested`/`requested`/…),
+`BandoConfigAuditEvent`, eccezioni manuali con motivazione, capability
+`configure_assigned_bandi` su `/me`, permessi extra/eccezioni manuali motivate
+per cambiare referente oltre gli RDP istituzionali,
+`ExternalIntegrationCredentialInventory`. Vedi `tasks.md` per il dettaglio di
+cosa resta da fare per ciascuna user story.
+
 ## Existing Domain Entities
 
 - `commissions`: fonte locale dei bandi sincronizzati.
@@ -10,6 +42,13 @@
 ## New / Updated Entities
 
 ### BandoConfigAssignment
+
+> **Design target, non ancora costruito così com'è.** La versione implementata
+> oggi è `bando_referenti` (vedi sezione "Stato implementazione" sopra): solo
+> `commission_id`, `user_email`, `nome`, `synced_at`. I campi sotto (`status`,
+> `source`, `requested_by/at`, `completed_by/at`, `verified_by/at`,
+> `exception_reason`) restano lavoro futuro se si vuole lo stato/audit
+> completo descritto nella spec.
 
 Relazione interna tra bando e referente/RDP autorizzato tramite il nuovo flusso
 dedicato.
@@ -126,12 +165,12 @@ Add:
 
 - `commission_id`
 - `title`
-- `assignment_status`
-- `assignee_email`
-- `assignee_role`
-- `requested_at`
-- `completed_at`
-- `last_updated_at`
+- `config_status`: `da_configurare`, `esperto_assegnato`, `dati_compilati`
+- `expert_assigned`
+- `required_data_complete`
+- `referente_email`
+- `esperto_remoto_email`
+- `last_sync`
 - `capabilities`
 
 ### ReferenteBandoConfig

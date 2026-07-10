@@ -38,8 +38,18 @@ import { BandiService } from '../bandi/bandi.service';
         <div class="card-body">
           <label class="form-label small mb-1" for="email_referente">Email referente</label>
           <div class="input-group input-group-sm">
-            <input type="email" class="form-control" id="email_referente" name="email_referente"
-                   [(ngModel)]="model['email_referente']" placeholder="es. nome.cognome@cnr.it" />
+            @if (rdpOptions().length) {
+              <select class="form-select" id="email_referente" name="email_referente"
+                      [(ngModel)]="model['email_referente']">
+                <option value="">Seleziona referente</option>
+                @for (rdp of rdpOptions(); track rdp.email) {
+                  <option [value]="rdp.email">{{ rdp.nome || rdp.email }} — {{ rdp.email }}</option>
+                }
+              </select>
+            } @else {
+              <input type="email" class="form-control" id="email_referente" name="email_referente"
+                     [(ngModel)]="model['email_referente']" placeholder="es. nome.cognome@cnr.it" />
+            }
             <button type="button" class="btn btn-outline-primary" [disabled]="busy()" (click)="requestConfiguration()">
               Salva &amp; invia richiesta
             </button>
@@ -136,6 +146,7 @@ export class BandoConfigComponent {
   readonly syncWarning = signal('');
   readonly title = signal('');
   readonly expertOptions = signal<string[]>([]);
+  readonly rdpOptions = signal<Array<{ nome: string; email: string }>>([]);
   model: Record<string, any> = {};
   commissionMembers: Array<{ nome: string; email: string }> = [];
 
@@ -149,6 +160,7 @@ export class BandoConfigComponent {
     this.api.get<Record<string, any>>(`/bandi/${this.id}/config`).subscribe((data) => {
       this.model = { ...data };
       this.expertOptions.set(data['expert_options'] ?? []);
+      this.rdpOptions.set(data['rdp_options'] ?? []);
       this.commissionMembers = [...(data['commissione_members'] ?? [])];
     });
   }

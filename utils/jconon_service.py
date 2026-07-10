@@ -5,7 +5,7 @@ import requests
 from flask import current_app
 
 from db import get_db_connection
-from utils.sessioni import update_bando_da_openapi
+from utils.sessioni import get_bando_config, update_bando_da_openapi
 
 
 def _normalize_email(value: str | None) -> str:
@@ -27,6 +27,12 @@ def _person_name(person: dict) -> str:
         or f"{person.get('firstName', '')} {person.get('lastName', '')}".strip()
         or _person_email(person)
     )
+
+
+def _json_value(value):
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return value
 
 
 def _item_id(item: dict) -> str:
@@ -71,10 +77,31 @@ def _serialize_referente_bando(item: dict, user_email: str) -> dict | None:
         "esperto_remoto_email": None,
         "session_count": 0,
         "last_sync": None,
+        "config_status": "da_configurare",
+        "expert_assigned": False,
+        "required_data_complete": False,
         "capabilities": ["configure", "view"],
         "rdps": rdps,
         "commissioners": commissioners,
         "rdp_names": [_person_name(rdp) for rdp in rdps if _person_name(rdp)],
+    }
+
+
+def _with_local_config_status(item: dict) -> dict:
+    config = get_bando_config(item["commission_id"]) or {}
+    return {
+        **item,
+        "configured": bool(config),
+        "referente_email": config.get("email_referente") or item.get("referente_email"),
+        "esperto_remoto_email": config.get("email_esperto_remoto"),
+        "config_status": config.get("config_status") or "da_configurare",
+        "expert_assigned": bool(config.get("expert_assigned")),
+        "required_data_complete": bool(config.get("required_data_complete")),
+        "last_sync": _json_value(
+            config.get("configured_at")
+            or config.get("fetched_at")
+            or item.get("last_sync")
+        ),
     }
 
 
@@ -219,6 +246,7 @@ def fetch_referente_bandi(access_token: str, user_email: str) -> dict:
         if (serialized := _serialize_referente_bando(item, user_email)) is not None
     ]
     _persist_referente_bandi(user_email, referenti)
+    referenti = [_with_local_config_status(item) for item in referenti]
     return {
         "success": True,
         "items": referenti,

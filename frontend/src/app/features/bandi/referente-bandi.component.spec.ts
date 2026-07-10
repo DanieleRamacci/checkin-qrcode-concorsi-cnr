@@ -20,6 +20,9 @@ describe('ReferenteBandiComponent', () => {
                     commission_id: 'rdp-1',
                     title: 'Bando RDP',
                     configured: false,
+                    config_status: 'esperto_assegnato',
+                    expert_assigned: true,
+                    required_data_complete: false,
                     session_count: 0,
                     capabilities: ['configure', 'view'],
                     rdp_names: ['Rita Verdi'],
@@ -40,6 +43,8 @@ describe('ReferenteBandiComponent', () => {
 
     expect(fixture.nativeElement.textContent).toContain('Bando RDP');
     expect(fixture.nativeElement.textContent).toContain('Rita Verdi');
+    expect(fixture.nativeElement.textContent).toContain('Esperto assegnato');
+    expect(fixture.nativeElement.textContent).toContain('da completare');
     expect(fixture.nativeElement.textContent).toContain('Configura bando');
   });
 });

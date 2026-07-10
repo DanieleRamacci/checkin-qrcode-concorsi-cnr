@@ -39,6 +39,9 @@ def list_bandi(user_email: str, *, include_all: bool = False) -> list[dict]:
                        BOOL_OR(b.commission_id IS NOT NULL) AS configured,
                        MAX(b.email_referente) AS referente_email,
                        MAX(b.email_esperto_remoto) AS esperto_remoto_email,
+                       COALESCE(MAX(b.config_status), 'da_configurare') AS config_status,
+                       BOOL_OR(COALESCE(b.expert_assigned, FALSE)) AS expert_assigned,
+                       BOOL_OR(COALESCE(b.required_data_complete, FALSE)) AS required_data_complete,
                        COUNT(DISTINCT s.session_id) AS session_count,
                        MAX(COALESCE(s.data_sync, c.data_sync)) AS last_sync
                   FROM commissions AS c
@@ -60,6 +63,9 @@ def list_bandi(user_email: str, *, include_all: bool = False) -> list[dict]:
             **_serialize(row),
             "session_count": int(row["session_count"] or 0),
             "configured": bool(row["configured"]),
+            "config_status": row.get("config_status") or "da_configurare",
+            "expert_assigned": bool(row.get("expert_assigned")),
+            "required_data_complete": bool(row.get("required_data_complete")),
             "capabilities": ["configure", "view"],
         }
         for row in rows
@@ -76,6 +82,9 @@ def get_bando(commission_id: str) -> dict | None:
                        BOOL_OR(b.commission_id IS NOT NULL) AS configured,
                        MAX(b.email_referente) AS referente_email,
                        MAX(b.email_esperto_remoto) AS esperto_remoto_email,
+                       COALESCE(MAX(b.config_status), 'da_configurare') AS config_status,
+                       BOOL_OR(COALESCE(b.expert_assigned, FALSE)) AS expert_assigned,
+                       BOOL_OR(COALESCE(b.required_data_complete, FALSE)) AS required_data_complete,
                        COUNT(DISTINCT s.session_id) AS session_count,
                        MAX(COALESCE(s.data_sync, c.data_sync)) AS last_sync
                   FROM commissions AS c
@@ -102,6 +111,9 @@ def get_bando(commission_id: str) -> dict | None:
                            BOOL_OR(b.commission_id IS NOT NULL) AS configured,
                            MAX(b.email_referente) AS referente_email,
                            MAX(b.email_esperto_remoto) AS esperto_remoto_email,
+                           COALESCE(MAX(b.config_status), 'da_configurare') AS config_status,
+                           BOOL_OR(COALESCE(b.expert_assigned, FALSE)) AS expert_assigned,
+                           BOOL_OR(COALESCE(b.required_data_complete, FALSE)) AS required_data_complete,
                            0 AS session_count,
                            MAX(COALESCE(b.configured_at, r.synced_at)) AS last_sync
                       FROM bando_referenti AS r
@@ -119,6 +131,9 @@ def get_bando(commission_id: str) -> dict | None:
         **_serialize(row),
         "session_count": int(row["session_count"] or 0),
         "configured": bool(row["configured"]),
+        "config_status": row.get("config_status") or "da_configurare",
+        "expert_assigned": bool(row.get("expert_assigned")),
+        "required_data_complete": bool(row.get("required_data_complete")),
         "capabilities": ["configure", "view"],
     }
 
@@ -194,7 +209,7 @@ def bando_detail(commission_id):
     if not bando:
         return error_response("bando_not_found", "Bando non trovato.", 404)
     config = get_bando_config(commission_id) or {}
-    bando["rdps"] = [
+    bando["rdps"] = config.get("rdp_members") or [
         {"name": name}
         for name in config.get("rdp_nomi", [])
         if name
