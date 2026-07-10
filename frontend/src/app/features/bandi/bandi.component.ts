@@ -78,6 +78,14 @@ import { BandiService } from './bandi.service';
                       >
                         Configura
                       </a>
+                    } @else {
+                      <a
+                        class="btn btn-sm btn-outline-secondary ms-2"
+                        [routerLink]="['/bandi', bando.commission_id, 'detail']"
+                        [queryParams]="{ mode: mode }"
+                      >
+                        Dettagli bando
+                      </a>
                     }
                   </td>
                 </tr>

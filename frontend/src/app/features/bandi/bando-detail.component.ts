@@ -1,6 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { BandoDetail, BandoPerson } from '../../core/models/api.models';
+import { AuthService } from '../../core/auth.service';
 import { BandiService } from './bandi.service';
 
 @Component({
@@ -86,17 +87,22 @@ import { BandiService } from './bandi.service';
         </div>
       }
 
-      <div class="text-end">
-        <a [routerLink]="['/bandi', commissionId, 'config']" class="btn btn-primary btn-sm">
-          Vai a Configura Bando
-        </a>
-      </div>
+      @if (canConfigureBando()) {
+        <div class="text-end">
+          <a [routerLink]="['/bandi', commissionId, 'config']" class="btn btn-primary btn-sm">
+            Vai a Configura Bando
+          </a>
+        </div>
+      }
     </div>
   `,
 })
 export class BandoDetailComponent {
   private readonly service = inject(BandiService);
-  readonly commissionId = inject(ActivatedRoute).snapshot.paramMap.get('commissionId') ?? '';
+  private readonly route = inject(ActivatedRoute);
+  readonly auth = inject(AuthService);
+  readonly commissionId = this.route.snapshot.paramMap.get('commissionId') ?? '';
+  readonly mode = this.route.snapshot.queryParamMap.get('mode') ?? 'segretario';
   readonly detail = signal<BandoDetail | null>(null);
   readonly rdps = signal<BandoPerson[]>([]);
   readonly commissioners = signal<BandoPerson[]>([]);
@@ -139,5 +145,9 @@ export class BandoDetailComponent {
   roleBadge(role: string): string {
     const color = role === 'PRESIDENTE' ? 'bg-primary' : role === 'SEGRETARIO' ? 'bg-success' : 'bg-secondary';
     return `badge ${color}`;
+  }
+
+  canConfigureBando(): boolean {
+    return this.mode === 'referente' || this.auth.hasCapability('admin') || !!this.auth.user()?.dev_mode;
   }
 }

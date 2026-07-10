@@ -101,7 +101,7 @@ interface MergedConfig {
             <h5 class="mb-1">Configura Informatico in Sede</h5>
             @if (!bandoConfigured()) {
               <div class="alert alert-warning mt-3 mb-3">
-                I dati del bando non risultano ancora completi. Il referente deve configurare almeno esperto informatico remoto e segretario.
+                I dati del bando non risultano ancora completi. Puoi comunque indicare qui sotto l'esperto informatico da remoto se manca, oppure attendere che il referente completi la configurazione.
               </div>
             } @else {
               <p class="mb-2 text-muted small">
@@ -110,8 +110,26 @@ interface MergedConfig {
             }
             <form (ngSubmit)="saveSessionConfig()">
               <div class="row g-2 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label" for="email_esperto_remoto">Esperto informatico da remoto</label>
+                  @if (expertOptions().length) {
+                    <select class="form-select" id="email_esperto_remoto" name="email_esperto_remoto"
+                            [(ngModel)]="bandoConfigModel.email_esperto_remoto">
+                      <option value="">— nessuno —</option>
+                      @for (email of expertOptions(); track email) {
+                        <option [value]="email">{{ email }}</option>
+                      }
+                    </select>
+                  } @else {
+                    <input type="email" class="form-control" id="email_esperto_remoto" placeholder="es. nome.cognome@cnr.it"
+                           [(ngModel)]="bandoConfigModel.email_esperto_remoto" name="email_esperto_remoto" />
+                  }
+                  <div class="form-text">Compila qui solo se non è già stato assegnato in Configura Bando.</div>
+                </div>
+              </div>
+              <div class="row g-2 mb-3">
                 <div class="col-md-4">
-                  <label class="form-label" for="nome_informatico_sede">Nome</label>
+                  <label class="form-label" for="nome_informatico_sede">Nome informatico in sede</label>
                   <input type="text" class="form-control" id="nome_informatico_sede" placeholder="es. Mario Rossi" [(ngModel)]="sessionConfigModel.nome_informatico_sede" name="nome_informatico_sede" />
                 </div>
                 <div class="col-md-4">
@@ -304,11 +322,15 @@ export class AzioniComponent {
   readonly busy = signal(false);
   readonly mergedConfig = signal<MergedConfig | null>(null);
   readonly latestList = signal<ListSummary | null>(null);
+  readonly expertOptions = signal<string[]>([]);
 
   sessionConfigModel = {
     nome_informatico_sede: '',
     email_informatico_sede: '',
     telefono_informatico_sede: '',
+  };
+  bandoConfigModel = {
+    email_esperto_remoto: '',
   };
 
   ngOnInit(): void {
@@ -327,6 +349,12 @@ export class AzioniComponent {
           email_informatico_sede: data['email_informatico_sede'] ?? '',
           telefono_informatico_sede: data['telefono_informatico_sede'] ?? '',
         };
+      });
+      this.api.get<Record<string, any>>(`/bandi/${this.commissionId()}/config`).subscribe((data) => {
+        this.bandoConfigModel = {
+          email_esperto_remoto: data['email_esperto_remoto'] ?? '',
+        };
+        this.expertOptions.set(data['expert_options'] ?? []);
       });
     }
     if (this.currentState() === 'configurata') {
@@ -354,8 +382,13 @@ export class AzioniComponent {
   saveSessionConfig(): void {
     this.error.set('');
     this.busy.set(true);
-    this.api.put(`/sessioni/${this.sessionId()}/config`, this.sessionConfigModel).subscribe({
-      next: () => { this.busy.set(false); this.changed.emit(); },
+    this.api.put(`/bandi/${this.commissionId()}/config`, this.bandoConfigModel).subscribe({
+      next: () => {
+        this.api.put(`/sessioni/${this.sessionId()}/config`, this.sessionConfigModel).subscribe({
+          next: () => { this.busy.set(false); this.changed.emit(); },
+          error: (err) => { this.busy.set(false); this.error.set(this.extractError(err)); },
+        });
+      },
       error: (err) => { this.busy.set(false); this.error.set(this.extractError(err)); },
     });
   }

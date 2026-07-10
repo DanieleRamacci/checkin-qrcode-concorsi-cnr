@@ -14,14 +14,13 @@ import { SessioniService } from './sessioni.service';
       <p class="text-muted">Elenco delle sessioni collegate al concorso selezionato.</p>
 
       <div class="d-flex gap-2 align-items-center mb-3">
-        @if (auth.hasCapability('admin') || auth.user()?.dev_mode) {
-          <a
-            class="btn btn-outline-secondary btn-sm"
-            [routerLink]="['/bandi', commissionId, 'detail']"
-          >
-            Dettaglio Bando
-          </a>
-        }
+        <a
+          class="btn btn-outline-secondary btn-sm"
+          [routerLink]="['/bandi', commissionId, 'detail']"
+          [queryParams]="{ mode: mode }"
+        >
+          Dettaglio Bando
+        </a>
         <button
           type="button"
           class="btn btn-outline-primary btn-sm"
