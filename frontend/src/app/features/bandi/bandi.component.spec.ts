@@ -2,16 +2,21 @@ import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { BandiComponent } from './bandi.component';
 import { BandiService } from './bandi.service';
+import { ActivatedRoute } from '@angular/router';
 import { provideRouter } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
 import { signal } from '@angular/core';
 
 describe('BandiComponent', () => {
-  it('renders bandi returned by the API service', async () => {
+  async function createComponent(mode = 'segretario') {
     await TestBed.configureTestingModule({
       imports: [BandiComponent],
       providers: [
         provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { queryParamMap: new Map([['mode', mode]]) } },
+        },
         {
           provide: BandiService,
           useValue: {
@@ -46,8 +51,21 @@ describe('BandiComponent', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
+    return fixture;
+  }
+
+  it('renders bandi returned by the API service', async () => {
+    const fixture = await createComponent();
 
     expect(fixture.nativeElement.textContent).toContain('Concorso CNR');
+    expect(fixture.nativeElement.textContent).toContain('Dashboard Segretario');
     expect(fixture.nativeElement.textContent).not.toContain('Configura');
+  });
+
+  it('renders expert dashboard title in expert mode', async () => {
+    const fixture = await createComponent('expert');
+
+    expect(fixture.nativeElement.textContent).toContain('Dashboard Esperto informatico');
+    expect(fixture.nativeElement.textContent).not.toContain('Dashboard Segretario');
   });
 });

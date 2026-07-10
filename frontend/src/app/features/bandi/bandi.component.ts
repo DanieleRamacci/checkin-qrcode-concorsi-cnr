@@ -15,8 +15,8 @@ import { BandiService } from './bandi.service';
       </div>
     }
     <div class="container my-5">
-      <h1 class="mb-4">Dashboard Segretario</h1>
-      <p class="lead">Di seguito trovi l'elenco dei concorsi per cui sei autorizzato.</p>
+      <h1 class="mb-4">{{ dashboardTitle() }}</h1>
+      <p class="lead">{{ dashboardLead() }}</p>
 
       @if (syncError()) {
         <div class="alert alert-warning" role="alert">
@@ -38,9 +38,9 @@ import { BandiService } from './bandi.service';
         }
 
         <div class="mb-3">
-          <label for="filtro-concorso-segretario" class="form-label">Cerca concorso</label>
+          <label for="filtro-concorso-dashboard" class="form-label">Cerca concorso</label>
           <input
-            id="filtro-concorso-segretario"
+            id="filtro-concorso-dashboard"
             type="search"
             class="form-control"
             placeholder="Scrivi il nome del concorso..."
@@ -136,6 +136,26 @@ export class BandiComponent {
 
   canConfigureBando(): boolean {
     return this.mode === 'referente' || this.auth.hasCapability('admin') || !!this.auth.user()?.dev_mode;
+  }
+
+  dashboardTitle(): string {
+    if (this.mode === 'expert' || this.mode === 'esperto') return 'Dashboard Esperto informatico';
+    if (this.mode === 'sede') return 'Dashboard Informatico in sede';
+    if (this.mode === 'referente') return 'Dashboard Referente';
+    return 'Dashboard Segretario';
+  }
+
+  dashboardLead(): string {
+    if (this.mode === 'expert' || this.mode === 'esperto') {
+      return "Di seguito trovi l'elenco dei concorsi per cui sei assegnato come esperto informatico.";
+    }
+    if (this.mode === 'sede') {
+      return "Di seguito trovi l'elenco dei concorsi per cui sei assegnato come informatico in sede.";
+    }
+    if (this.mode === 'referente') {
+      return "Di seguito trovi l'elenco dei concorsi per cui sei autorizzato come referente.";
+    }
+    return "Di seguito trovi l'elenco dei concorsi per cui sei autorizzato.";
   }
 
   constructor() {
