@@ -2,6 +2,36 @@
 
 Angular can become the primary UI only when these checks pass.
 
+## Cutover routing evidence
+
+Aggiornamento 2026-07-15: prima tranche del cutover HTML legacy implementata.
+Gli ingressi utente storici non devono piu servire pagine Jinja/HTMX nel
+percorso pubblico:
+
+| Legacy URL | New destination |
+|---|---|
+| `/dashboard/segretario` | `/bandi` |
+| `/sessioni?commission_id=...` | `/bandi/{commission_id}/sessioni` |
+| `/gestione-concorso/{session_id}` | `/sessioni/{session_id}` |
+| `/dispositivi/{session_id}` | `/sessioni/{session_id}/dispositivi` |
+| `/device-link?session_id=...&token=...` | `/scanner?sessionId=...&token=...` |
+| `/bando/{commission_id}/configura` | `/bandi/{commission_id}/config` |
+| `/bando/{commission_id}/dettaglio` | `/bandi/{commission_id}/detail` |
+| `/user` | `/` |
+
+Il login normalizza anche i `next` legacy verso queste destinazioni, cosi un
+bookmark vecchio aperto da utente non autenticato non rientra nella UI legacy
+dopo OIDC. Il proxy frontend pubblico resta orientato alla SPA: inoltra al
+backend solo API, login/logout/callback e file tecnici QR/PDF. Le pagine HTML
+legacy ancora renderizzabili in ambiente di transizione espongono un badge
+visibile `LEGACY HTML`.
+
+Verifica automatica associata:
+
+- backend: `pytest` -> 86 test superati
+- frontend: `npm run test:ci` -> 16 file, 30 test superati
+- frontend build: `npm run build:production` -> superata
+
 ## Security
 
 - [x] `/log` admin-only or disabled
@@ -90,6 +120,7 @@ tests alone:
 
 ## Rollback
 
-- [x] legacy Jinja/HTMX routes remain available until cutover
+- [x] legacy Jinja/HTMX routes remain available internally during transition,
+  but public HTML entry points now redirect to Angular equivalents
 - [x] Angular can be disabled by routing/proxy config
 - [x] database changes are backward compatible during migration

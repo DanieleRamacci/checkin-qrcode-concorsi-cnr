@@ -1,6 +1,6 @@
 from flask import Flask, request, abort, jsonify, session, redirect, url_for
 from urllib.parse import urlencode
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, quote, urlsplit
 from functools import wraps
 from hmac import compare_digest
 import secrets
@@ -35,7 +35,7 @@ def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'access_token' not in session:
-            next_url = request.url
+            next_url = request.full_path.rstrip("?")
             return redirect(url_for('auth.login', next=next_url))
         return f(*args, **kwargs)
     return decorated_function
@@ -134,7 +134,53 @@ def _safe_next_url(candidate):
     parsed = urlsplit(candidate)
     if parsed.scheme or parsed.netloc or not candidate.startswith("/") or candidate.startswith("//"):
         return "/"
-    return candidate
+    return _normalize_legacy_next_url(parsed)
+
+
+def _normalize_legacy_next_url(parsed):
+    path = parsed.path or "/"
+    query = parse_qs(parsed.query, keep_blank_values=True)
+
+    if path == "/dashboard/segretario":
+        return "/bandi"
+
+    if path == "/sessioni":
+        commission_id = (query.get("commission_id") or [""])[0]
+        if not commission_id:
+            return "/bandi"
+        mode = (query.get("mode") or [""])[0]
+        target = f"/bandi/{quote(commission_id, safe='')}/sessioni"
+        if mode:
+            target += f"?{urlencode({'mode': mode})}"
+        return target
+
+    if path.startswith("/gestione-concorso/"):
+        session_id = path.rsplit("/", 1)[-1]
+        return f"/sessioni/{quote(session_id, safe='')}" if session_id else "/bandi"
+
+    if path.startswith("/dispositivi/"):
+        session_id = path.rsplit("/", 1)[-1]
+        return f"/sessioni/{quote(session_id, safe='')}/dispositivi" if session_id else "/bandi"
+
+    if path == "/device-link":
+        session_id = (query.get("session_id") or [""])[0]
+        token = (query.get("token") or [""])[0]
+        if session_id and token:
+            return f"/scanner?{urlencode({'sessionId': session_id, 'token': token})}"
+        return "/scanner"
+
+    if path.startswith("/bando/") and path.endswith("/configura"):
+        commission_id = path.split("/")[2]
+        return f"/bandi/{quote(commission_id, safe='')}/config" if commission_id else "/bandi"
+
+    if path.startswith("/bando/") and path.endswith("/dettaglio"):
+        commission_id = path.split("/")[2]
+        return f"/bandi/{quote(commission_id, safe='')}/detail" if commission_id else "/bandi"
+
+    if path == "/user":
+        return "/"
+
+    return parsed.geturl()
 
 @auth_bp.route('/logout')
 def logout():

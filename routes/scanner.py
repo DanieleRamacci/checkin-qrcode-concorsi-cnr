@@ -1,4 +1,6 @@
-from flask import Blueprint, render_template, request
+from urllib.parse import urlencode
+
+from flask import Blueprint, redirect, request
 from routes.auth import login_required
 
 
@@ -11,4 +13,4 @@ def device_link():
     reg_token = request.args.get('token')
     if not session_id or not reg_token:
         return "Parametri mancanti", 400
-    return render_template('scanner.html', session_id=session_id, reg_token=reg_token)
+    return redirect(f"/scanner?{urlencode({'sessionId': session_id, 'token': reg_token})}")

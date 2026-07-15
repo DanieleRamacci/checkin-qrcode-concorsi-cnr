@@ -6,8 +6,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-italia@2.6.1/dist/css/bootstrap-italia.min.css">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap-italia@2.6.1/dist/js/bootstrap-italia.bundle.min.js" defer></script>
+  <style>
+    .legacy-html-badge {
+      position: fixed;
+      top: .75rem;
+      right: .75rem;
+      z-index: 1080;
+      padding: .35rem .6rem;
+      border: 2px solid #a66300;
+      border-radius: 4px;
+      background: #fff3cd;
+      color: #5c3b00;
+      font-size: .75rem;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, .18);
+      pointer-events: none;
+    }
+  </style>
 </head>
 <body>
+  <div class="legacy-html-badge" data-legacy-html-badge role="status" aria-label="Pagina legacy HTML">
+    LEGACY HTML
+  </div>
 
   <div class="container my-5">
     <h1 class="mb-4">Sessioni del Concorso</h1>

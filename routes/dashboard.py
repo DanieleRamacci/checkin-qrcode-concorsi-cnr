@@ -34,29 +34,7 @@ def index():
 @dashboard_bp.route('/dashboard/segretario')
 @login_required
 def dashboard_segretario():
-    user_email = session.get('user_email')
-    access_token = session.get('access_token')
-
-    if not access_token or not user_email:
-        return redirect(url_for('auth.login'))
-
-    sync_details = get_commissioni_sincronizzate_with_status(access_token, user_email)
-    if sync_details.get("unauthorized"):
-        session.clear()
-        return redirect(url_for('auth.login'))
-
-    commissioni = sync_details.get("commissioni", [])
-    sync_error = sync_details.get("sync_error")
-    sync_source = sync_details.get("sync_source")
-
-    return render_template(
-        'dashboard.html',
-        commissioni=commissioni,
-        user_email=user_email,
-        active_page="dashboard",
-        sync_error=sync_error,
-        sync_source=sync_source
-    )
+    return redirect("/bandi")
 
 
 
@@ -69,31 +47,12 @@ def sessioni():
     commission_id = request.args.get('commission_id')
     mode = request.args.get('mode', 'segretario')
     if not commission_id:
-        return "Commission ID mancante", 400
+        return redirect("/bandi")
 
-    user_email = session.get('user_email')
-    if mode == "esperto" and not has_any_role(user_email, [ROLE_ESPERTO, ROLE_ADMIN]):
-        return "Utente non autorizzato", 403
-    if mode == "sede" and not has_any_role(user_email, [ROLE_ESPERTO, ROLE_ADMIN]):
-        return "Utente non autorizzato", 403
-
-    # recupero titolo concorso
-    with get_db_connection() as conn:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("""
-                SELECT titolo FROM commissions
-                WHERE commission_id = %s AND user_email = %s
-                LIMIT 1
-            """, (commission_id, user_email))
-            row = cur.fetchone()
-            concorso_titolo = row["titolo"] if row else "(Senza titolo)"
-
-    # la tabella NON viene caricata qui: la fa l’endpoint frammento
-    frammento_url = f"/sessioni/{commission_id}/frammento?mode={mode}"
-    return render_template('sessioni.html',
-                           commission_id=commission_id,
-                           concorso_titolo=concorso_titolo,
-                           frammento_url=frammento_url)
+    target = f"/bandi/{commission_id}/sessioni"
+    if mode:
+        target = f"{target}?mode={mode}"
+    return redirect(target)
 
 def _parse_iso_or_none(s: str):
     if not s:

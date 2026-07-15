@@ -67,3 +67,21 @@ def test_sessioni_fragment_keeps_configure_bando_for_admin():
 
     assert "Configura Bando" in html
     assert "/bando/commission-1/configura" in html
+
+
+def test_legacy_header_renders_legacy_badge():
+    app = create_template_app(is_admin=False)
+
+    with app.test_request_context("/"):
+        html = render_template("header.html")
+
+    assert "LEGACY HTML" in html
+    assert "data-legacy-html-badge" in html
+
+
+def test_static_legacy_html_files_are_marked():
+    root = Path(__file__).resolve().parents[1]
+    for relative_path in ("static/user.html", "static/sessioni-temp.html"):
+        html = (root / relative_path).read_text()
+        assert "LEGACY HTML" in html
+        assert "data-legacy-html-badge" in html

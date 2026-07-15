@@ -1,6 +1,6 @@
 # Deploy Baltig + Coolify
 
-Aggiornato al 2026-07-08.
+Aggiornato al 2026-07-15.
 
 ## Flusso operativo attuale
 
@@ -92,8 +92,33 @@ Contiene:
 - `db`: PostgreSQL con volume dedicato
 - `redis`: Redis con volume dedicato
 
-Il frontend e il punto di ingresso pubblico. Nginx inoltra API, login,
-callback OIDC e route legacy al backend sulla rete interna.
+Il frontend e il punto di ingresso pubblico. Nginx serve la SPA Angular e
+inoltra al backend solo:
+
+- `/api/*`
+- `/login`
+- `/logout`
+- `/oidc-callback`
+- `/qr-code/*`
+- `/qr-pdf/*`
+
+Le vecchie route HTML utente non sono piu proxate al backend nel percorso
+pubblico; vengono reindirizzate alla rotta Angular equivalente:
+
+| Vecchia route | Nuova route |
+|---|---|
+| `/dashboard/segretario` | `/bandi` |
+| `/sessioni?commission_id=...` | `/bandi/{commission_id}/sessioni` |
+| `/gestione-concorso/{session_id}` | `/sessioni/{session_id}` |
+| `/dispositivi/{session_id}` | `/sessioni/{session_id}/dispositivi` |
+| `/device-link?session_id=...&token=...` | `/scanner?sessionId=...&token=...` |
+| `/bando/{commission_id}/configura` | `/bandi/{commission_id}/config` |
+| `/bando/{commission_id}/dettaglio` | `/bandi/{commission_id}/detail` |
+| `/user` | `/` |
+
+Durante la transizione le pagine HTML legacy ancora renderizzabili dal backend
+mostrano un badge `LEGACY HTML`, utile per intercettare percorsi rimasti fuori
+dal cutover.
 
 ## Runner e registry
 

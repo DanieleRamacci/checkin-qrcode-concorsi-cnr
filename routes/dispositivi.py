@@ -64,38 +64,8 @@ def registra_dispositivo():
 
 @dispositivi_bp.route("/dispositivi/<session_id>")
 @login_required
-@session_access_required()
 def pagina_dispositivi(session_id):
-    try:
-        with get_db_connection() as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                # Recupera info sessione
-                cursor.execute("SELECT * FROM sessioni WHERE session_id = %s", (session_id,))
-                sessione = cursor.fetchone()
-                if not sessione:
-                    abort(404, description="Sessione non trovata")
-
-        # Costruzione QR code e link con token firmato
-        secret_key = current_app.secret_key
-        if not secret_key:
-            abort(500, description="Server non configurato")
-        reg_token = make_reg_token(session_id, secret_key)
-        qr_url = url_for("genera_qr_code", session_id=session_id, token=reg_token)
-        qr_url_text = url_for("scanner.device_link", session_id=session_id, token=reg_token, _external=True)
-
-        dispositivi = _load_dispositivi_with_status(session_id)
-        return render_template(
-            "dispositivi.html",
-            sessione=sessione,
-            dispositivi=dispositivi,
-            qr_url=qr_url,
-            qr_url_text=qr_url_text
-        )
-
-    except Exception as e:
-        print("❌ Errore:", e)
-        traceback.print_exc()
-        abort(500)
+    return redirect(f"/sessioni/{session_id}/dispositivi")
 
 
 
