@@ -4,7 +4,7 @@ from db import get_db_connection
 import io, csv, os, re, requests
 from datetime import datetime
 from utils.stato import get_stato_corrente, get_azioni_per_stato, set_stato_corrente
-from utils.roles import ROLE_ADMIN, ROLE_ESPERTO, roles_required_any
+from utils.roles import ROLE_ADMIN, ROLE_ESPERTO, roles_required_any, has_role
 from utils.sessioni import (
     get_sessione_by_id, get_sessione_config, save_sessione_config,
     get_bando_config, save_bando_config, update_bando_da_openapi,
@@ -18,6 +18,9 @@ from utils.jconon_service import fetch_bando_metadata
 
 
 azioni_bp = Blueprint("azioni", __name__)
+
+def _can_configure_bando_legacy(user_email: str) -> bool:
+    return bool(current_app.config.get("DEV_MODE")) or has_role(user_email, ROLE_ADMIN)
 
 def _abs_path(name: str) -> str:
     """
@@ -622,19 +625,20 @@ def debug_exam_moodle_sessions(commission_id):
 
 @azioni_bp.route("/bando/<commission_id>/configura", methods=["GET", "POST"])
 @login_required
-@commission_access_required()
 def configura_bando(commission_id):
     user_email = session.get("user_email")
+    if not _can_configure_bando_legacy(user_email):
+        abort(403)
 
     with get_db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT titolo FROM commissions WHERE commission_id = %s AND user_email = %s",
-                (commission_id, user_email),
+                "SELECT titolo FROM commissions WHERE commission_id = %s LIMIT 1",
+                (commission_id,),
             )
             row = cur.fetchone()
     if not row:
-        abort(403)
+        abort(404)
     titolo = row[0]
 
     if request.method == "GET":
@@ -722,23 +726,24 @@ def configura_bando(commission_id):
 
 @azioni_bp.route("/bando/<commission_id>/richiedi-configurazione", methods=["POST"])
 @login_required
-@commission_access_required()
 def richiedi_configurazione_bando(commission_id):
     """Invia una mail al referente chiedendo di compilare la configurazione del bando."""
     from utils.send_mail import send_notification_email
     from utils.sessioni import email_to_nome
 
     user_email = session.get("user_email")
+    if not _can_configure_bando_legacy(user_email):
+        abort(403)
 
     with get_db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT titolo FROM commissions WHERE commission_id = %s AND user_email = %s",
-                (commission_id, user_email),
+                "SELECT titolo FROM commissions WHERE commission_id = %s LIMIT 1",
+                (commission_id,),
             )
             row = cur.fetchone()
     if not row:
-        abort(403)
+        abort(404)
     titolo = row[0]
 
     email_referente = request.form.get("email_referente", "").strip()

@@ -1,4 +1,5 @@
 {# templates/frammenti/sessioni_tabella.html #}
+{% set can_configure_bando = can_configure_bando|default(dev_mode or has_role(session.get('user_email'), ROLE_ADMIN)) %}
 {% if messaggio %}
   <div class="alert alert-info py-2 mb-2">{{ messaggio }}</div>
 {% endif %}
@@ -7,11 +8,13 @@
 <div class="alert alert-warning d-flex align-items-center py-2 mb-3" role="alert">
   <span class="flex-grow-1">
     <strong>Bando non configurato.</strong>
-    Inserisci i riferimenti operativi (esperto remoto, segretario, durata prova) prima di gestire le sessioni.
+    I riferimenti operativi devono essere completati prima di gestire le sessioni.
   </span>
+  {% if can_configure_bando %}
   <a href="/bando/{{ commission_id }}/configura" class="btn btn-sm btn-warning ms-3 text-nowrap">Configura Bando</a>
+  {% endif %}
 </div>
-{% elif commission_id and bando_config and bando_config.configured_at %}
+{% elif commission_id and bando_config and bando_config.configured_at and can_configure_bando %}
 <div class="d-flex justify-content-end mb-2">
   <a href="/bando/{{ commission_id }}/configura" class="btn btn-sm btn-outline-secondary">Modifica config bando</a>
 </div>

@@ -1,6 +1,7 @@
 {% set is_esperto = view_mode == 'esperto' %}
 {% set show_timeline = view_mode not in ['esperto', 'sede'] %}
 {% set actions_col_class = 'col-md-8' if show_timeline else 'col-12' %}
+{% set can_configure_bando = can_configure_bando|default(dev_mode or has_role(session.get('user_email'), ROLE_ADMIN)) %}
 <div class="row" id="azioni-wrapper">
   <!-- Colonna Azioni -->
   <div class="{{ actions_col_class }}" id="contenitore-azioni" data-session-id="{{ sessione.session_id }}" data-stato-corrente="{{ stato_corrente }}">
@@ -97,6 +98,7 @@
     {% if stato_corrente == 'iniziale' and not is_esperto %}
     {% set bando_cfg = get_bando_config(sessione.commission_id) %}
     {% if not bando_cfg or not bando_cfg.configured_at %}
+    {% if can_configure_bando %}
     <div class="it-card-wrapper mb-3">
       <div class="it-card shadow-sm p-3 bg-light">
         <h5 class="mb-1">Configura il Bando</h5>
@@ -109,6 +111,12 @@
         </a>
       </div>
     </div>
+    {% else %}
+    <div class="alert alert-warning mb-3" role="alert">
+      <strong>Bando non configurato.</strong>
+      I riferimenti operativi devono essere completati da un utente autorizzato prima di proseguire.
+    </div>
+    {% endif %}
     {% else %}
     <div class="it-card-wrapper mb-3">
       <div class="it-card shadow-sm p-3 bg-light">
