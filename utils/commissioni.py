@@ -1,11 +1,13 @@
-import requests
-from flask import current_app
-from db import get_db_connection
 import os
 from datetime import datetime, timezone
 
+import requests
+from flask import current_app
 
-BASE_URL = os.environ.get('BASE_URL', 'https://cool-jconon.test.si.cnr.it')
+from db import get_db_connection
+
+
+BASE_URL = os.environ.get("BASE_URL", "https://cool-jconon.test.si.cnr.it")
 
 
 def _normalize_email(value):
@@ -30,11 +32,10 @@ def _commission_item_id(item):
 
 
 def _fetch_user_commission_role(access_token, commission_id, title, user_email, timeout_s=(5, 30)):
-    """Restituisce il ruolo istituzionale dell'utente sul bando, se disponibile.
+    """Legge il ruolo istituzionale dell'utente su un singolo bando.
 
-    `/call/commissions` dice che il bando è collegato all'utente, ma non dice
-    se l'utente è SEGRETARIO, PRESIDENTE o componente. Per la dashboard
-    Segretario serve il dettaglio commissione.
+    Non viene usata dalla sync ordinaria durante la prova su `/call/commissions`;
+    resta disponibile per verifiche puntuali e per confrontare le risposte API.
     """
     params = {
         "page": 0,
@@ -64,6 +65,7 @@ def _fetch_user_commission_role(access_token, commission_id, title, user_email, 
             return (person.get("ruolo") or "COMPONENTE").strip().upper() or "COMPONENTE"
     return "NOT_IN_COMMISSION"
 
+
 def get_commissioni_sincronizzate_with_status(access_token, user_email, timeout_s: int = 8):
     out = {
         "commissioni": [],
@@ -74,13 +76,13 @@ def get_commissioni_sincronizzate_with_status(access_token, user_email, timeout_
     }
     try:
         api_url = f"{BASE_URL}/openapi/v1/call/commissions"
-        headers = {'Authorization': f'Bearer {access_token}', 'Accept': 'application/json'}
+        headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
         remote_fetch_ok = False
 
         try:
-            current_app.logger.debug(f"[comm] GET {api_url}")
+            current_app.logger.debug("[comm] GET %s", api_url)
             response = requests.get(api_url, headers=headers, timeout=timeout_s)
-            current_app.logger.debug(f"[comm] -> {response.status_code}")
+            current_app.logger.debug("[comm] -> %s", response.status_code)
             if response.status_code == 401:
                 current_app.logger.warning("[comm] token scaduto/401")
                 out["unauthorized"] = True
@@ -94,7 +96,7 @@ def get_commissioni_sincronizzate_with_status(access_token, user_email, timeout_
                 current_app.logger.info("[comm] STRUTTURA primo oggetto: %s", remote_commissions[0])
             remote_fetch_ok = True
         except (requests.Timeout, requests.ConnectionError) as e:
-            current_app.logger.warning(f"[comm] timeout/conn error: {e}")
+            current_app.logger.warning("[comm] timeout/conn error: %s", e)
             out["sync_ok"] = False
             out["sync_error"] = f"API Selezioni Online non raggiungibile ({e})"
             out["sync_source"] = "db_cache"
@@ -102,7 +104,7 @@ def get_commissioni_sincronizzate_with_status(access_token, user_email, timeout_
         except requests.HTTPError as e:
             body = (e.response.text or "")[:300] if e.response is not None else ""
             status = e.response.status_code if e.response is not None else "?"
-            current_app.logger.error(f"[comm] HTTP {status}: {body}")
+            current_app.logger.error("[comm] HTTP %s: %s", status, body)
             out["sync_ok"] = False
             out["sync_error"] = f"Errore API Selezioni Online HTTP {status}"
             out["sync_source"] = "db_cache"
@@ -111,32 +113,24 @@ def get_commissioni_sincronizzate_with_status(access_token, user_email, timeout_
         with get_db_connection() as conn:
             with conn.cursor() as cursor:
                 if remote_fetch_ok:
-                    remote_ids = {c['id'] for c in remote_commissions}
-                    cursor.execute("SELECT commission_id FROM commissions WHERE user_email = %s", (user_email,))
+                    remote_ids = {c["id"] for c in remote_commissions}
+                    cursor.execute(
+                        "SELECT commission_id FROM commissions WHERE user_email = %s",
+                        (user_email,),
+                    )
                     local_ids = {row[0] for row in cursor.fetchall()}
 
                     for c in remote_commissions:
-                        role = "UNKNOWN"
-                        try:
-                            role = _fetch_user_commission_role(
-                                access_token,
-                                c["id"],
-                                c["title"],
-                                user_email,
-                            )
-                        except Exception as role_error:
-                            current_app.logger.warning(
-                                "[comm] ruolo non determinabile commission_id=%s user=%s: %s",
-                                c.get("id"),
-                                user_email,
-                                role_error,
-                            )
+                        # Prova controllata: `/call/commissions` torna la lista
+                        # veloce dei bandi collegati all'utente. Non verifichiamo
+                        # qui il ruolo dettaglio, cosi possiamo osservare se
+                        # Selezioni Online restituisce anche i soli componenti.
                         cursor.execute("""
                             INSERT INTO commissions (
                                 commission_id, titolo, user_email, data_sync,
                                 source_role, access_active, last_seen_at, revoked_at
                             )
-                            VALUES (%s, %s, %s, %s, %s, TRUE, %s, NULL)
+                            VALUES (%s, %s, %s, %s, 'SEGRETARIO', TRUE, %s, NULL)
                             ON CONFLICT (commission_id, user_email)
                             DO UPDATE SET
                                 titolo = EXCLUDED.titolo,
@@ -146,11 +140,10 @@ def get_commissioni_sincronizzate_with_status(access_token, user_email, timeout_
                                 last_seen_at = EXCLUDED.last_seen_at,
                                 revoked_at = NULL
                         """, (
-                            c['id'],
-                            c['title'],
+                            c["id"],
+                            c["title"],
                             user_email,
                             now_iso_utc(),
-                            role,
                             datetime.now(timezone.utc),
                         ))
 
@@ -183,7 +176,7 @@ def get_commissioni_sincronizzate_with_status(access_token, user_email, timeout_
                 out["commissioni"] = [{"id": r[0], "title": r[1]} for r in cursor.fetchall()]
         return out
     except Exception as e:
-        current_app.logger.exception(f"[comm] ERRORE SYNC GENERICO: {e}")
+        current_app.logger.exception("[comm] ERRORE SYNC GENERICO: %s", e)
         out["sync_ok"] = False
         out["sync_error"] = f"Errore interno sync commissioni: {e}"
         out["sync_source"] = "db_fallback"
@@ -203,6 +196,7 @@ def get_commissioni_sincronizzate_with_status(access_token, user_email, timeout_
             out["commissioni"] = []
         return out
 
+
 def get_commissioni_sincronizzate(access_token, user_email, timeout_s: int = 8):
     details = get_commissioni_sincronizzate_with_status(access_token, user_email, timeout_s=timeout_s)
     if details.get("unauthorized"):
@@ -210,7 +204,5 @@ def get_commissioni_sincronizzate(access_token, user_email, timeout_s: int = 8):
     return details.get("commissioni", [])
 
 
-
 def now_iso_utc():
-    # Esempio: 2025-09-18T12:03:45+00:00
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
