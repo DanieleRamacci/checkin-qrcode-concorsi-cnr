@@ -81,6 +81,55 @@ def test_toggle_candidate_checkin_returns_updated_candidate(monkeypatch):
     assert response.get_json()["checkin_effettuato"] is True
 
 
+def test_import_candidates_reports_selezioni_online_authorization_error(monkeypatch):
+    from routes.api_v1 import candidati
+
+    allow_session(monkeypatch)
+    monkeypatch.setattr(candidati, "is_session_owner", lambda email, session_id: True)
+    monkeypatch.setattr(candidati, "ensure_fresh_access_token", lambda skew_sec=60: "token")
+    monkeypatch.setattr(
+        candidati,
+        "import_candidates",
+        lambda session_id, user_email, access_token: {
+            "success": False,
+            "message": (
+                "Selezioni Online non autorizza la lettura dei candidati per questa sessione. "
+                "Verificare che l'utente sia inserito come segretario della commissione "
+                "e che il nominativo sia abilitato in Selezioni Online."
+            ),
+        },
+    )
+
+    client, token = authenticated_client(create_test_app())
+    response = client.post(
+        "/api/v1/sessioni/session-1/candidati/import",
+        headers={"X-CSRF-Token": token},
+    )
+
+    assert response.status_code == 502
+    message = response.get_json()["error"]["message"]
+    assert "segretario" in message
+    assert "abilitato" in message
+
+
+def test_import_candidates_blocks_admin_only_visibility(monkeypatch):
+    from routes.api_v1 import candidati
+
+    allow_session(monkeypatch)
+    monkeypatch.setattr(candidati, "is_session_owner", lambda email, session_id: False)
+
+    client, token = authenticated_client(create_test_app())
+    response = client.post(
+        "/api/v1/sessioni/session-1/candidati/import",
+        headers={"X-CSRF-Token": token},
+    )
+
+    assert response.status_code == 403
+    payload = response.get_json()["error"]
+    assert payload["code"] == "selezioni_online_secretary_required"
+    assert "admin locale" in payload["message"]
+
+
 def test_cancel_reset_request_is_forwarded_to_candidate_service(monkeypatch):
     from routes.api_v1 import candidati
 

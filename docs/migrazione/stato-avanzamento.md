@@ -3,7 +3,7 @@
 Fonte: [`specs/002-angular-api-first-migration/tasks.md`](../../specs/002-angular-api-first-migration/tasks.md),
 [`contracts/legacy-ui-flow-matrix.md`](../../specs/002-angular-api-first-migration/contracts/legacy-ui-flow-matrix.md),
 [`contracts/cutover-readiness.md`](../../specs/002-angular-api-first-migration/contracts/cutover-readiness.md).
-Aggiornato al 2026-07-08.
+Aggiornato al 2026-07-15.
 
 ## Riepilogo
 
@@ -73,6 +73,14 @@ scenario reale. Gap reali trovati e risolti finora:
    gap ancora aperti (stato/audit, blocco campo referente, credenziali
    personali legacy) elencati in
    [`tasks.md`](../../specs/004-referente-rdp-configurazione/tasks.md).
+6. **Admin vedeva bandi locali dentro la dashboard Segretario**: un utente
+   `admin_globale` vedeva tutti i bandi locali anche entrando come
+   Segretario, creando confusione con i permessi reali di Selezioni Online.
+   Separata la vista: `/bandi` resta filtrata sui bandi propri, mentre
+   `/bandi?mode=admin` mostra il totale locale con badge "Solo admin - non
+   sei segretario". Lo scarico candidati e' bloccato lato API quando manca
+   la relazione locale di commissione per la sessione. Dettaglio operativo in
+   [`docs/operativa/selezioni-online.md`](../operativa/selezioni-online.md).
 
 ## Cosa resta da fare
 

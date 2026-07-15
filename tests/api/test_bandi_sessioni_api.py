@@ -29,11 +29,12 @@ def test_bandi_requires_authentication():
 def test_bandi_returns_owned_summaries(monkeypatch):
     from routes.api_v1 import bandi
 
+    captured = {}
     monkeypatch.setattr(bandi, "get_user_roles", lambda email: set())
     monkeypatch.setattr(
         bandi,
         "list_bandi",
-        lambda email, include_all=False: [
+        lambda email, include_all=False: captured.setdefault("items", [
             {
                 "commission_id": "commission-1",
                 "title": "Concorso CNR",
@@ -44,7 +45,7 @@ def test_bandi_returns_owned_summaries(monkeypatch):
                 "last_sync": "2026-07-02T10:00:00+00:00",
                 "capabilities": ["configure", "view"],
             }
-        ],
+        ]) if not captured.setdefault("include_all", include_all) else [],
     )
 
     response = authenticated_client(create_test_app()).get("/api/v1/bandi")
@@ -52,6 +53,66 @@ def test_bandi_returns_owned_summaries(monkeypatch):
     assert response.status_code == 200
     assert response.get_json()["items"][0]["commission_id"] == "commission-1"
     assert response.get_json()["items"][0]["session_count"] == 2
+    assert captured["include_all"] is False
+
+
+def test_bandi_admin_default_keeps_secretary_scope(monkeypatch):
+    from routes.api_v1 import bandi
+
+    captured = {}
+    monkeypatch.setattr(bandi, "get_user_roles", lambda email: {bandi.ROLE_ADMIN})
+    monkeypatch.setattr(
+        bandi,
+        "list_bandi",
+        lambda email, include_all=False: captured.setdefault("items", [])
+        if not captured.setdefault("include_all", include_all)
+        else [],
+    )
+
+    response = authenticated_client(create_test_app(), "admin@cnr.it").get("/api/v1/bandi")
+
+    assert response.status_code == 200
+    assert captured["include_all"] is False
+
+
+def test_bandi_admin_mode_includes_all_local_bandi(monkeypatch):
+    from routes.api_v1 import bandi
+
+    captured = {}
+    monkeypatch.setattr(bandi, "get_user_roles", lambda email: {bandi.ROLE_ADMIN})
+    monkeypatch.setattr(
+        bandi,
+        "list_bandi",
+        lambda email, include_all=False: captured.setdefault("items", [])
+        if captured.setdefault("include_all", include_all)
+        else [],
+    )
+
+    response = authenticated_client(create_test_app(), "admin@cnr.it").get(
+        "/api/v1/bandi?mode=admin"
+    )
+
+    assert response.status_code == 200
+    assert captured["include_all"] is True
+
+
+def test_bandi_non_admin_cannot_enable_admin_mode(monkeypatch):
+    from routes.api_v1 import bandi
+
+    captured = {}
+    monkeypatch.setattr(bandi, "get_user_roles", lambda email: set())
+    monkeypatch.setattr(
+        bandi,
+        "list_bandi",
+        lambda email, include_all=False: captured.setdefault("items", [])
+        if not captured.setdefault("include_all", include_all)
+        else [],
+    )
+
+    response = authenticated_client(create_test_app()).get("/api/v1/bandi?mode=admin")
+
+    assert response.status_code == 200
+    assert captured["include_all"] is False
 
 
 def test_bandi_sync_preserves_cache_error_context(monkeypatch):
@@ -190,7 +251,7 @@ def test_bando_detail_includes_persisted_operational_metadata(monkeypatch):
     monkeypatch.setattr(
         bandi,
         "get_bando",
-        lambda commission_id: {
+        lambda commission_id, user_email=None: {
             "commission_id": commission_id,
             "title": "Concorso CNR",
             "configured": True,
@@ -307,7 +368,7 @@ def test_session_detail_returns_404_when_missing(monkeypatch):
         "can_access_session",
         lambda email, session_id, **kwargs: True,
     )
-    monkeypatch.setattr(sessioni, "get_sessione", lambda session_id: None)
+    monkeypatch.setattr(sessioni, "get_sessione", lambda session_id, user_email=None: None)
 
     response = authenticated_client(create_test_app()).get(
         "/api/v1/sessioni/missing"

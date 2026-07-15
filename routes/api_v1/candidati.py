@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify, request, session
 
 from routes.api_v1.auth import api_auth_required
 from routes.api_v1.errors import error_response
-from utils.authorization import session_access_required
+from utils.authorization import is_session_owner, session_access_required
 from utils.candidati_service import (
     CandidateActionBlocked,
     CandidateNotFound,
@@ -37,6 +37,16 @@ def candidati_index(session_id):
 @api_auth_required
 @session_access_required()
 def candidati_import(session_id):
+    if not is_session_owner(session["user_email"], session_id):
+        return error_response(
+            "selezioni_online_secretary_required",
+            (
+                "Scarica candidati richiede che il tuo utente sia segretario della "
+                "commissione e abilitato in Selezioni Online per questo bando. "
+                "La sola visibilita admin locale non basta."
+            ),
+            403,
+        )
     token = ensure_fresh_access_token(skew_sec=60)
     if not token:
         return error_response(

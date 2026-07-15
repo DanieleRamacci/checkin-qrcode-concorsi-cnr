@@ -17,6 +17,20 @@ from urllib.parse import quote
 
 log = logging.getLogger("importa_candidati")
 
+def _external_api_error_message(status_code, body):
+    body_text = body or ""
+    if (
+        "CmisUnauthorizedException" in body_text
+        or "Unauthorized" in body_text
+        or status_code in (401, 403)
+    ):
+        return (
+            "Selezioni Online non autorizza la lettura dei candidati per questa sessione. "
+            "Verificare che l'utente sia inserito come segretario della commissione "
+            "e che il nominativo sia abilitato in Selezioni Online."
+        )
+    return f"Errore API Selezioni Online: {status_code}"
+
 def importa_candidati_da_api(session_id, user_email, access_token):
     t0 = time.monotonic()
     print(f"[importa] start session_id={session_id} user={user_email}", flush=True)
@@ -70,7 +84,7 @@ def importa_candidati_da_api(session_id, user_email, access_token):
                 print(f"[importa] API status={res.status_code} in {dt_api:.0f}ms", flush=True)
 
                 if res.status_code != 200:
-                    msg = f"Errore API Selezioni Online: {res.status_code}"
+                    msg = _external_api_error_message(res.status_code, res.text[:1000])
                     print(f"[importa] {msg} body={res.text[:300]}", flush=True)
                     return {"success": False, "message": msg}
 

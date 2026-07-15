@@ -37,6 +37,13 @@ import { SessioniService } from './sessioni.service';
         }
       </div>
 
+      @if (bando()?.visibility_reason === 'admin') {
+        <div class="alert alert-warning py-2 mb-3" role="alert">
+          <strong>Vista amministratore.</strong>
+          Stai vedendo un bando locale per cui non risulti segretario. Lo scarico candidati non e disponibile da questa vista.
+        </div>
+      }
+
       @if (bando() && !bando()!.configured) {
         <div class="alert alert-warning d-flex align-items-center py-2 mb-3" role="alert">
           <span class="flex-grow-1">

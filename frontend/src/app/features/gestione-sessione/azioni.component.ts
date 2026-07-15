@@ -176,8 +176,13 @@ interface MergedConfig {
                     @if (cfg.durata_prova_minuti) { <li><strong>Durata prova:</strong> {{ cfg.durata_prova_minuti }} min</li> }
                   </ul>
                 }
+                @if (adminOnly()) {
+                  <div class="alert alert-warning mt-3 mb-0">
+                    Non risulti segretario per questo bando: lo scarico candidati richiede abilitazione su Selezioni Online.
+                  </div>
+                }
               </div>
-              <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="importCandidati()">Scarica Candidati</button>
+              <button class="btn btn-primary" type="button" [disabled]="busy() || adminOnly()" (click)="importCandidati()">Scarica Candidati</button>
             </div>
             @if (error()) { <div class="alert alert-danger mt-3 mb-0" role="alert">{{ error() }}</div> }
           </div>
@@ -312,7 +317,8 @@ export class AzioniComponent {
   readonly sessionId = input.required<string>();
   readonly commissionId = input.required<string>();
   readonly currentState = input<string | null>(null);
-  readonly viewMode = input<'segretario' | 'sede' | 'esperto'>('segretario');
+  readonly viewMode = input<'segretario' | 'sede' | 'esperto' | 'admin'>('segretario');
+  readonly adminOnly = input(false);
   readonly bandoConfigured = input(false);
   readonly deviceCount = input(0);
   readonly changed = output<void>();
@@ -394,6 +400,10 @@ export class AzioniComponent {
   }
 
   importCandidati(): void {
+    if (this.adminOnly()) {
+      this.error.set('Scarica candidati richiede che il tuo utente sia segretario abilitato su Selezioni Online per questo bando.');
+      return;
+    }
     this.error.set('');
     this.busy.set(true);
     this.api.post(`/sessioni/${this.sessionId()}/candidati/import`).subscribe({

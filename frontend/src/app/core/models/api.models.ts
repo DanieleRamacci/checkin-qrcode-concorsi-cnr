@@ -19,6 +19,7 @@ export interface BandoSummary {
   required_data_complete?: boolean;
   session_count: number;
   last_sync?: string | null;
+  visibility_reason?: 'owner' | 'admin' | 'referente' | string;
   capabilities: string[];
 }
 
@@ -62,6 +63,7 @@ export interface SessionSummary {
   candidate_count: number;
   checked_in_count: number;
   device_count: number;
+  visibility_reason?: 'owner' | 'admin' | string;
   capabilities: string[];
 }
 

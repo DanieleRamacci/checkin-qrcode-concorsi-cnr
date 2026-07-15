@@ -14,6 +14,7 @@ restano la fonte di verita' dettagliata e aggiornata task per task.
 | [architettura.md](architettura.md) | Cosa cambia rispetto al monolite legacy, contratto API `/api/v1`, struttura del frontend Angular |
 | [stato-avanzamento.md](stato-avanzamento.md) | Cosa e' stato migrato, cosa resta, gap noti trovati durante la validazione manuale |
 | [ambiente-test-coolify.md](ambiente-test-coolify.md) | Stato del deploy su Coolify/Baltig, decisioni operative aperte |
+| [../operativa/selezioni-online.md](../operativa/selezioni-online.md) | Regole osservate sulle API Selezioni Online: segretario in commissione, nominativo abilitato e import candidati |
 
 ## Dove trovare i dettagli tecnici completi
 

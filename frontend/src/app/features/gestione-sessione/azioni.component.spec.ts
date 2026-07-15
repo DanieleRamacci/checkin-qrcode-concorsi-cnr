@@ -124,4 +124,42 @@ describe('AzioniComponent', () => {
     expect(text).toContain('In attesa che il segretario le invii');
     expect(text).toContain('Lista presenti');
   });
+
+  it('disables candidate import when the session is admin-only', async () => {
+    let postCalls = 0;
+    await TestBed.configureTestingModule({
+      imports: [AzioniComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: ApiClient,
+          useValue: {
+            get: () => of({}),
+            post: () => {
+              postCalls += 1;
+              return of({});
+            },
+            put: () => of({}),
+          },
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(AzioniComponent);
+    fixture.componentRef.setInput('sessionId', 'session-1');
+    fixture.componentRef.setInput('commissionId', 'commission-1');
+    fixture.componentRef.setInput('currentState', 'configurata');
+    fixture.componentRef.setInput('viewMode', 'admin');
+    fixture.componentRef.setInput('adminOnly', true);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const button = fixture.nativeElement.querySelector('button.btn-primary') as HTMLButtonElement;
+    expect(fixture.nativeElement.textContent).toContain('Non risulti segretario');
+    expect(button.disabled).toBe(true);
+
+    fixture.componentInstance.importCandidati();
+    expect(postCalls).toBe(0);
+  });
 });

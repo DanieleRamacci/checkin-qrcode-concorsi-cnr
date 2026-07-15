@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from flask import Blueprint, jsonify, session
+from flask import Blueprint, jsonify, request, session
 from psycopg2.extras import RealDictCursor
 
 from db import get_db_connection
@@ -29,13 +29,14 @@ def _serialize(row) -> dict:
 
 def list_bandi(user_email: str, *, include_all: bool = False) -> list[dict]:
     ownership_filter = "" if include_all else "WHERE c.user_email = %s"
-    params = () if include_all else (user_email,)
+    params = (user_email,) if include_all else (user_email, user_email)
     with get_db_connection() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
             cursor.execute(
                 f"""
                 SELECT c.commission_id,
                        MAX(c.titolo) AS title,
+                       BOOL_OR(c.user_email = %s) AS is_owner,
                        BOOL_OR(b.commission_id IS NOT NULL) AS configured,
                        MAX(b.email_referente) AS referente_email,
                        MAX(b.email_esperto_remoto) AS esperto_remoto_email,
@@ -58,27 +59,34 @@ def list_bandi(user_email: str, *, include_all: bool = False) -> list[dict]:
             )
             rows = cursor.fetchall()
 
-    return [
-        {
-            **_serialize(row),
-            "session_count": int(row["session_count"] or 0),
-            "configured": bool(row["configured"]),
-            "config_status": row.get("config_status") or "da_configurare",
-            "expert_assigned": bool(row.get("expert_assigned")),
-            "required_data_complete": bool(row.get("required_data_complete")),
-            "capabilities": ["configure", "view"],
-        }
-        for row in rows
-    ]
+    items = []
+    for row in rows:
+        serialized = _serialize(row)
+        is_owner = bool(serialized.pop("is_owner", False))
+        items.append(
+            {
+                **serialized,
+                "session_count": int(row["session_count"] or 0),
+                "configured": bool(row["configured"]),
+                "config_status": row.get("config_status") or "da_configurare",
+                "expert_assigned": bool(row.get("expert_assigned")),
+                "required_data_complete": bool(row.get("required_data_complete")),
+                "visibility_reason": "owner" if is_owner else "admin",
+                "capabilities": ["configure", "view"],
+            }
+        )
+    return items
 
 
-def get_bando(commission_id: str) -> dict | None:
+def get_bando(commission_id: str, user_email: str | None = None) -> dict | None:
+    visibility_email = user_email or ""
     with get_db_connection() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
             cursor.execute(
                 """
                 SELECT c.commission_id,
                        MAX(c.titolo) AS title,
+                       BOOL_OR(c.user_email = %s) AS is_owner,
                        BOOL_OR(b.commission_id IS NOT NULL) AS configured,
                        MAX(b.email_referente) AS referente_email,
                        MAX(b.email_esperto_remoto) AS esperto_remoto_email,
@@ -96,7 +104,7 @@ def get_bando(commission_id: str) -> dict | None:
                  WHERE c.commission_id = %s
               GROUP BY c.commission_id
                 """,
-                (commission_id,),
+                (visibility_email, commission_id),
             )
             row = cursor.fetchone()
             if not row:
@@ -108,6 +116,7 @@ def get_bando(commission_id: str) -> dict | None:
                     """
                     SELECT r.commission_id,
                            MAX(r.nome) AS title,
+                           BOOL_OR(r.user_email = %s) AS is_referente,
                            BOOL_OR(b.commission_id IS NOT NULL) AS configured,
                            MAX(b.email_referente) AS referente_email,
                            MAX(b.email_esperto_remoto) AS esperto_remoto_email,
@@ -122,29 +131,37 @@ def get_bando(commission_id: str) -> dict | None:
                      WHERE r.commission_id = %s
                   GROUP BY r.commission_id
                     """,
-                    (commission_id,),
+                    (visibility_email.strip().lower(), commission_id),
                 )
                 row = cursor.fetchone()
     if not row:
         return None
+    serialized = _serialize(row)
+    is_owner = bool(serialized.pop("is_owner", False))
+    is_referente = bool(serialized.pop("is_referente", False))
+    visibility_reason = "owner" if is_owner else "referente" if is_referente else "admin"
     return {
-        **_serialize(row),
+        **serialized,
         "session_count": int(row["session_count"] or 0),
         "configured": bool(row["configured"]),
         "config_status": row.get("config_status") or "da_configurare",
         "expert_assigned": bool(row.get("expert_assigned")),
         "required_data_complete": bool(row.get("required_data_complete")),
+        "visibility_reason": visibility_reason,
         "capabilities": ["configure", "view"],
     }
+
+
+def _include_admin_view(user_email: str) -> bool:
+    return request.args.get("mode") == "admin" and ROLE_ADMIN in get_user_roles(user_email)
 
 
 @bandi_api_bp.get("/bandi")
 @api_auth_required
 def bandi_index():
     email = session["user_email"]
-    roles = get_user_roles(email)
     return jsonify(
-        items=list_bandi(email, include_all=ROLE_ADMIN in roles),
+        items=list_bandi(email, include_all=_include_admin_view(email)),
         sync_error=None,
         sync_source="db",
     )
@@ -168,9 +185,8 @@ def bandi_sync():
             "Sessione OIDC scaduta.",
             401,
         )
-    roles = get_user_roles(email)
     return jsonify(
-        items=list_bandi(email, include_all=ROLE_ADMIN in roles),
+        items=list_bandi(email, include_all=_include_admin_view(email)),
         sync_error=result.get("sync_error"),
         sync_source=result.get("sync_source"),
     )
@@ -205,7 +221,7 @@ def referente_bandi_sync():
 @api_auth_required
 @commission_access_required(allow_referente=True)
 def bando_detail(commission_id):
-    bando = get_bando(commission_id)
+    bando = get_bando(commission_id, session["user_email"])
     if not bando:
         return error_response("bando_not_found", "Bando non trovato.", 404)
     config = get_bando_config(commission_id) or {}

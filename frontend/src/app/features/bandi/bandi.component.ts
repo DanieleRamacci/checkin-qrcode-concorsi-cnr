@@ -18,6 +18,51 @@ import { BandiService } from './bandi.service';
       <h1 class="mb-4">{{ dashboardTitle() }}</h1>
       <p class="lead">{{ dashboardLead() }}</p>
 
+      @if (isSecretaryMode()) {
+        <div class="alert alert-info" role="note">
+          <div class="d-flex justify-content-between gap-3 align-items-start">
+            <div>
+              <strong>Permessi Selezioni Online</strong>
+              <p class="mb-0">
+                Per comparire come segretario e scaricare i candidati, il tuo nominativo deve essere
+                inserito nella commissione come segretario e abilitato su Selezioni Online.
+              </p>
+              @if (auth.hasCapability('admin')) {
+                <p class="mb-0 mt-2">
+                  Come admin globale puoi vedere anche bandi gia presenti nel database locale, ma
+                  l'import candidati resta autorizzato da Selezioni Online.
+                </p>
+              }
+              @if (secretaryHelpOpen()) {
+                <div class="mt-2 small">
+                  Se "Scarica candidati" restituisce un errore di autorizzazione, verifica su
+                  Selezioni Online che il segretario sia presente nella commissione e che il
+                  nominativo sia abilitato. Il ruolo di esperto informatico non basta per l'import
+                  candidati.
+                </div>
+              }
+            </div>
+            <button
+              type="button"
+              class="btn btn-outline-primary btn-sm text-nowrap"
+              (click)="secretaryHelpOpen.set(!secretaryHelpOpen())"
+              [attr.aria-expanded]="secretaryHelpOpen()"
+            >
+              ?
+              <span class="visually-hidden">Mostra guida permessi Selezioni Online</span>
+            </button>
+          </div>
+        </div>
+      }
+
+      @if (isAdminMode()) {
+        <div class="alert alert-warning" role="note">
+          <strong>Vista amministratore.</strong>
+          Stai vedendo i bandi presenti nel database locale. Se un bando e marcato come
+          "Solo admin", non risulti segretario nei dati locali e lo scarico candidati sara bloccato.
+        </div>
+      }
+
       @if (syncError()) {
         <div class="alert alert-warning" role="alert">
           <h2 class="alert-heading h5 mb-2">Sincronizzazione commissioni non riuscita</h2>
@@ -34,7 +79,7 @@ import { BandiService } from './bandi.service';
         <div class="alert alert-danger" role="alert">{{ error() }}</div>
       } @else {
         @if (items().length === 0) {
-          <div class="alert alert-info" role="status">Nessuna commissione disponibile.</div>
+          <div class="alert alert-info" role="status">{{ emptyMessage() }}</div>
         }
 
         <div class="mb-3">
@@ -62,7 +107,16 @@ import { BandiService } from './bandi.service';
               @for (bando of filteredItems(); track bando.commission_id; let i = $index) {
                 <tr>
                   <th scope="row">{{ i + 1 }}</th>
-                  <td>{{ bando.title }}</td>
+                  <td>
+                    <div class="d-flex flex-column gap-1">
+                      <span>{{ bando.title }}</span>
+                      @if (bando.visibility_reason === 'admin') {
+                        <span class="badge text-bg-warning align-self-start">Solo admin - non sei segretario</span>
+                      } @else if (bando.visibility_reason === 'owner') {
+                        <span class="badge text-bg-success align-self-start">Segretario</span>
+                      }
+                    </div>
+                  </td>
                   <td>
                     <a
                       class="btn btn-sm btn-primary"
@@ -135,6 +189,7 @@ export class BandiComponent {
   readonly syncError = signal<string | null>(null);
   readonly syncSource = signal<string | null>(null);
   readonly mobilePromptOpen = signal(true);
+  readonly secretaryHelpOpen = signal(false);
   readonly query = signal('');
   readonly filteredItems = computed(() => {
     const q = this.query().trim().toLowerCase();
@@ -146,7 +201,16 @@ export class BandiComponent {
     return this.mode === 'referente' || this.auth.hasCapability('admin') || !!this.auth.user()?.dev_mode;
   }
 
+  isSecretaryMode(): boolean {
+    return this.mode === 'segretario';
+  }
+
+  isAdminMode(): boolean {
+    return this.mode === 'admin';
+  }
+
   dashboardTitle(): string {
+    if (this.mode === 'admin') return 'Dashboard Amministratore';
     if (this.mode === 'expert' || this.mode === 'esperto') return 'Dashboard Esperto informatico';
     if (this.mode === 'sede') return 'Dashboard Informatico in sede';
     if (this.mode === 'referente') return 'Dashboard Referente';
@@ -163,7 +227,17 @@ export class BandiComponent {
     if (this.mode === 'referente') {
       return "Di seguito trovi l'elenco dei concorsi per cui sei autorizzato come referente.";
     }
+    if (this.mode === 'admin') {
+      return "Di seguito trovi tutti i concorsi gia presenti nel database locale.";
+    }
     return "Di seguito trovi l'elenco dei concorsi per cui sei autorizzato.";
+  }
+
+  emptyMessage(): string {
+    if (this.mode === 'segretario') {
+      return 'Non risultano bandi per cui sei segretario o referente operativo.';
+    }
+    return 'Nessuna commissione disponibile.';
   }
 
   constructor() {
@@ -173,12 +247,12 @@ export class BandiComponent {
   reload(): void {
     this.loading.set(true);
     this.error.set(null);
-    this.service.sync().subscribe({
+    this.service.sync(this.mode).subscribe({
       next: (response) => this.applyResponse(response),
       error: () => {
         this.syncError.set('Sincronizzazione remota non disponibile.');
         this.syncSource.set('db_fallback');
-        this.service.list().subscribe({
+        this.service.list(this.mode).subscribe({
           next: (response) => this.applyResponse(response, true),
           error: () => {
             this.error.set('Impossibile caricare i bandi.');

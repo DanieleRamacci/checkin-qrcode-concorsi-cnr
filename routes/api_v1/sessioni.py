@@ -22,8 +22,10 @@ def _json_value(value):
 
 def _session_dto(row) -> dict:
     result = {key: _json_value(value) for key, value in dict(row).items()}
+    is_owner = bool(result.pop("is_owner", True))
     for field in ("candidate_count", "checked_in_count", "device_count"):
         result[field] = int(result.get(field) or 0)
+    result["visibility_reason"] = "owner" if is_owner else "admin"
     result["capabilities"] = ["configure", "manage"]
     return result
 
@@ -57,7 +59,7 @@ def list_sessioni(commission_id: str) -> list[dict]:
             return [_session_dto(row) for row in cursor.fetchall()]
 
 
-def get_sessione(session_id: str) -> dict | None:
+def get_sessione(session_id: str, user_email: str | None = None) -> dict | None:
     with get_db_connection() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
             cursor.execute(
@@ -69,18 +71,22 @@ def get_sessione(session_id: str) -> dict | None:
                        s.ora AS time,
                        s.luogo AS location,
                        s.stato_corrente AS current_state,
+                       BOOL_OR(owner.user_email IS NOT NULL) AS is_owner,
                        COUNT(DISTINCT c.uid) AS candidate_count,
                        COUNT(DISTINCT c.uid)
                            FILTER (WHERE c.checkin_effettuato) AS checked_in_count,
                        COUNT(DISTINCT d.id) AS device_count
                   FROM sessioni AS s
+             LEFT JOIN commissions AS owner
+                    ON owner.commission_id = s.commission_id
+                   AND owner.user_email = %s
              LEFT JOIN candidati AS c ON c.session_id = s.session_id
              LEFT JOIN dispositivi AS d ON d.session_id = s.session_id
                  WHERE s.session_id = %s
               GROUP BY s.session_id, s.commission_id, s.nome, s.giorno,
                        s.ora, s.luogo, s.stato_corrente
                 """,
-                (session_id,),
+                (user_email or "", session_id),
             )
             row = cursor.fetchone()
     return _session_dto(row) if row else None
@@ -100,7 +106,7 @@ def sessioni_index(commission_id):
 @api_auth_required
 @session_access_required()
 def sessione_detail(session_id):
-    sessione = get_sessione(session_id)
+    sessione = get_sessione(session_id, session["user_email"])
     if not sessione:
         return error_response(
             "session_not_found",

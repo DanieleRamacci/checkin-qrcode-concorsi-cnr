@@ -86,6 +86,13 @@ interface OperationalConfig {
         </aside>
 
         <main class="col-md-10 content-area">
+          @if (detail()?.visibility_reason === 'admin') {
+            <div class="alert alert-warning mb-3" role="alert">
+              <strong>Vista amministratore.</strong>
+              Questa sessione appartiene a un bando locale per cui non risulti segretario.
+              Puoi consultare lo stato, ma lo scarico candidati e bloccato finche Selezioni Online non ti abilita come segretario.
+            </div>
+          }
           <div class="it-card-wrapper mb-3">
             <div class="it-card rounded shadow-sm p-4">
               <div class="row">
@@ -97,6 +104,7 @@ interface OperationalConfig {
                     [bandoConfigured]="bandoConfigured()"
                     [deviceCount]="detail()?.device_count ?? 0"
                     [viewMode]="viewMode"
+                    [adminOnly]="detail()?.visibility_reason === 'admin'"
                     (changed)="load()"
                   />
                   <div class="mb-3"><app-candidati [sessionId]="sessionId" /></div>
@@ -136,7 +144,7 @@ export class GestioneSessioneComponent {
   private readonly route = inject(ActivatedRoute);
   readonly sessionId = this.route.snapshot.paramMap.get('sessionId') ?? '';
   readonly viewMode = normalizeViewMode(this.route.snapshot.queryParamMap.get('mode'));
-  readonly showTimeline = this.viewMode === 'segretario';
+  readonly showTimeline = this.viewMode === 'segretario' || this.viewMode === 'admin';
   readonly detail = signal<SessionSummary | null>(null);
   readonly workflowState = signal<WorkflowState | null>(null);
   readonly bandoConfigured = signal(false);
@@ -162,8 +170,9 @@ export class GestioneSessioneComponent {
   }
 }
 
-export function normalizeViewMode(mode: string | null): 'segretario' | 'sede' | 'esperto' {
+export function normalizeViewMode(mode: string | null): 'segretario' | 'sede' | 'esperto' | 'admin' {
   if (mode === 'expert' || mode === 'esperto') return 'esperto';
   if (mode === 'sede') return 'sede';
+  if (mode === 'admin') return 'admin';
   return 'segretario';
 }

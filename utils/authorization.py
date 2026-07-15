@@ -92,6 +92,26 @@ def can_access_session(
             return cursor.fetchone() is not None
 
 
+def is_session_owner(user_email: str | None, session_id: str) -> bool:
+    if not user_email:
+        return False
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT 1
+                  FROM sessioni AS s
+                  JOIN commissions AS c
+                    ON c.commission_id = s.commission_id
+                 WHERE s.session_id = %s
+                   AND c.user_email = %s
+                 LIMIT 1
+                """,
+                (session_id, user_email),
+            )
+            return cursor.fetchone() is not None
+
+
 def commission_access_required(
     *,
     parameter: str = "commission_id",

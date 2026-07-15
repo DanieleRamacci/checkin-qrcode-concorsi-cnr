@@ -24,6 +24,7 @@ import { AuthService } from '../../core/auth.service';
               <ul class="dropdown-menu dropdown-menu-end show">
                 <li><a class="dropdown-item" routerLink="/admin/permessi">Gestione permessi</a></li>
                 <li><a class="dropdown-item" routerLink="/admin/logs">Log sistema</a></li>
+                <li><a class="dropdown-item" routerLink="/bandi" [queryParams]="{ mode: 'admin' }">Vista amministratore bandi</a></li>
               </ul>
             }
           </div>
@@ -58,6 +59,19 @@ import { AuthService } from '../../core/auth.service';
                 <p class="card-text">Gestisci supporto tecnico, reset e fasi dell'esame.</p>
                 <a class="btn btn-primary" routerLink="/bandi" [queryParams]="{ mode: 'expert' }">
                   Entra come Esperto
+                </a>
+              </div>
+            </div>
+          </div>
+        }
+        @if (auth.hasCapability('admin')) {
+          <div class="col-md-4">
+            <div class="card h-100 shadow-sm">
+              <div class="card-body">
+                <h2 class="card-title h5">Amministratore bandi</h2>
+                <p class="card-text">Consulta tutti i concorsi locali distinguendo quelli gestiti come segretario.</p>
+                <a class="btn btn-outline-primary" routerLink="/bandi" [queryParams]="{ mode: 'admin' }">
+                  Apri vista admin
                 </a>
               </div>
             </div>

@@ -11,12 +11,12 @@ import {
 export class BandiService {
   private readonly api = inject(ApiClient);
 
-  list() {
-    return this.api.get<BandiResponse>('/bandi');
+  list(mode = 'segretario') {
+    return this.api.get<BandiResponse>(`/bandi?mode=${encodeURIComponent(mode)}`);
   }
 
-  sync() {
-    return this.api.post<BandiResponse>('/bandi/sync');
+  sync(mode = 'segretario') {
+    return this.api.post<BandiResponse>(`/bandi/sync?mode=${encodeURIComponent(mode)}`);
   }
 
   syncReferente() {
