@@ -81,6 +81,16 @@ scenario reale. Gap reali trovati e risolti finora:
    sei segretario". Lo scarico candidati e' bloccato lato API quando manca
    la relazione locale di commissione per la sessione. Dettaglio operativo in
    [`docs/operativa/selezioni-online.md`](../operativa/selezioni-online.md).
+7. **Ruoli Selezioni Online non equivalenti a segretario**: dai test reali e'
+   emerso che `/openapi/v1/call/commissions` puo restituire bandi collegati
+   all'utente anche quando l'utente e' presidente, componente o esperto, non
+   segretario. La sync ora verifica il dettaglio commissione, salva
+   `source_role/access_active`, mostra in dashboard Segretario solo
+   `SEGRETARIO` attivi e marca come non attive le relazioni non piu restituite
+   da una sync remota valida. I bandi e i dati operativi non vengono cancellati:
+   restano disponibili agli altri utenti autorizzati e alla vista admin.
+   Inoltre `email_segretario` viene riallineata a Selezioni Online e non e'
+   piu inseribile a mano fuori dalla lista dei `SEGRETARIO`.
 
 ## Cosa resta da fare
 

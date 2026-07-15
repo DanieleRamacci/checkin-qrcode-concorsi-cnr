@@ -149,6 +149,22 @@ def _referente_selection_error(config: dict, email: str) -> str | None:
     return None
 
 
+def _secretary_selection_error(config: dict, email: str) -> str | None:
+    normalized = _normalize_email(email)
+    if not normalized:
+        return None
+    options = _secretary_options(config)
+    if not options:
+        return (
+            "Nessun segretario disponibile da Selezioni Online per il bando. "
+            "Verificare la fonte dati prima di impostare il segretario."
+        )
+    allowed = {_normalize_email(option["email"]) for option in options}
+    if normalized not in allowed:
+        return "Selezionare uno dei segretari disponibili per il bando."
+    return None
+
+
 @configurazioni_api_bp.get("/bandi/<commission_id>/config")
 @api_auth_required
 @commission_access_required(allow_referente=True)
@@ -184,6 +200,15 @@ def bando_config_put(commission_id):
                 "Dati di configurazione non validi.",
                 422,
                 details={"email_referente": selection_error},
+            )
+    if "email_segretario" in data:
+        selection_error = _secretary_selection_error(current, data.get("email_segretario"))
+        if selection_error:
+            return error_response(
+                "validation_error",
+                "Dati di configurazione non validi.",
+                422,
+                details={"email_segretario": selection_error},
             )
     merged = {**current, **data}
     save_bando_config(

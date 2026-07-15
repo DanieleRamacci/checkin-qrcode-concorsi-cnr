@@ -1,4 +1,5 @@
 from flask import Flask
+from contextlib import contextmanager
 
 from routes.api_v1 import api_v1_bp
 from routes.api_v1.csrf import get_csrf_token
@@ -113,6 +114,62 @@ def test_bandi_non_admin_cannot_enable_admin_mode(monkeypatch):
 
     assert response.status_code == 200
     assert captured["include_all"] is False
+
+
+def test_list_bandi_counts_sessions_by_commission_not_original_user(monkeypatch):
+    from routes.api_v1 import bandi
+
+    executed = []
+
+    class FakeCursor:
+        def execute(self, query, params):
+            executed.append((query, params))
+
+        def fetchall(self):
+            return [
+                {
+                    "commission_id": "commission-1",
+                    "title": "Concorso CNR",
+                    "is_owner": True,
+                    "user_source_role": "SEGRETARIO",
+                    "user_access_active": True,
+                    "configured": True,
+                    "referente_email": None,
+                    "esperto_remoto_email": None,
+                    "config_status": "da_configurare",
+                    "expert_assigned": False,
+                    "required_data_complete": False,
+                    "session_count": 2,
+                    "last_sync": None,
+                }
+            ]
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+    class FakeConnection:
+        def cursor(self, *args, **kwargs):
+            return FakeCursor()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+    @contextmanager
+    def fake_connection():
+        yield FakeConnection()
+
+    monkeypatch.setattr(bandi, "get_db_connection", fake_connection)
+
+    items = bandi.list_bandi("nuovo.segretario@cnr.it")
+
+    assert items[0]["session_count"] == 2
+    assert "s.user_email = c.user_email" not in executed[0][0]
 
 
 def test_bandi_sync_preserves_cache_error_context(monkeypatch):

@@ -44,6 +44,23 @@ def connection_factory(row):
     return factory
 
 
+def tracking_connection_factory(row, tracker):
+    class TrackingCursor(FakeCursor):
+        def execute(self, query, params):
+            super().execute(query, params)
+            tracker.append((query, params))
+
+    class TrackingConnection(FakeConnection):
+        def cursor(self):
+            return TrackingCursor(self.row)
+
+    @contextmanager
+    def factory():
+        yield TrackingConnection(row)
+
+    return factory
+
+
 def test_admin_can_access_any_commission(monkeypatch):
     from utils import authorization
 
@@ -57,23 +74,29 @@ def test_admin_can_access_any_commission(monkeypatch):
 def test_owner_can_access_commission(monkeypatch):
     from utils import authorization
 
+    executed = []
     monkeypatch.setattr(authorization, "get_user_roles", lambda email: set())
     monkeypatch.setattr(
-        authorization, "get_db_connection", connection_factory((1,))
+        authorization, "get_db_connection", tracking_connection_factory((1,), executed)
     )
 
     assert authorization.can_access_commission("owner@cnr.it", "commission-1")
+    assert "COALESCE(access_active, TRUE)" in executed[0][0]
+    assert "source_role" in executed[0][0]
 
 
 def test_unrelated_user_cannot_access_session(monkeypatch):
     from utils import authorization
 
+    executed = []
     monkeypatch.setattr(authorization, "get_user_roles", lambda email: set())
     monkeypatch.setattr(
-        authorization, "get_db_connection", connection_factory(None)
+        authorization, "get_db_connection", tracking_connection_factory(None, executed)
     )
 
     assert not authorization.can_access_session("other@cnr.it", "session-1")
+    assert "COALESCE(c.access_active, TRUE)" in executed[0][0]
+    assert "c.source_role" in executed[0][0]
 
 
 def test_explicit_role_can_be_allowed(monkeypatch):

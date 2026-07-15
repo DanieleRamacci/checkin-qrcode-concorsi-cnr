@@ -49,6 +49,10 @@ try:
         titolo TEXT NOT NULL,
         user_email TEXT NOT NULL,
         data_sync TEXT,
+        source_role TEXT NOT NULL DEFAULT 'SEGRETARIO',
+        access_active BOOLEAN NOT NULL DEFAULT TRUE,
+        last_seen_at TIMESTAMP,
+        revoked_at TIMESTAMP,
         PRIMARY KEY (commission_id, user_email)
     );
     """)
@@ -219,6 +223,22 @@ try:
     cursor.execute("""
     ALTER TABLE dispositivi
     ADD COLUMN IF NOT EXISTS operator_email TEXT;
+    """)
+    cursor.execute("""
+    ALTER TABLE commissions
+    ADD COLUMN IF NOT EXISTS source_role TEXT NOT NULL DEFAULT 'SEGRETARIO';
+    """)
+    cursor.execute("""
+    ALTER TABLE commissions
+    ADD COLUMN IF NOT EXISTS access_active BOOLEAN NOT NULL DEFAULT TRUE;
+    """)
+    cursor.execute("""
+    ALTER TABLE commissions
+    ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP;
+    """)
+    cursor.execute("""
+    ALTER TABLE commissions
+    ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMP;
     """)
     cursor.execute("""
     CREATE UNIQUE INDEX IF NOT EXISTS dispositivi_device_token_uq

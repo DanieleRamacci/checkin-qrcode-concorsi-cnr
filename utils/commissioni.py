@@ -1,6 +1,4 @@
-# utils/commissioni.py
 import requests
-from datetime import datetime
 from flask import current_app
 from db import get_db_connection
 import os
@@ -8,6 +6,63 @@ from datetime import datetime, timezone
 
 
 BASE_URL = os.environ.get('BASE_URL', 'https://cool-jconon.test.si.cnr.it')
+
+
+def _normalize_email(value):
+    return (value or "").strip().lower()
+
+
+def _person_email(person):
+    return _normalize_email(
+        person.get("email")
+        or person.get("emailcertificatoperpuk")
+        or person.get("emailAddress")
+    )
+
+
+def _commission_item_id(item):
+    return str(
+        item.get("cmis:objectId")
+        or item.get("id")
+        or item.get("uuid")
+        or ""
+    ).strip()
+
+
+def _fetch_user_commission_role(access_token, commission_id, title, user_email, timeout_s=(5, 30)):
+    """Restituisce il ruolo istituzionale dell'utente sul bando, se disponibile.
+
+    `/call/commissions` dice che il bando è collegato all'utente, ma non dice
+    se l'utente è SEGRETARIO, PRESIDENTE o componente. Per la dashboard
+    Segretario serve il dettaglio commissione.
+    """
+    params = {
+        "page": 0,
+        "offset": 20,
+        "filterType": "all",
+        "callCode": title,
+        "detailRdP": "false",
+        "detailCommission": "true",
+    }
+    response = requests.get(
+        f"{BASE_URL}/openapi/v1/call",
+        headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json"},
+        params=params,
+        timeout=timeout_s,
+    )
+    response.raise_for_status()
+    items = response.json().get("items", [])
+    target = next(
+        (item for item in items if _commission_item_id(item) == commission_id),
+        items[0] if items else None,
+    )
+    if not target:
+        return "UNKNOWN"
+    normalized_user = _normalize_email(user_email)
+    for person in target.get("commissioners", []) or []:
+        if _person_email(person) == normalized_user:
+            return (person.get("ruolo") or "COMPONENTE").strip().upper() or "COMPONENTE"
+    return "NOT_IN_COMMISSION"
 
 def get_commissioni_sincronizzate_with_status(access_token, user_email, timeout_s: int = 8):
     out = {
@@ -60,26 +115,60 @@ def get_commissioni_sincronizzate_with_status(access_token, user_email, timeout_
                     cursor.execute("SELECT commission_id FROM commissions WHERE user_email = %s", (user_email,))
                     local_ids = {row[0] for row in cursor.fetchall()}
 
-                    nuovi = remote_ids - local_ids
                     for c in remote_commissions:
-                        if c['id'] in nuovi:
-                            cursor.execute("""
-                                INSERT INTO commissions (commission_id, titolo, user_email, data_sync)
-                                VALUES (%s, %s, %s, %s)
-                            """, (c['id'], c['title'], user_email, now_iso_utc()))
+                        role = "UNKNOWN"
+                        try:
+                            role = _fetch_user_commission_role(
+                                access_token,
+                                c["id"],
+                                c["title"],
+                                user_email,
+                            )
+                        except Exception as role_error:
+                            current_app.logger.warning(
+                                "[comm] ruolo non determinabile commission_id=%s user=%s: %s",
+                                c.get("id"),
+                                user_email,
+                                role_error,
+                            )
+                        cursor.execute("""
+                            INSERT INTO commissions (
+                                commission_id, titolo, user_email, data_sync,
+                                source_role, access_active, last_seen_at, revoked_at
+                            )
+                            VALUES (%s, %s, %s, %s, %s, TRUE, %s, NULL)
+                            ON CONFLICT (commission_id, user_email)
+                            DO UPDATE SET
+                                titolo = EXCLUDED.titolo,
+                                data_sync = EXCLUDED.data_sync,
+                                source_role = EXCLUDED.source_role,
+                                access_active = TRUE,
+                                last_seen_at = EXCLUDED.last_seen_at,
+                                revoked_at = NULL
+                        """, (
+                            c['id'],
+                            c['title'],
+                            user_email,
+                            now_iso_utc(),
+                            role,
+                            datetime.now(timezone.utc),
+                        ))
 
                     da_eliminare = local_ids - remote_ids
                     for cid in da_eliminare:
                         cursor.execute("""
-                            DELETE FROM commissions
-                            WHERE commission_id = %s AND user_email = %s
-                              AND NOT EXISTS (
-                                  SELECT 1
-                                    FROM sessioni
-                                   WHERE sessioni.commission_id = commissions.commission_id
-                                     AND sessioni.user_email = commissions.user_email
-                              )
-                        """, (cid, user_email))
+                            UPDATE commissions
+                               SET access_active = FALSE,
+                                   revoked_at = COALESCE(revoked_at, %s),
+                                   data_sync = %s
+                             WHERE commission_id = %s
+                               AND user_email = %s
+                        """, (
+                            datetime.now(timezone.utc),
+                            now_iso_utc(),
+                            cid,
+                            user_email,
+                        ))
                 else:
                     current_app.logger.warning("[comm] Sync remota non disponibile: nessuna modifica al DB locale")
 
@@ -87,6 +176,8 @@ def get_commissioni_sincronizzate_with_status(access_token, user_email, timeout_
                     SELECT commission_id, titolo
                     FROM commissions
                     WHERE user_email = %s
+                      AND COALESCE(access_active, TRUE)
+                      AND UPPER(COALESCE(source_role, 'SEGRETARIO')) = 'SEGRETARIO'
                     ORDER BY titolo
                 """, (user_email,))
                 out["commissioni"] = [{"id": r[0], "title": r[1]} for r in cursor.fetchall()]
@@ -103,6 +194,8 @@ def get_commissioni_sincronizzate_with_status(access_token, user_email, timeout_
                         SELECT commission_id, titolo
                         FROM commissions
                         WHERE user_email = %s
+                          AND COALESCE(access_active, TRUE)
+                          AND UPPER(COALESCE(source_role, 'SEGRETARIO')) = 'SEGRETARIO'
                         ORDER BY titolo
                     """, (user_email,))
                     out["commissioni"] = [{"id": r[0], "title": r[1]} for r in cursor.fetchall()]

@@ -95,9 +95,11 @@ import { BandiService } from '../bandi/bandi.service';
                   }
                 </select>
               } @else {
-                <input class="form-control" id="email_segretario" name="email_segretario" type="email"
-                       [(ngModel)]="model['email_segretario']" />
+                <div class="form-control text-muted" id="email_segretario">
+                  Nessun segretario disponibile da Selezioni Online
+                </div>
               }
+              <div class="form-text">Il segretario puo essere scelto solo tra i componenti con ruolo SEGRETARIO restituiti da Selezioni Online.</div>
             </div>
             <div class="col-md-6">
               <label class="form-label" for="telefono_segretario">Telefono segretario</label>

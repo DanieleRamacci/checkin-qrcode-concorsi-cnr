@@ -29,6 +29,8 @@ describe('BandiComponent', () => {
                     configured: true,
                     session_count: 2,
                     visibility_reason: mode === 'admin' ? 'admin' : 'owner',
+                    source_role: mode === 'admin' ? 'PRESIDENTE' : 'SEGRETARIO',
+                    access_active: true,
                     capabilities: ['view'],
                   },
                 ],
@@ -68,6 +70,7 @@ describe('BandiComponent', () => {
 
     expect(fixture.nativeElement.textContent).toContain('Concorso CNR');
     expect(fixture.nativeElement.textContent).toContain('Dashboard Segretario');
+    expect(fixture.nativeElement.textContent).toContain('Aggiorna da Selezioni Online');
     expect(fixture.nativeElement.textContent).toContain('nominativo deve essere');
     expect(fixture.nativeElement.textContent).toContain('abilitato su Selezioni Online');
     expect(fixture.nativeElement.textContent).not.toContain('Configura');
@@ -94,5 +97,6 @@ describe('BandiComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Dashboard Amministratore');
     expect(fixture.nativeElement.textContent).toContain('Vista amministratore');
     expect(fixture.nativeElement.textContent).toContain('Solo admin - non sei segretario');
+    expect(fixture.nativeElement.textContent).toContain('Ruolo: PRESIDENTE');
   });
 });

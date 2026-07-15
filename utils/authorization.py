@@ -36,6 +36,8 @@ def can_access_commission(
                       FROM commissions
                      WHERE commission_id = %s
                        AND user_email = %s
+                       AND COALESCE(access_active, TRUE)
+                       AND UPPER(COALESCE(source_role, 'SEGRETARIO')) = 'SEGRETARIO'
                      UNION ALL
                     SELECT 1
                       FROM bando_referenti
@@ -57,6 +59,8 @@ def can_access_commission(
                       FROM commissions
                      WHERE commission_id = %s
                        AND user_email = %s
+                       AND COALESCE(access_active, TRUE)
+                       AND UPPER(COALESCE(source_role, 'SEGRETARIO')) = 'SEGRETARIO'
                      LIMIT 1
                     """,
                     (commission_id, user_email),
@@ -85,6 +89,8 @@ def can_access_session(
                     ON c.commission_id = s.commission_id
                  WHERE s.session_id = %s
                    AND c.user_email = %s
+                   AND COALESCE(c.access_active, TRUE)
+                   AND UPPER(COALESCE(c.source_role, 'SEGRETARIO')) = 'SEGRETARIO'
                  LIMIT 1
                 """,
                 (session_id, user_email),
@@ -105,6 +111,8 @@ def is_session_owner(user_email: str | None, session_id: str) -> bool:
                     ON c.commission_id = s.commission_id
                  WHERE s.session_id = %s
                    AND c.user_email = %s
+                   AND COALESCE(c.access_active, TRUE)
+                   AND UPPER(COALESCE(c.source_role, 'SEGRETARIO')) = 'SEGRETARIO'
                  LIMIT 1
                 """,
                 (session_id, user_email),

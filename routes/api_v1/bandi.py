@@ -28,15 +28,24 @@ def _serialize(row) -> dict:
 
 
 def list_bandi(user_email: str, *, include_all: bool = False) -> list[dict]:
-    ownership_filter = "" if include_all else "WHERE c.user_email = %s"
-    params = (user_email,) if include_all else (user_email, user_email)
+    ownership_filter = "" if include_all else (
+        "WHERE c.user_email = %s "
+        "AND COALESCE(c.access_active, TRUE) "
+        "AND UPPER(COALESCE(c.source_role, 'SEGRETARIO')) = 'SEGRETARIO'"
+    )
     with get_db_connection() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
             cursor.execute(
                 f"""
                 SELECT c.commission_id,
                        MAX(c.titolo) AS title,
-                       BOOL_OR(c.user_email = %s) AS is_owner,
+                       BOOL_OR(
+                           c.user_email = %s
+                           AND COALESCE(c.access_active, TRUE)
+                           AND UPPER(COALESCE(c.source_role, 'SEGRETARIO')) = 'SEGRETARIO'
+                       ) AS is_owner,
+                       MAX(c.source_role) FILTER (WHERE c.user_email = %s) AS user_source_role,
+                       BOOL_OR(COALESCE(c.access_active, TRUE)) FILTER (WHERE c.user_email = %s) AS user_access_active,
                        BOOL_OR(b.commission_id IS NOT NULL) AS configured,
                        MAX(b.email_referente) AS referente_email,
                        MAX(b.email_esperto_remoto) AS esperto_remoto_email,
@@ -50,12 +59,11 @@ def list_bandi(user_email: str, *, include_all: bool = False) -> list[dict]:
                     ON b.commission_id = c.commission_id
              LEFT JOIN sessioni AS s
                     ON s.commission_id = c.commission_id
-                   AND s.user_email = c.user_email
                        {ownership_filter}
               GROUP BY c.commission_id
               ORDER BY MAX(c.titolo), c.commission_id
                 """,
-                params,
+                (user_email, user_email, user_email, *(() if include_all else (user_email,))),
             )
             rows = cursor.fetchall()
 
@@ -63,6 +71,8 @@ def list_bandi(user_email: str, *, include_all: bool = False) -> list[dict]:
     for row in rows:
         serialized = _serialize(row)
         is_owner = bool(serialized.pop("is_owner", False))
+        user_source_role = serialized.pop("user_source_role", None)
+        user_access_active = serialized.pop("user_access_active", None)
         items.append(
             {
                 **serialized,
@@ -72,6 +82,8 @@ def list_bandi(user_email: str, *, include_all: bool = False) -> list[dict]:
                 "expert_assigned": bool(row.get("expert_assigned")),
                 "required_data_complete": bool(row.get("required_data_complete")),
                 "visibility_reason": "owner" if is_owner else "admin",
+                "source_role": user_source_role,
+                "access_active": bool(user_access_active) if user_access_active is not None else is_owner,
                 "capabilities": ["configure", "view"],
             }
         )
@@ -86,7 +98,13 @@ def get_bando(commission_id: str, user_email: str | None = None) -> dict | None:
                 """
                 SELECT c.commission_id,
                        MAX(c.titolo) AS title,
-                       BOOL_OR(c.user_email = %s) AS is_owner,
+                       BOOL_OR(
+                           c.user_email = %s
+                           AND COALESCE(c.access_active, TRUE)
+                           AND UPPER(COALESCE(c.source_role, 'SEGRETARIO')) = 'SEGRETARIO'
+                       ) AS is_owner,
+                       MAX(c.source_role) FILTER (WHERE c.user_email = %s) AS user_source_role,
+                       BOOL_OR(COALESCE(c.access_active, TRUE)) FILTER (WHERE c.user_email = %s) AS user_access_active,
                        BOOL_OR(b.commission_id IS NOT NULL) AS configured,
                        MAX(b.email_referente) AS referente_email,
                        MAX(b.email_esperto_remoto) AS esperto_remoto_email,
@@ -100,11 +118,10 @@ def get_bando(commission_id: str, user_email: str | None = None) -> dict | None:
                     ON b.commission_id = c.commission_id
              LEFT JOIN sessioni AS s
                     ON s.commission_id = c.commission_id
-                   AND s.user_email = c.user_email
                  WHERE c.commission_id = %s
               GROUP BY c.commission_id
                 """,
-                (visibility_email, commission_id),
+                (visibility_email, visibility_email, visibility_email, commission_id),
             )
             row = cursor.fetchone()
             if not row:
@@ -139,6 +156,8 @@ def get_bando(commission_id: str, user_email: str | None = None) -> dict | None:
     serialized = _serialize(row)
     is_owner = bool(serialized.pop("is_owner", False))
     is_referente = bool(serialized.pop("is_referente", False))
+    user_source_role = serialized.pop("user_source_role", None)
+    user_access_active = serialized.pop("user_access_active", None)
     visibility_reason = "owner" if is_owner else "referente" if is_referente else "admin"
     return {
         **serialized,
@@ -148,6 +167,8 @@ def get_bando(commission_id: str, user_email: str | None = None) -> dict | None:
         "expert_assigned": bool(row.get("expert_assigned")),
         "required_data_complete": bool(row.get("required_data_complete")),
         "visibility_reason": visibility_reason,
+        "source_role": user_source_role,
+        "access_active": bool(user_access_active) if user_access_active is not None else is_owner,
         "capabilities": ["configure", "view"],
     }
 

@@ -3,9 +3,6 @@ import hashlib
 from datetime import datetime, timezone
 import os
 from db import get_db_connection 
-import hashlib
-from routes.sessioni import parse_session_string  # riusa il parser già cretao 
-from datetime import datetime
 from flask import current_app
 import time
 from utils.bando_config_status import compute_bando_config_status
@@ -22,12 +19,17 @@ def get_sessioni_internamente(commission_id, access_token, user_email, timeout_s
     Non solleva eccezioni.
     """
     try:
+        from routes.sessioni import parse_session_string
+
         # 1) Autorizzazione utente sulla commissione
         with get_db_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
                     SELECT 1 FROM commissions
-                    WHERE commission_id = %s AND user_email = %s
+                    WHERE commission_id = %s
+                      AND user_email = %s
+                      AND COALESCE(access_active, TRUE)
+                      AND UPPER(COALESCE(source_role, 'SEGRETARIO')) = 'SEGRETARIO'
                 """, (commission_id, user_email))
                 if not cursor.fetchone():
                     current_app.logger.debug("[sessioni] no auth commission_id=%s user=%s", commission_id, user_email)
@@ -351,9 +353,8 @@ def update_bando_da_openapi(commission_id: str, rdps: list, commissioners: list)
     Aggiorna bando_config con i dati freschi dall'API /openapi/v1/call.
     - commissione_members e rdp_nomi vengono sempre sovrascritti (dati API).
     - email_referente viene impostata solo se attualmente vuota.
-    - email_segretario viene impostata solo se attualmente vuota e c'è almeno
-      un commissioner con ruolo SEGRETARIO; se ce ne sono più di uno usa il
-      primo restituito da Selezioni Online.
+    - email_segretario viene allineata alla fonte istituzionale: se non c'e'
+      alcun commissioner con ruolo SEGRETARIO, il valore locale viene svuotato.
     """
     import json as _json
 
@@ -409,10 +410,7 @@ def update_bando_da_openapi(commission_id: str, rdps: list, commissioners: list)
                     email_referente     = CASE
                         WHEN bando_config.email_referente IS NULL OR bando_config.email_referente = ''
                         THEN EXCLUDED.email_referente ELSE bando_config.email_referente END,
-                    email_segretario    = CASE
-                        WHEN (bando_config.email_segretario IS NULL OR bando_config.email_segretario = '')
-                             AND EXCLUDED.email_segretario <> ''
-                        THEN EXCLUDED.email_segretario ELSE bando_config.email_segretario END
+                    email_segretario    = EXCLUDED.email_segretario
             """, (
                 commission_id,
                 _json.dumps(commissione_members, ensure_ascii=False),

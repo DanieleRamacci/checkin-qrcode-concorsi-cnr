@@ -16,7 +16,17 @@ import { BandiService } from './bandi.service';
     }
     <div class="container my-5">
       <h1 class="mb-4">{{ dashboardTitle() }}</h1>
-      <p class="lead">{{ dashboardLead() }}</p>
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+        <p class="lead mb-0">{{ dashboardLead() }}</p>
+        <button
+          type="button"
+          class="btn btn-outline-primary btn-sm"
+          [disabled]="loading()"
+          (click)="reload()"
+        >
+          Aggiorna da Selezioni Online
+        </button>
+      </div>
 
       @if (isSecretaryMode()) {
         <div class="alert alert-info" role="note">
@@ -114,6 +124,12 @@ import { BandiService } from './bandi.service';
                         <span class="badge text-bg-warning align-self-start">Solo admin - non sei segretario</span>
                       } @else if (bando.visibility_reason === 'owner') {
                         <span class="badge text-bg-success align-self-start">Segretario</span>
+                      }
+                      @if (bando.source_role && bando.source_role !== 'SEGRETARIO') {
+                        <span class="badge text-bg-secondary align-self-start">Ruolo: {{ bando.source_role }}</span>
+                      }
+                      @if (bando.access_active === false) {
+                        <span class="badge text-bg-danger align-self-start">Accesso non confermato</span>
                       }
                     </div>
                   </td>
@@ -235,7 +251,7 @@ export class BandiComponent {
 
   emptyMessage(): string {
     if (this.mode === 'segretario') {
-      return 'Non risultano bandi per cui sei segretario o referente operativo.';
+      return 'Non risultano bandi per cui sei segretario abilitato su Selezioni Online.';
     }
     return 'Nessuna commissione disponibile.';
   }

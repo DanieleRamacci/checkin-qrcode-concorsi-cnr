@@ -237,6 +237,67 @@ def test_put_bando_config_accepts_referente_email_case_insensitive(monkeypatch):
     assert saved["args"][0] == "Referente@CNR.IT"
 
 
+def test_put_bando_config_rejects_secretary_without_source_option(monkeypatch):
+    from routes.api_v1 import configurazioni
+
+    allow_resource_access(monkeypatch)
+    monkeypatch.setattr(
+        configurazioni,
+        "get_bando_config",
+        lambda commission_id: {
+            "rdp_members": [],
+            "commissione_members": [],
+        },
+    )
+
+    app = create_test_app()
+    client, csrf_token = authenticated_client(app)
+    response = client.put(
+        "/api/v1/bandi/commission-1/config",
+        json={"email_segretario": "segretario@cnr.it"},
+        headers={"X-CSRF-Token": csrf_token},
+    )
+
+    assert response.status_code == 422
+    assert "Selezioni Online" in response.get_json()["error"]["details"]["email_segretario"]
+
+
+def test_put_bando_config_accepts_secretary_email_case_insensitive(monkeypatch):
+    from routes.api_v1 import configurazioni
+
+    allow_resource_access(monkeypatch)
+    saved = {}
+    monkeypatch.setattr(
+        configurazioni,
+        "get_bando_config",
+        lambda commission_id: {
+            "rdp_members": [],
+            "commissione_members": [
+                {"nome": "Segretaria CNR", "email": "segretario@cnr.it", "ruolo": "SEGRETARIO"},
+                {"nome": "Presidente CNR", "email": "presidente@cnr.it", "ruolo": "PRESIDENTE"},
+            ],
+        },
+    )
+
+    def fake_save_bando_config(commission_id, *args, **kwargs):
+        saved["commission_id"] = commission_id
+        saved["args"] = args
+
+    monkeypatch.setattr(configurazioni, "save_bando_config", fake_save_bando_config)
+
+    app = create_test_app()
+    client, csrf_token = authenticated_client(app)
+    response = client.put(
+        "/api/v1/bandi/commission-1/config",
+        json={"email_segretario": "Segretario@CNR.IT"},
+        headers={"X-CSRF-Token": csrf_token},
+    )
+
+    assert response.status_code == 200
+    assert saved["commission_id"] == "commission-1"
+    assert saved["args"][2] == "Segretario@CNR.IT"
+
+
 def test_put_bando_config_ignores_readonly_response_fields(monkeypatch):
     from routes.api_v1 import configurazioni
 
@@ -250,7 +311,9 @@ def test_put_bando_config_ignores_readonly_response_fields(monkeypatch):
             "rdp_members": [
                 {"nome": "Referente CNR", "email": "referente@cnr.it"}
             ],
-            "commissione_members": [],
+            "commissione_members": [
+                {"nome": "Segretario CNR", "email": "segretario@cnr.it", "ruolo": "SEGRETARIO"}
+            ],
         },
     )
 

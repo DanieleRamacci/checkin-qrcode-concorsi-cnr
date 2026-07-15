@@ -80,6 +80,8 @@ def get_sessione(session_id: str, user_email: str | None = None) -> dict | None:
              LEFT JOIN commissions AS owner
                     ON owner.commission_id = s.commission_id
                    AND owner.user_email = %s
+                   AND COALESCE(owner.access_active, TRUE)
+                   AND UPPER(COALESCE(owner.source_role, 'SEGRETARIO')) = 'SEGRETARIO'
              LEFT JOIN candidati AS c ON c.session_id = s.session_id
              LEFT JOIN dispositivi AS d ON d.session_id = s.session_id
                  WHERE s.session_id = %s

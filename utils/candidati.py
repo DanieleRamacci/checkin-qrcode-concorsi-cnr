@@ -61,7 +61,10 @@ def importa_candidati_da_api(session_id, user_email, access_token):
                 # Verifica autorizzazione utente
                 cursor.execute("""
                     SELECT 1 FROM commissions
-                    WHERE commission_id = %s AND user_email = %s
+                    WHERE commission_id = %s
+                      AND user_email = %s
+                      AND COALESCE(access_active, TRUE)
+                      AND UPPER(COALESCE(source_role, 'SEGRETARIO')) = 'SEGRETARIO'
                 """, (commission_id, user_email))
                 if not cursor.fetchone():
                     msg = "Commissione non autorizzata"

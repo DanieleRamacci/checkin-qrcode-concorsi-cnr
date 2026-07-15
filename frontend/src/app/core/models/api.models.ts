@@ -20,6 +20,8 @@ export interface BandoSummary {
   session_count: number;
   last_sync?: string | null;
   visibility_reason?: 'owner' | 'admin' | 'referente' | string;
+  source_role?: string | null;
+  access_active?: boolean;
   capabilities: string[];
 }
 
