@@ -47,14 +47,17 @@ import { BandiService } from '../bandi/bandi.service';
                 }
               </select>
             } @else {
-              <input type="email" class="form-control" id="email_referente" name="email_referente"
-                     [(ngModel)]="model['email_referente']" placeholder="es. nome.cognome@cnr.it" />
+              <div class="form-control form-control-sm text-muted" id="email_referente">
+                Nessun RDP disponibile da Selezioni Online
+              </div>
             }
-            <button type="button" class="btn btn-outline-primary" [disabled]="busy()" (click)="requestConfiguration()">
+            <button type="button" class="btn btn-outline-primary" [disabled]="busy() || !canSendRequest()" (click)="requestConfiguration()">
               Salva &amp; invia richiesta
             </button>
           </div>
-          <div class="form-text">Salva l'email e invia al referente un link a questa pagina.</div>
+          <div class="form-text">
+            Il referente può essere scelto solo tra gli RDP restituiti da Selezioni Online.
+          </div>
         </div>
       </div>
 
@@ -207,7 +210,6 @@ export class BandoConfigComponent {
   save(): void {
     this.busy.set(true);
     const payload: Record<string, any> = {
-      email_referente: this.model['email_referente'] ?? '',
       email_esperto_remoto: this.model['email_esperto_remoto'] ?? '',
       email_segretario: this.model['email_segretario'] ?? '',
       telefono_segretario: this.model['telefono_segretario'] ?? '',
@@ -215,6 +217,9 @@ export class BandoConfigComponent {
       data_accesso_piattaforma: this.model['data_accesso_piattaforma'] ?? '',
       commissione_members: this.commissionMembers,
     };
+    if (this.rdpOptions().length) {
+      payload['email_referente'] = this.model['email_referente'] ?? '';
+    }
     this.api.put(`/bandi/${this.id}/config`, payload).subscribe({
       next: () => {
         this.busy.set(false);
@@ -230,6 +235,7 @@ export class BandoConfigComponent {
   }
 
   requestConfiguration(): void {
+    if (!this.canSendRequest()) return;
     this.busy.set(true);
     this.api.post(`/bandi/${this.id}/request-config`, {
       email_referente: this.model['email_referente'] ?? '',
@@ -253,6 +259,10 @@ export class BandoConfigComponent {
 
   removeCommissioner(index: number): void {
     this.commissionMembers.splice(index, 1);
+  }
+
+  canSendRequest(): boolean {
+    return this.rdpOptions().length > 0 && !!this.model['email_referente'];
   }
 
   private extractError(err: unknown): string {

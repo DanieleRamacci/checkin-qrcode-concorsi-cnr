@@ -641,13 +641,6 @@ def configura_bando(commission_id):
         access_token = ensure_fresh_access_token(skew_sec=60)
         fetch_errori = []
         if access_token:
-            try:
-                from utils.jconon_referenti import fetch_e_salva_bando_meta
-                risultato = fetch_e_salva_bando_meta(commission_id, oidc_access_token=access_token)
-                fetch_errori = risultato.get("errori", [])
-            except Exception as exc:
-                fetch_errori = [str(exc)]
-
             # Popola commissione_members e RDP dall'API /openapi/v1/call
             with get_db_connection() as conn:
                 with conn.cursor() as cur:
@@ -664,6 +657,8 @@ def configura_bando(commission_id):
                         rdps=bando_data.get("rdps", []),
                         commissioners=bando_data.get("commissioners", []),
                     )
+                else:
+                    fetch_errori = ["Metadati Selezioni Online non disponibili."]
         else:
             fetch_errori = ["Token di autenticazione non disponibile."]
 
@@ -792,20 +787,33 @@ def richiedi_configurazione_bando(commission_id):
 @login_required
 @roles_required_any([ROLE_ADMIN])
 def debug_jconon(commission_id):
-    """Endpoint di diagnostica temporaneo — rimuovere dopo i test."""
+    """Endpoint di diagnostica temporaneo solo OpenAPI/OIDC."""
     if not current_app.config.get("DEV_MODE"):
         abort(404)
-    from utils.jconon_referenti import JCONON_BASE, _make_session_oidc
-    from utils.oidc import ensure_fresh_access_token
 
     access_token = ensure_fresh_access_token(skew_sec=60)
-    result = {"commission_id": commission_id, "jconon_base": JCONON_BASE, "steps": {}}
+    if not access_token:
+        return jsonify({"error": "Token OIDC non disponibile"}), 401
+
+    base_url = os.environ.get(
+        "BASE_URL",
+        "https://cool-jconon.test.si.cnr.it",
+    ).rstrip("/")
+    result = {
+        "commission_id": commission_id,
+        "jconon_base": base_url,
+        "steps": {},
+        "alfresco_rest_proxy": "disabled",
+    }
 
     # Step 1: fetch call detail (OpenAPI, OIDC token)
-    sess_oidc = _make_session_oidc(access_token)
-    url1 = f"{JCONON_BASE}/openapi/v1/call/{commission_id}"
+    url1 = f"{base_url}/openapi/v1/call/{commission_id}"
     try:
-        r1 = sess_oidc.get(url1, timeout=10)
+        r1 = requests.get(
+            url1,
+            timeout=10,
+            headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json"},
+        )
         result["steps"]["call_detail"] = {
             "url": url1, "status": r1.status_code,
             "body": r1.json() if r1.headers.get("content-type", "").startswith("application/json") else r1.text[:500]
@@ -816,50 +824,6 @@ def debug_jconon(commission_id):
         rdp_raw = ""
 
     result["rdp_raw"] = rdp_raw
-
-    # Step 1b: scambia OIDC token con ticket Alfresco
-    import requests as _req
-    alfresco_ticket = ""
-
-    # prova 1: POST /rest/api/login con il token OIDC come password (username=OIDC)
-    for login_payload in [
-        {"username": "OIDC", "password": access_token},
-        {"ticket": access_token},
-    ]:
-        try:
-            rl = _req.post(f"{JCONON_BASE}/rest/api/login",
-                           json=login_payload, timeout=10,
-                           headers={"Accept": "application/json", "Content-Type": "application/json"})
-            result["steps"][f"alfresco_login_{list(login_payload.keys())[0]}"] = {
-                "status": rl.status_code,
-                "body": rl.json() if rl.headers.get("content-type","").startswith("application/json") else rl.text[:200]
-            }
-            if rl.ok:
-                data = rl.json()
-                alfresco_ticket = (data.get("data") or {}).get("ticket", "")
-                if alfresco_ticket:
-                    break
-        except Exception as e:
-            result["steps"][f"alfresco_login_{list(login_payload.keys())[0]}"] = {"error": str(e)}
-
-    result["alfresco_ticket_ottenuto"] = bool(alfresco_ticket)
-
-    # Step 2: fetch RDP members con il ticket ottenuto
-    if rdp_raw:
-        from urllib.parse import quote as _q
-        inner_path = f"service/cnr/groups/GROUP_{rdp_raw}/members"
-        inner_enc = _q(inner_path, safe="/:@._-~")
-        base_url2 = f"{JCONON_BASE}/rest/proxy?url={inner_enc}"
-        url2 = base_url2 + (f"&alf_ticket={alfresco_ticket}" if alfresco_ticket else "")
-        result["url_rdp_members"] = url2
-        try:
-            r2 = _req.get(url2, timeout=10, headers={"Accept": "application/json"})
-            result["steps"]["rdp_members"] = {
-                "status": r2.status_code,
-                "body": r2.json() if r2.headers.get("content-type","").startswith("application/json") else r2.text[:300]
-            }
-        except Exception as e:
-            result["steps"]["rdp_members"] = {"error": str(e)}
 
     return jsonify(result)
 

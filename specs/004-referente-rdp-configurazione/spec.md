@@ -67,8 +67,8 @@ risulti assegnato al referente indicato.
    richiesta, **Then** il sistema registra chi ha richiesto la compilazione e a
    chi e stata assegnata.
 3. **Given** il referente non e disponibile nei dati istituzionali, **When**
-   l'informatico deve procedere, **Then** puo inserire manualmente un referente
-   motivando l'eccezione.
+   l'informatico deve procedere, **Then** il sistema non permette inserimenti
+   manuali e richiede di correggere il dato su Selezioni Online.
 
 ---
 
@@ -77,7 +77,7 @@ risulti assegnato al referente indicato.
 Il referente/RDP apre il bando tramite il nuovo flusso dedicato, mentre il
 segretario o membro di commissione usa l'autorizzazione gia esistente. Entrambi
 possono completare la configurazione bando senza poter cambiare chi e il
-referente/RDP, salvo permessi ulteriori.
+referente/RDP fuori dalla lista restituita da Selezioni Online.
 
 **Why this priority**: il referente deve contribuire alla configurazione anche
 se non e in commissione, mentre il segretario deve continuare a usare il flusso
@@ -138,7 +138,7 @@ nessun flusso automatico o server-side richieda username/password personali.
   bando.
 - L'email restituita dai dati istituzionali differisce per maiuscole/minuscole
   o alias rispetto all'identita usata in accesso.
-- Un informatico inserisce manualmente un referente non presente nei dati
+- Un informatico prova a inserire un referente non presente nei dati
   istituzionali.
 - Un referente prova ad accedere a un bando tramite link diretto ricevuto o
   inoltrato da altri.
@@ -161,11 +161,14 @@ nessun flusso automatico o server-side richieda username/password personali.
   commissioni non collegate alla sua identita.
 - **FR-006**: Gli informatici e gli amministratori autorizzati DEVONO poter
   richiedere la configurazione a un referente suggerito dai dati istituzionali.
-- **FR-007**: Gli informatici e gli amministratori autorizzati DEVONO poter
+- **FR-007**: Gli informatici e gli amministratori autorizzati NON DEVONO poter
   inserire o correggere manualmente il referente quando il dato istituzionale
-  manca, e il sistema DEVE conservare l'evidenza dell'eccezione.
-- **FR-008**: Il sistema DEVE distinguere almeno gli stati "da richiedere",
-  "richiesta inviata", "in compilazione", "completata" e "da verificare".
+  manca; il sistema DEVE accettare solo referenti/RDP restituiti da Selezioni
+  Online per il bando.
+- **FR-008**: Il sistema DEVE distinguere almeno lo stato operativo della
+  configurazione bando: "da configurare", "esperto assegnato" e "dati
+  compilati". Stati formali di richiesta/audit possono essere aggiunti in una
+  spec successiva se serve distinguere invio richiesta, compilazione e verifica.
 - **FR-009**: Il referente/RDP tramite nuova assegnazione e il segretario o
   membro di commissione tramite autorizzazione esistente DEVONO poter inserire,
   modificare e confermare la configurazione del bando.
@@ -191,8 +194,9 @@ nessun flusso automatico o server-side richieda username/password personali.
 - **FR-017**: I flussi destinati a test stabile o produzione NON DEVONO
   dipendere da credenziali personali di un operatore.
 - **FR-018**: Se i dati istituzionali non sono disponibili, il sistema DEVE
-  permettere una gestione controllata dell'eccezione senza concedere accessi
-  automatici non verificati.
+  bloccare l'impostazione del referente e mostrare che il dato va corretto
+  sulla fonte istituzionale, senza concedere accessi automatici o locali non
+  verificati.
 - **FR-019**: Il cambio referente/RDP rilevato dalla fonte istituzionale NON
   DEVE bloccare un bando gia configurato, ma DEVE revocare o rendere non
   utilizzabile l'accesso del vecchio RDP per nuove modifiche.
@@ -224,8 +228,6 @@ nessun flusso automatico o server-side richieda username/password personali.
   configurazione.
 - **Richiesta di configurazione**: assegnazione operativa inviata da un
   informatico o amministratore a uno o piu referenti, con stato e tracciamento.
-- **Eccezione manuale**: correzione o inserimento manuale del referente quando
-  il dato istituzionale manca o non e utilizzabile.
 - **Audit configurazione**: evidenza delle azioni eseguite su richiesta,
   accesso, modifica, completamento e verifica.
 - **Identita applicativa esterna**: utenza o modalita autorizzata usata
@@ -273,15 +275,16 @@ nessun flusso automatico o server-side richieda username/password personali.
   applicativa esistente; non deve essere inserito nella nuova tabella di
   assegnazione RDP/referente.
 - I dati istituzionali restano la fonte preferita per proporre il referente, ma
-  il sistema mantiene una copia interna per stabilizzare autorizzazioni, audit e
-  stato operativo.
+  il sistema mantiene una copia interna per stabilizzare autorizzazioni e stato
+  operativo.
 - Il recupero RDP usa inizialmente il token OIDC dell'utente finale; la utenza
   di servizio e considerata fallback operativo, non flusso primario.
 - La finalita principale della configurazione bando e rendere disponibili gli
   incarichi operativi, in particolare esperto informatico remoto e informatico
   in sede; il cambio RDP non deve bloccare questi dati quando sono gia stati
   configurati.
-- Le eccezioni manuali sono ammesse solo per sbloccare casi in cui il dato
-  istituzionale manca o e incompleto.
+- Il referente configurabile deve provenire dalla lista RDP/referenti
+  restituita da Selezioni Online; se il dato istituzionale manca o e
+  incompleto, va corretto alla fonte e non inserito manualmente nell'app.
 - Le credenziali personali eventualmente presenti oggi sono considerate
   provvisorie e non accettabili per test stabile o produzione.

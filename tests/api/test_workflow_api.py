@@ -141,6 +141,28 @@ def test_request_bando_configuration_rejects_non_rdp_email(monkeypatch):
     assert response.get_json()["error"]["details"]["email_referente"]
 
 
+def test_request_bando_configuration_rejects_when_no_rdp_options(monkeypatch):
+    from routes.api_v1 import configurazioni
+
+    allow_resource_access(monkeypatch)
+    monkeypatch.setattr(
+        configurazioni,
+        "get_bando_config",
+        lambda commission_id: {"rdp_members": []},
+    )
+    app = create_test_app()
+    client, csrf_token = authenticated_client(app)
+
+    response = client.post(
+        "/api/v1/bandi/commission-1/request-config",
+        json={"email_referente": "referente@cnr.it"},
+        headers={"X-CSRF-Token": csrf_token},
+    )
+
+    assert response.status_code == 422
+    assert "Selezioni Online" in response.get_json()["error"]["details"]["email_referente"]
+
+
 def test_request_bando_configuration_rejects_invalid_email(monkeypatch):
     allow_resource_access(monkeypatch)
     client, csrf_token = authenticated_client(create_test_app())
@@ -153,6 +175,66 @@ def test_request_bando_configuration_rejects_invalid_email(monkeypatch):
 
     assert response.status_code == 422
     assert response.get_json()["error"]["details"]["email_referente"]
+
+
+def test_put_bando_config_rejects_referente_without_institutional_rdp(monkeypatch):
+    from routes.api_v1 import configurazioni
+
+    allow_resource_access(monkeypatch)
+    monkeypatch.setattr(
+        configurazioni,
+        "get_bando_config",
+        lambda commission_id: {
+            "rdp_members": [],
+            "commissione_members": [],
+        },
+    )
+
+    app = create_test_app()
+    client, csrf_token = authenticated_client(app)
+    response = client.put(
+        "/api/v1/bandi/commission-1/config",
+        json={"email_referente": "referente@cnr.it"},
+        headers={"X-CSRF-Token": csrf_token},
+    )
+
+    assert response.status_code == 422
+    assert "Selezioni Online" in response.get_json()["error"]["details"]["email_referente"]
+
+
+def test_put_bando_config_accepts_referente_email_case_insensitive(monkeypatch):
+    from routes.api_v1 import configurazioni
+
+    allow_resource_access(monkeypatch)
+    saved = {}
+    monkeypatch.setattr(
+        configurazioni,
+        "get_bando_config",
+        lambda commission_id: {
+            "rdp_members": [
+                {"nome": "Referente CNR", "email": "referente@cnr.it"}
+            ],
+            "commissione_members": [],
+        },
+    )
+
+    def fake_save_bando_config(commission_id, *args, **kwargs):
+        saved["commission_id"] = commission_id
+        saved["args"] = args
+
+    monkeypatch.setattr(configurazioni, "save_bando_config", fake_save_bando_config)
+
+    app = create_test_app()
+    client, csrf_token = authenticated_client(app)
+    response = client.put(
+        "/api/v1/bandi/commission-1/config",
+        json={"email_referente": "Referente@CNR.IT"},
+        headers={"X-CSRF-Token": csrf_token},
+    )
+
+    assert response.status_code == 200
+    assert saved["commission_id"] == "commission-1"
+    assert saved["args"][0] == "Referente@CNR.IT"
 
 
 def test_put_bando_config_ignores_readonly_response_fields(monkeypatch):

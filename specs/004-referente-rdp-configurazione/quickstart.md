@@ -1,8 +1,8 @@
 # Quickstart: validazione accesso referente/RDP configurazione bando
 
 > **Stato al 2026-07-08**: Scenario 2 e Scenario 6 sono eseguibili contro il
-> codice reale (tabella `bando_referenti` con revoca). Scenario 1, 3, 4, 5 e
-> 5b presuppongono stato/audit, eccezioni manuali o endpoint non ancora
+> codice reale (tabella `bando_referenti` con revoca). Scenario 1, 3, 5 e
+> 5b presuppongono stato/audit o endpoint non ancora
 > costruiti — vanno adattati o trattati come backlog finché non si implementa
 > il resto di `tasks.md`.
 
@@ -77,19 +77,20 @@ Expected:
 - la configurazione puo essere salvata;
 - il referente/RDP assegnato non puo essere cambiato senza permesso ulteriore.
 
-## Scenario 4: eccezione manuale
+## Scenario 4: referente assente dalla fonte istituzionale
 
 1. Accedere come informatico/admin.
 2. Aprire un bando senza email referente disponibile da fonte istituzionale.
-3. Inserire manualmente il referente con motivazione.
-4. Inviare richiesta.
+3. Provare a impostare o inviare una richiesta a un referente non presente
+   nella lista RDP restituita da Selezioni Online.
 
 Expected:
 
-- l'assegnazione manuale richiede motivazione;
-- l'assegnazione e marcata come eccezione;
-- il referente puo accedere solo a quel bando;
-- audit registra `manual_override` e `request_sent`.
+- la UI non mostra un campo libero per inserire email;
+- il backend risponde `422 validation_error` se riceve comunque
+  `email_referente`;
+- il bando non viene assegnato localmente;
+- l'operatore deve correggere il referente/RDP su Selezioni Online.
 
 ## Scenario 5: credenziali personali
 
@@ -104,10 +105,11 @@ Expected:
   loggato come modalita primaria;
 - e documentato l'esito del test con token OIDC di referente/RDP e segretario
   non admin;
-- la utenza di servizio/applicativa resta fallback solo se il test dimostra che
-  i dati RDP/commissione non vengono restituiti;
-- eventuali flussi legacy che usano `JCONON_USERNAME`/`JCONON_PASSWORD` o altri
-  segreti env sono marcati come temporanei;
+- la utenza di servizio/applicativa non e configurata e resta una decisione
+  esplicita futura solo se il test dimostra che i dati RDP/commissione non
+  vengono restituiti;
+- i flussi legacy che usavano segreti JConon fissi sono rimossi o sostituiti
+  con chiamate OpenAPI/OIDC;
 - nessun flusso necessario alla feature in produzione resta classificato come
   credenziale personale;
 - dove servisse una utenza applicativa, il blocco e esplicito finche non viene

@@ -134,11 +134,17 @@ def _secretary_options(config: dict) -> list[dict]:
 
 
 def _referente_selection_error(config: dict, email: str) -> str | None:
+    normalized = _normalize_email(email)
+    if not normalized:
+        return None
     options = _rdp_options(config)
     if not options:
-        return None
+        return (
+            "Nessun RDP disponibile da Selezioni Online per il bando. "
+            "Verificare la fonte dati prima di impostare il referente."
+        )
     allowed = {_normalize_email(option["email"]) for option in options}
-    if _normalize_email(email) not in allowed:
+    if normalized not in allowed:
         return "Selezionare uno degli RDP disponibili per il bando."
     return None
 
@@ -172,9 +178,7 @@ def bando_config_put(commission_id):
     current = get_bando_config(commission_id) or {}
     if "email_referente" in data:
         selection_error = _referente_selection_error(current, data.get("email_referente"))
-        current_email = _normalize_email(current.get("email_referente"))
-        new_email = _normalize_email(data.get("email_referente"))
-        if selection_error and new_email != current_email:
+        if selection_error:
             return error_response(
                 "validation_error",
                 "Dati di configurazione non validi.",

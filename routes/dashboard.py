@@ -3,6 +3,7 @@ from psycopg2.extras import RealDictCursor
 from routes.auth import login_required
 from db import get_db_connection 
 from utils.commissioni import get_commissioni_sincronizzate_with_status
+from utils.jconon_service import sync_bando_metadata
 from utils.roles import get_user_roles, ROLE_ADMIN, ROLE_ESPERTO, has_any_role
 from utils.sessioni import get_sessioni_internamente
 from utils.oidc import ensure_fresh_access_token
@@ -227,10 +228,11 @@ def sessioni_frammento(commission_id):
                 return redirect(url_for('auth.login'))
 
             elif isinstance(esito, int) and esito >= 0:
-                # SUCCESSO (anche 0 insert). Fetch RDP/commissione da JCOnon (best-effort)
+                # SUCCESSO (anche 0 insert). Fetch RDP/commissione da JCOnon
+                # solo via OpenAPI con token OIDC utente.
                 try:
-                    from utils.jconon_referenti import fetch_e_salva_bando_meta
-                    fetch_e_salva_bando_meta(commission_id)
+                    if access_token:
+                        sync_bando_metadata(commission_id, access_token)
                 except Exception as _e:
                     current_app.logger.warning("[bando_meta] fetch fallito: %s", _e)
             else:

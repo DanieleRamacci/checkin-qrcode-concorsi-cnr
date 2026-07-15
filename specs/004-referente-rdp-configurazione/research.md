@@ -22,8 +22,7 @@ deve essere verificata prima della lettura o modifica.
 ## Decisione: tabella interna di assegnazioni referente/RDP
 
 **Decision**: salvare in una struttura persistente dedicata le assegnazioni
-referente-bando, con email normalizzata, fonte del dato, stato, eccezioni
-manuali e timestamp.
+referente-bando, con email normalizzata, fonte del dato, stato e timestamp.
 
 **Rationale**: `bando_config.email_referente` e utile come campo operativo, ma
 non basta per gestire piu RDP, cambi referente, stato richiesta e audit. Una
@@ -45,19 +44,21 @@ struttura dedicata rende testabile l'autorizzazione e mantiene storico minimo.
   Selezioni Online. Sostituito dalla tabella dedicata `bando_referenti` con
   sync che fa anche `DELETE` delle righe non più restituite per l'utente.
 
-## Decisione: sincronizzazione da Selezioni Online/JConon con fallback manuale
+## Decisione: sincronizzazione da Selezioni Online/JConon senza fallback manuale
 
-**Decision**: i dati istituzionali restano la fonte preferita per suggerire
-referenti/RDP. Se il dato manca o non contiene email utilizzabile, un
-informatico/admin puo inserire una eccezione manuale tracciata.
+**Decision**: i dati istituzionali sono l'unica fonte ammessa per scegliere il
+referente/RDP. Se il dato manca o non contiene email utilizzabile, l'app deve
+bloccare l'impostazione del referente e richiedere la correzione su Selezioni
+Online.
 
-**Rationale**: nella pratica operativa serve sbloccare bandi anche quando il
-dato esterno non e completo. L'eccezione deve pero essere visibile e
-rintracciabile.
+**Rationale**: un referente assente da Selezioni Online non e verificabile
+dall'app. Permettere un inserimento locale aggirerebbe la fonte istituzionale e
+renderebbe ambigua l'autorizzazione.
 
 **Alternatives considered**:
 
-- Bloccare sempre senza dato istituzionale: corretto ma puo fermare il servizio.
+- Inserimento manuale con motivazione: scartato perche non risolve il problema
+  di verifica del referente sulla fonte istituzionale.
 - Accettare qualsiasi email senza audit: scartato per rischio autorizzativo.
 
 ## Decisione: accesso referente come capability separata
@@ -137,9 +138,9 @@ documentazione deve distinguere chiaramente i flussi.
 | Flow | Current mode | Notes |
 |---|---|---|
 | API v1 `sync-meta` / `utils.jconon_service.fetch_bando_metadata` | OIDC token dell'utente loggato | Flusso primario: chiama `/openapi/v1/call` con `Authorization: Bearer <access_token>` ottenuto da `ensure_fresh_access_token`; da validare con referente/RDP e segretario non admin |
-| Fallback RDP metadata sync | Utenza di servizio/applicativa | Da attivare solo se i test dimostrano che il token OIDC di referente/RDP o segretario non restituisce RDP/commissione necessari |
-| Legacy dashboard/config bando `utils.jconon_referenti.fetch_e_salva_bando_meta` per dettaglio call | OIDC token se passato dal chiamante | Usa `_make_session_oidc(oidc_access_token)` per `/openapi/v1/call/{uuid}` |
-| Legacy recupero membri gruppo RDP via `/rest/proxy` | Credenziali/env o bearer tecnico | `_make_session()` usa priorita `JCONON_BEARER_TOKEN`, `AUTH_B64`, poi `JCONON_USERNAME/JCONON_PASSWORD` |
+| Legacy dashboard/config bando | OIDC token dell'utente loggato | Le route legacy chiamano il service OpenAPI/OIDC; il modulo `utils/jconon_referenti.py` e stato rimosso |
+| Legacy recupero membri gruppo RDP via `/rest/proxy` | Non supportato | Rimosso dai flussi applicativi perché richiedeva credenziali fisse o bearer tecnico |
+| Fallback RDP metadata sync | Non configurato | Da valutare solo come utenza applicativa istituzionale se i test dimostrano che il token OIDC di referente/RDP o segretario non restituisce RDP/commissione necessari |
 
 **Rationale**: il flusso nuovo che recupera `rdps` e `commissioners` per
 precompilare la configurazione oggi passa dal token OIDC dell'utente loggato.

@@ -47,4 +47,33 @@ describe('ReferenteBandiComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('da completare');
     expect(fixture.nativeElement.textContent).toContain('Configura bando');
   });
+
+  it('renders the empty state when the user has no assigned bandi', async () => {
+    await TestBed.configureTestingModule({
+      imports: [ReferenteBandiComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: BandiService,
+          useValue: {
+            syncReferente: () =>
+              of({
+                items: [],
+                sync_error: null,
+                sync_source: 'remote',
+              }),
+          },
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(ReferenteBandiComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain(
+      'Non risultano bandi per cui la tua utenza e indicata come RDP o referente.',
+    );
+  });
 });

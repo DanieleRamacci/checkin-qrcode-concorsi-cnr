@@ -4,8 +4,10 @@
 > per le parti di sola lettura/scrittura via endpoint esistenti, "Referente
 > Config Form". La capability gating descritta in "Navigation" non è ancora
 > costruita. La scelta del referente da RDP disponibili è implementata come
-> chiusura minima; la pagina Referenti mostra lo stato operativo minimo del
-> bando. Permessi extra/eccezioni manuali motivate restano design target.
+> vincolo definitivo: nessun inserimento manuale fuori dalla lista restituita
+> da Selezioni Online. La pagina Referenti mostra lo stato operativo minimo del
+> bando. Permessi extra/eccezioni manuali motivate non sono piu nel perimetro
+> di questa feature.
 > "Informatico/Admin Config Form Extension" resta design target.
 
 ## Navigation
@@ -80,10 +82,11 @@ referente/RDP for the bando. It must not show global permission management.
 **Stato reale aggiornato**:
 `frontend/src/app/features/configurazioni/bando-config.component.ts` è lo
 stesso form per segretario e referente/RDP (corretto, nessuna duplicazione).
-Quando `GET /bandi/{id}/config` restituisce `rdp_options`, il campo
-`email_referente` è una select e il backend accetta solo email presenti tra
-gli RDP del bando. Se `rdp_options` è vuoto, resta il fallback manuale.
-Permessi extra/eccezioni manuali motivate restano design target.
+Il campo `email_referente` è una select popolata da `rdp_options` e il backend
+accetta solo email presenti tra gli RDP del bando. Se `rdp_options` è vuoto,
+la UI mostra che non ci sono RDP disponibili da Selezioni Online e non espone
+un campo di inserimento libero. Non sono previsti permessi extra o eccezioni
+manuali motivate per impostare un referente assente dalla fonte istituzionale.
 
 Segretario and commission-member users continue to use the existing
 commission/session-authorized bando configuration path.
@@ -95,7 +98,6 @@ assignment:
 
 - suggested referenti from institutional data;
 - current assignments and status;
-- manual override with mandatory reason;
 - send request;
 - revoke assignment;
 - audit/status summary.
@@ -103,6 +105,6 @@ assignment:
 ## UX Rules
 
 - Do not imply that the referente is a commission member.
-- Show manual assignments as exceptions.
-- Show institutional source sync failures without granting automatic access.
+- Show institutional source sync failures without granting automatic access or
+  manual assignment.
 - Direct links must land on the same authorized UI states as navigation links.

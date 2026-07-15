@@ -24,8 +24,9 @@ Angular 21.2.x per la UI migrata.
 **Primary Dependencies**: Flask, Flask-Session, psycopg2, requests, PyJWT,
 Gunicorn; Angular, RxJS, design-angular-kit/Bootstrap Italia.
 
-**Storage**: PostgreSQL. Richiede nuove strutture persistenti per assegnazioni
-referente-bando, stato richiesta e audit configurazione.
+**Storage**: PostgreSQL. Usa strutture persistenti per assegnazioni
+referente-bando e stato operativo configurazione; stati formali richiesta e
+audit append-only restano una possibile estensione futura.
 
 **Testing**: pytest per autorizzazioni, service layer e API; test Angular per
 servizi/componenti; validazione manuale OIDC in ambiente test Coolify.
@@ -41,10 +42,9 @@ rispetto alla pagina attuale; nessuna scansione estesa non indicizzata sui bandi
 per autorizzare una singola richiesta.
 
 **Constraints**: non concedere permessi tramite ruolo generico "referente"; non
-aggiungere il referente alla commissione solo per autorizzarlo; conservare audit
-di richiesta/accesso/modifica/completamento; nessun flusso production-critical
-deve dipendere da credenziali personali; mantenere fallback legacy fino a
-validazione.
+aggiungere il referente alla commissione solo per autorizzarlo; nessun flusso
+production-critical deve dipendere da credenziali personali; mantenere fallback
+legacy solo finché non viene sostituito o rimosso.
 
 **Scale/Scope**: configurazione bando e accesso referente/RDP. Non include una
 revisione completa di tutti i ruoli applicativi, ne la migrazione finale in
@@ -65,37 +65,35 @@ Implementato anche uno stato operativo minimo della configurazione:
 `config_status`, `expert_assigned`, `required_data_complete`, visibile nella
 pagina Referenti.
 
-Non ancora costruito: audit dedicato e stati formali di richiesta
-(`BandoConfigAssignment` con `requested`/`in_progress`/`completed`/
-`verification_required`, `BandoConfigAuditEvent`), eccezioni manuali con motivazione,
-capability `configure_assigned_bandi` su `/me` (oggi la card "Referenti" in
-home è visibile a chiunque sia autenticato), gestione completa di permessi
-extra/eccezioni manuali motivate per cambiare referente oltre gli RDP
-istituzionali, censimento formale delle credenziali
-(`ExternalIntegrationCredentialInventory`) e
-rimozione delle credenziali personali dal flusso legacy Alfresco/rest-proxy
-(`utils/jconon_referenti.py`, ancora usato da `routes/dashboard.py` e
-`routes/azioni.py`). Dettaglio task per task in `tasks.md`.
+Fuori perimetro della chiusura corrente: audit dedicato e stati formali di
+richiesta (`BandoConfigAssignment` con `requested`/`in_progress`/`completed`/
+`verification_required`, `BandoConfigAuditEvent`) e capability
+`configure_assigned_bandi` su `/me` (oggi la card "Referenti" in home è
+visibile a chiunque sia autenticato; punto non bloccante se si accetta la
+pagina vuota per utenti senza bandi). Costruito invece il censimento formale
+delle credenziali in `docs/migrazione/inventario-credenziali-integrazioni.md`
+e rimossi i flussi legacy con credenziali personali Alfresco/rest-proxy.
+Dettaglio task per task in `tasks.md`.
 
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-- **I. Stato Applicativo Esplicito**: PASS. La richiesta configurazione usa
-  stati dichiarati (`suggested`, `requested`, `in_progress`, `completed`,
-  `verification_required`, `revoked`, `stale`) e audit.
+- **I. Stato Applicativo Esplicito**: PASS. La configurazione usa stati
+  operativi dichiarati (`da_configurare`, `esperto_assegnato`,
+  `dati_compilati`); gli stati formali richiesta restano estensione futura.
 - **II. Autorizzazione Prima della Logica**: PASS. Il piano introduce un check
   dedicato bando-config prima di leggere o modificare dati.
-- **III. Backend Come Fonte di Verita**: PASS. Relazioni RDP, stato richiesta e
-  audit vivono nel backend/PostgreSQL; il frontend consuma capability.
+- **III. Backend Come Fonte di Verita**: PASS. Relazioni RDP e stato operativo
+  vivono nel backend/PostgreSQL.
 - **IV. Integrazioni Isolate e Tracciabili**: PASS. Selezioni Online/JConon
   resta nel service layer e viene censito l'uso di credenziali personali.
 - **V. Migrazione Incrementale e Verificabile**: PASS. La feature e isolata,
   testabile e non richiede cutover completo della migrazione Angular.
 
 **Post-design re-check**: PASS. Il modello dati e i contratti mantengono
-autorizzazione, stato e audit nel backend; la UI referente e una slice
-incrementale con fallback operativo.
+autorizzazione e stato operativo nel backend; la UI referente e una slice
+incrementale.
 
 ## Project Structure
 
@@ -138,7 +136,7 @@ tests/
 **Structure Decision**: mantenere la feature nei moduli esistenti della
 migrazione API-first. Aggiungere service/helper dedicati solo dove riducono
 duplicazione reale: autorizzazione bando-config, gestione assegnazioni
-referente/RDP e audit configurazione.
+referente/RDP e stato configurazione.
 
 ## Complexity Tracking
 

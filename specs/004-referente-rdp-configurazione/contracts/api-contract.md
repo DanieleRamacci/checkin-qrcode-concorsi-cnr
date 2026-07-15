@@ -154,13 +154,13 @@ Behavior reale:
 - Chi passa `commission_access_required(allow_referente=True)` (segretario
   proprietario o RDP tramite `bando_referenti`) può modificare i campi della
   configurazione.
-- Se `bando_config.rdp_members` contiene RDP con email, `email_referente` deve
-  essere una delle email RDP disponibili; email arbitrarie vengono rifiutate
-  con `422 validation_error`. Se la fonte istituzionale non ha ancora fornito
-  email RDP, resta il fallback manuale esistente.
-- **Gap residuo FR-010**: non esiste ancora una gestione completa dei permessi
-  extra/eccezioni manuali con motivazione; la chiusura attuale impedisce la
-  scelta arbitraria quando il dato istituzionale è disponibile.
+- `email_referente`, quando valorizzato, deve essere una delle email presenti
+  in `bando_config.rdp_members`/`rdp_options`; email arbitrarie vengono
+  rifiutate con `422 validation_error`.
+- Se la fonte istituzionale non fornisce RDP con email verificabili, il backend
+  rifiuta l'impostazione di `email_referente` con `422 validation_error`.
+  L'app non prevede fallback manuale o eccezioni locali: il dato va corretto
+  su Selezioni Online.
 - Ogni salvataggio ricalcola lo stato operativo minimo:
   `da_configurare`, `esperto_assegnato` o `dati_compilati`.
 - Non esistono ancora audit event né stati formali di richiesta
@@ -173,14 +173,14 @@ Behavior reale:
 |---|---|---|
 | GET | `/bandi/{commission_id}/config/assignments` | List assignments and statuses |
 | POST | `/bandi/{commission_id}/config/assignments/sync` | Upsert assignments from institutional source |
-| POST | `/bandi/{commission_id}/config/assignments` | Add manual assignment with reason |
 | POST | `/bandi/{commission_id}/config/assignments/{id}/request` | Send request email and mark requested |
 | POST | `/bandi/{commission_id}/config/assignments/{id}/revoke` | Revoke assignment |
 
 Authorization:
 
 - Requires existing bando configuration permission for commission owner/admin.
-- Manual assignment requires reason.
+- Assignment creation is driven by Selezioni Online/JConon sync; local manual
+  creation is not allowed for referents absent from the institutional source.
 - Request/revoke actions write audit events.
 - Segretario and commission-member access to bando configuration remains on the
   existing commission/session authorization path, not on these assignment

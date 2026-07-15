@@ -61,8 +61,10 @@ Le variabili sono gestite nella UI Coolify. Per test:
 `BASE_URL` resta l'endpoint esterno Selezioni Online/JConon; non e il dominio
 dell'applicazione.
 
-Le credenziali OIDC, JConon, PostgreSQL, Redis e SMTP restano secret Coolify e
-non devono essere salvate nel repository.
+Le credenziali OIDC, PostgreSQL, Redis e SMTP restano secret Coolify e non
+devono essere salvate nel repository. JConon/Selezioni Online deve essere
+chiamato con token OIDC dell'utente loggato; non sono previste credenziali
+JConon fisse nel deploy.
 
 ## Problemi incontrati e risolti
 
@@ -75,9 +77,9 @@ non devono essere salvate nel repository.
 3. **Bad Gateway**: il dominio era associato alla porta/servizio sbagliato. Il
    dominio pubblico deve puntare al servizio `frontend`, porta interna `8080`,
    senza aggiungere `:8080` nel FQDN.
-4. **Variabili JConon mancanti**: `docker-compose.coolify.yml` passa al backend
-   anche `JCONON_USERNAME`, `JCONON_PASSWORD`, `AUTH_B64` e
-   `JCONON_BEARER_TOKEN`.
+4. **Variabili JConon legacy rimosse**: `docker-compose.coolify.yml` passa al
+   backend solo `BASE_URL`; username/password, `AUTH_B64`, bearer tecnici
+   JConon e `JCONON_BASE_URL` non devono essere configurati.
 
 ## Flussi non piu operativi
 

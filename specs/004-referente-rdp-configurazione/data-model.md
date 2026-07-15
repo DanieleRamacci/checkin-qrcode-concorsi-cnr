@@ -26,9 +26,7 @@ Implementato con uno scope ridotto rispetto al design completo descritto sotto:
 
 **Non ancora implementato** (resta il design target nelle sezioni sotto):
 `BandoConfigAssignment` come entità con stato (`suggested`/`requested`/…),
-`BandoConfigAuditEvent`, eccezioni manuali con motivazione, capability
-`configure_assigned_bandi` su `/me`, permessi extra/eccezioni manuali motivate
-per cambiare referente oltre gli RDP istituzionali,
+`BandoConfigAuditEvent`, capability `configure_assigned_bandi` su `/me`,
 `ExternalIntegrationCredentialInventory`. Vedi `tasks.md` per il dettaglio di
 cosa resta da fare per ciascuna user story.
 
@@ -47,8 +45,9 @@ cosa resta da fare per ciascuna user story.
 > oggi è `bando_referenti` (vedi sezione "Stato implementazione" sopra): solo
 > `commission_id`, `user_email`, `nome`, `synced_at`. I campi sotto (`status`,
 > `source`, `requested_by/at`, `completed_by/at`, `verified_by/at`,
-> `exception_reason`) restano lavoro futuro se si vuole lo stato/audit
-> completo descritto nella spec.
+> restano lavoro futuro se si vuole lo stato/audit completo descritto nella
+> spec. Non sono previsti campi per override manuali del referente: la fonte
+> ammessa resta Selezioni Online.
 
 Relazione interna tra bando e referente/RDP autorizzato tramite il nuovo flusso
 dedicato.
@@ -60,9 +59,9 @@ Fields:
 - `assignee_email`
 - `assignee_email_normalized`
 - `assignee_name`
-- `source`: `selezioni_online`, `manual`, `legacy`
+- `source`: `selezioni_online`, `legacy`
 - `assignee_role`: `rdp`, `referente`
-- `source_role`: `rdp`, `referente`, `manual_override`
+- `source_role`: `rdp`, `referente`
 - `status`: `suggested`, `requested`, `in_progress`, `completed`,
   `verification_required`, `revoked`, `stale`
 - `source_fetched_at`
@@ -72,7 +71,6 @@ Fields:
 - `completed_at`
 - `verified_by`
 - `verified_at`
-- `exception_reason`
 - `created_at`
 - `updated_at`
 
@@ -87,7 +85,8 @@ Validation:
 - `commission_id` must reference an existing bando.
 - `assignee_email_normalized` must be lowercase/trimmed and unique per active
   assignment on the same bando and role.
-- manual assignments require `exception_reason`.
+- assignments must come from Selezioni Online/JConon data or a migrated legacy
+  record that is later reconciled against the institutional source.
 - revoked or stale assignments must not authorize new modifications.
 - completed assignments require `completed_by` and `completed_at`.
 
@@ -113,7 +112,7 @@ Fields:
 - `actor_email`
 - `action`: `suggested`, `request_sent`, `access_granted`, `access_denied`,
   `config_saved`, `completed`, `verified`, `revoked`, `stale_detected`,
-  `manual_override`
+  `institutional_data_missing`
 - `details`
 - `created_at`
 
@@ -208,8 +207,8 @@ Add:
 ## Migration Notes
 
 - Existing `bando_config.email_referente` should be backfilled into
-  `BandoConfigAssignment` as `legacy` or `manual` source when no better source
-  is available.
-- Future sync from Selezioni Online/JConon should upsert assignments instead of
-  replacing manual overrides blindly.
+  `BandoConfigAssignment` as `legacy` source only when it can later be
+  reconciled against Selezioni Online/JConon.
+- Future sync from Selezioni Online/JConon should upsert assignments and mark
+  stale entries that are no longer returned by the institutional source.
 - `rdp_nomi` remains display-only until RDP email data is available.

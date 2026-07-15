@@ -44,8 +44,8 @@ documentarlo).
       se i dati principali sono compilati. Restano futuri gli stati completi
       di richiesta/audit (`requested`, `in_progress`, `completed`,
       `verification_required`).
-- [ ] FR-014 messaggio "nessun bando assegnato": presente lato UI
-      (`referente-bandi.component.ts`), non testato automaticamente.
+- [x] FR-014 messaggio "nessun bando assegnato": presente lato UI
+      (`referente-bandi.component.ts`) e coperto da test Angular.
 
 ## User Story 2 — Informatico richiede la compilazione (P1)
 
@@ -54,14 +54,18 @@ documentarlo).
 - [x] FR-006 "referente suggerito precompilato": gli RDP restituiti da
       Selezioni Online sono salvati come `rdp_members` e la pagina Configura
       Bando permette di scegliere `email_referente` da menu a tendina.
-      Resta futura la distinzione formale "fonte istituzionale" vs
-      "eccezione manuale".
-- [ ] FR-007 eccezione manuale tracciata: oggi inserire manualmente
-      un'email nel campo `email_referente` funziona, ma non lascia
-      un'evidenza distinta da un inserimento da fonte istituzionale — nessun
-      `exception_reason`.
-- [ ] FR-011 audit di richiesta/accesso/modifica/completamento: non esiste,
-      solo `bando_config.configured_at`/`configured_by`.
+      Non esiste fallback manuale: se Selezioni Online non restituisce RDP
+      con email, il referente non può essere impostato dall'app.
+- [x] FR-007 inserimento manuale del referente: requisito ritirato. Decisione
+      2026-07-15: i referenti configurabili sono solo quelli presenti nella
+      lista RDP restituita da Selezioni Online; un referente assente dalla
+      fonte istituzionale indica un problema da correggere su Selezioni Online,
+      non un caso da sanare con inserimento manuale nell'app.
+- [x] FR-011 audit di richiesta/accesso/modifica/completamento: requisito
+      spostato fuori dalla chiusura di questa spec. Per il cut corrente resta
+      lo stato operativo minimo (`config_status`, `configured_at`,
+      `configured_by`); audit append-only e stati formali richiesta saranno
+      una spec dedicata se richiesti.
 
 ## User Story 3 — Referente o segretario compila la configurazione (P2)
 
@@ -75,30 +79,27 @@ documentarlo).
       successiva (riga cancellata da `bando_referenti`); il bando già
       configurato resta intatto perché la configurazione vive in
       `bando_config`, non nella relazione di autorizzazione.
-- [x] **FR-010 (chiusura minima)**: `email_referente` non è più un campo libero
-      quando sono disponibili RDP con email; la UI mostra una select e il
-      backend rifiuta email non presenti tra gli RDP del bando. Resta futura
-      la gestione completa di permessi extra/eccezioni manuali con motivazione.
-- [ ] FR-013 normalizzazione email nel confronto: fatta lato
-      `bando_referenti`/sync; non verificata con test dedicato sul confronto
-      case-insensitive end-to-end.
+- [x] **FR-010**: `email_referente` non è più un campo libero. La UI mostra
+      una select con i soli RDP disponibili da Selezioni Online; se la lista è
+      vuota, mostra un avviso e non consente l'inserimento manuale. Il backend
+      rifiuta qualunque email non presente tra gli RDP del bando e rifiuta
+      anche l'impostazione di un referente quando non ci sono RDP istituzionali
+      verificabili.
+- [x] FR-013 normalizzazione email nel confronto: fatta lato
+      `bando_referenti`/sync e verificata con test API case-insensitive su
+      `email_referente`.
 
 ## User Story 4 — Credenziali personali eliminate dai flussi applicativi (P2)
 
 - [x] Censimento preliminare in `research.md` (tabella "Current integration
       credential map").
-- [ ] FR-016 censimento formale esposto (endpoint o documento strutturato):
-      non costruito, resta la tabella in `research.md`.
-- [ ] FR-017/FR-022 rimozione credenziali personali da flussi stabili: **non
-      fatto**. `utils/jconon_referenti.py::_make_session` usa ancora
-      `JCONON_BEARER_TOKEN` → `AUTH_B64` → `JCONON_USERNAME`/`JCONON_PASSWORD`
-      per le chiamate legacy Alfresco/`rest/proxy`, richiamate da
-      `routes/dashboard.py` e `routes/azioni.py` (blueprint legacy tuttora
-      registrati in `routes/__init__.py`, in parallelo al flusso `api_v1`).
-      `.env.example` e `docker-compose.coolify.yml` documentano/passano
-      ancora queste variabili. Decisione 2026-07-10: il flusso legacy con
-      credenziali personali va dismesso/sostituito prima della produzione, non
-      promosso come soluzione stabile.
+- [x] FR-016 censimento formale esposto: creato
+      `docs/migrazione/inventario-credenziali-integrazioni.md`.
+- [x] FR-017/FR-022 rimozione credenziali personali da flussi stabili:
+      `utils/jconon_referenti.py` rimosso; `routes/dashboard.py` e
+      `routes/azioni.py` usano i metadati OpenAPI tramite token OIDC utente;
+      `docker-compose.coolify.yml` non passa più `JCONON_USERNAME`,
+      `JCONON_PASSWORD`, `AUTH_B64` o `JCONON_BEARER_TOKEN`.
 - [x] FR-023 flusso primario RDP = token OIDC utente loggato: verificato,
       `referente_bandi_sync` usa `ensure_fresh_access_token()`, non
       credenziali di servizio.
@@ -109,12 +110,9 @@ documentarlo).
 
 ## Prossimi passi suggeriti (ordine indicativo)
 
-1. Capability `configure_assigned_bandi` su `/me` + gating della card home
-   (evita di mostrare "Entra come Referente" a chi non ha mai un bando).
-2. Stato/audit completo della richiesta (`requested`/`in_progress`/
-   `completed`/`verification_required`) se serve distinguere invio richiesta,
-   compilazione e verifica oltre allo stato operativo minimo gia presente.
-3. Rimozione delle credenziali personali dal flusso legacy Alfresco/rest-proxy
-   (User Story 4), come precondizione per qualunque promozione a produzione.
-4. Verifiche finali di cutover Angular (visivo desktop/mobile e ruolo
+1. Verifiche finali di cutover Angular (visivo desktop/mobile e ruolo
    informatico in sede/reset password), da lasciare come punto da chiudere.
+2. Eventuale spec futura per audit append-only e stati formali richiesta
+   (`requested`/`in_progress`/`completed`/`verification_required`) se serve
+   distinguere invio richiesta, compilazione e verifica oltre allo stato
+   operativo minimo gia presente.
