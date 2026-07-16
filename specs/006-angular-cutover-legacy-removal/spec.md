@@ -41,6 +41,17 @@
   flusso scanner con camera reale, download/invio liste effettivi,
   reset password sede/esperto e assenza del badge legacy nei percorsi ordinari.
 
+### Decisione 2026-07-16 - ingresso Informatico in sede
+
+- L'informatico in sede non ha un login separato: accede con SSO CNR ordinario.
+- La Home deve esporre una card dedicata "Informatico in sede" che apre
+  `/bandi?mode=sede`, cosi il flusso e' collaudabile senza URL manuali.
+- Il "reset password" citato nella checklist riguarda i candidati, non la
+  password o l'autenticazione dell'informatico.
+- Nella gestione sessione, la modalita `sede` deve mostrare la vista per
+  segnare/rimuovere le richieste di reset password dei candidati; la modalita
+  `esperto` resta quella che segna i reset eseguiti.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Operatore usa solo la nuova interfaccia (Priority: P1)
@@ -91,9 +102,10 @@ QR, liste, reset password sede/esperto, scanner e amministrazione.
 1. **Given** una sessione di test in stato iniziale, **When** il segretario
    completa il flusso fino all'invio liste nella nuova interfaccia, **Then** non
    usa pagine legacy e gli stati avanzano correttamente.
-2. **Given** un flusso informatico in sede, **When** vengono richiesti e gestiti
-   reset password, **Then** la nuova interfaccia copre ricerca, filtri e
-   mutazioni richieste.
+2. **Given** un informatico in sede autenticato via SSO CNR, **When** entra
+   dalla Home e gestisce le richieste di reset password dei candidati, **Then**
+   la nuova interfaccia copre ricerca, filtri e mutazioni richieste senza
+   richiedere una login separata.
 3. **Given** un candidato con QR e una sessione attiva, **When** scanner e
    check-in vengono eseguiti, **Then** la nuova interfaccia copre associazione,
    scansione, conferma e disassociazione senza fallback legacy.
@@ -186,6 +198,12 @@ verificare che ciascuno rispetti la disposizione approvata.
 - **FR-010**: I flussi candidati, QR candidato, liste, download, invio liste,
   reset password sede/esperto, dispositivi, scanner, notifiche e log admin
   DEVONO essere verificati nella nuova interfaccia prima dello spegnimento.
+- **FR-016**: La Home della nuova interfaccia DEVE esporre l'ingresso
+  "Informatico in sede" verso `/bandi?mode=sede`, senza trattarlo come login
+  diverso dall'SSO ordinario.
+- **FR-017**: Il flusso reset password in modalita `sede` DEVE essere descritto
+  come gestione delle richieste dei candidati, distinguendolo dal reset
+  completato in modalita `esperto`.
 - **FR-011**: Eventuali endpoint tecnici non visuali ancora necessari, come
   download, QR/PDF, login, callback, healthcheck e API, DEVONO restare
   disponibili senza esporre pagine HTML legacy agli utenti ordinari.

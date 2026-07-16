@@ -51,6 +51,17 @@ import { AuthService } from '../../core/auth.service';
             </div>
           </div>
         </div>
+        <div class="col-md-4">
+          <div class="card h-100 shadow-sm">
+            <div class="card-body">
+              <h2 class="card-title h5">Informatico in sede</h2>
+              <p class="card-text">Gestisci le richieste di reset password dei candidati durante la sessione.</p>
+              <a class="btn btn-primary" routerLink="/bandi" [queryParams]="{ mode: 'sede' }">
+                Entra come Informatico in sede
+              </a>
+            </div>
+          </div>
+        </div>
         @if (auth.hasCapability('expert_workflow')) {
           <div class="col-md-4">
             <div class="card h-100 shadow-sm">

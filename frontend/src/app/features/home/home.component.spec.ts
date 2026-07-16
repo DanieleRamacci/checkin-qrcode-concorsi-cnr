@@ -34,7 +34,9 @@ describe('HomeComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Esperto informatico');
+    expect(fixture.nativeElement.textContent).toContain('Informatico in sede');
     expect(fixture.nativeElement.textContent).toContain('Referenti');
     expect(fixture.nativeElement.textContent).toContain('Menu admin');
+    expect(fixture.nativeElement.textContent).not.toContain('LEGACY HTML');
   });
 });
