@@ -178,7 +178,7 @@ interface MergedConfig {
                 }
                 @if (adminOnly()) {
                   <div class="alert alert-warning mt-3 mb-0">
-                    Non risulti segretario per questo bando: lo scarico candidati richiede abilitazione su Selezioni Online.
+                    Stai aprendo questa sessione solo come amministratore locale: lo scarico candidati richiede una relazione operativa con la commissione.
                   </div>
                 }
               </div>

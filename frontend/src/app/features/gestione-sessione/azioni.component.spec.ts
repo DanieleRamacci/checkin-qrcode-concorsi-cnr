@@ -156,7 +156,7 @@ describe('AzioniComponent', () => {
     fixture.detectChanges();
 
     const button = fixture.nativeElement.querySelector('button.btn-primary') as HTMLButtonElement;
-    expect(fixture.nativeElement.textContent).toContain('Non risulti segretario');
+    expect(fixture.nativeElement.textContent).toContain('solo come amministratore locale');
     expect(button.disabled).toBe(true);
 
     fixture.componentInstance.importCandidati();

@@ -34,21 +34,20 @@ import { BandiService } from './bandi.service';
             <div>
               <strong>Permessi Selezioni Online</strong>
               <p class="mb-0">
-                Per comparire come segretario e scaricare i candidati, il tuo nominativo deve essere
-                inserito nella commissione come segretario e abilitato su Selezioni Online.
+                Per vedere e operare su un bando, il tuo nominativo deve risultare collegato
+                alla commissione e abilitato su Selezioni Online.
               </p>
               @if (auth.hasCapability('admin')) {
                 <p class="mb-0 mt-2">
-                  Come admin globale puoi vedere anche bandi gia presenti nel database locale, ma
-                  l'import candidati resta autorizzato da Selezioni Online.
+                  Come admin globale puoi vedere anche bandi gia presenti nel database locale,
+                  anche quando non risultano collegati al tuo utente come membro operativo.
                 </p>
               }
               @if (secretaryHelpOpen()) {
                 <div class="mt-2 small">
                   Se "Scarica candidati" restituisce un errore di autorizzazione, verifica su
-                  Selezioni Online che il segretario sia presente nella commissione e che il
-                  nominativo sia abilitato. Il ruolo di esperto informatico non basta per l'import
-                  candidati.
+                  Selezioni Online che l'utente sia presente nella commissione e che il nominativo
+                  sia abilitato. Il ruolo di esperto informatico non basta per l'import candidati.
                 </div>
               }
             </div>
@@ -68,8 +67,8 @@ import { BandiService } from './bandi.service';
       @if (isAdminMode()) {
         <div class="alert alert-warning" role="note">
           <strong>Vista amministratore.</strong>
-          Stai vedendo i bandi presenti nel database locale. Se un bando e marcato come
-          "Solo admin", non risulti segretario nei dati locali e lo scarico candidati sara bloccato.
+          Stai vedendo i bandi presenti nel database locale. I bandi marcati come
+          "Solo vista admin" non risultano collegati al tuo utente come membro operativo nei dati locali.
         </div>
       }
 
@@ -121,9 +120,9 @@ import { BandiService } from './bandi.service';
                     <div class="d-flex flex-column gap-1">
                       <span>{{ bando.title }}</span>
                       @if (bando.visibility_reason === 'admin') {
-                        <span class="badge text-bg-warning align-self-start">Solo admin - non sei segretario</span>
+                        <span class="badge text-bg-warning align-self-start">Solo vista admin</span>
                       } @else if (bando.visibility_reason === 'owner') {
-                        <span class="badge text-bg-success align-self-start">Segretario</span>
+                        <span class="badge text-bg-success align-self-start">Membro operativo</span>
                       }
                       @if (bando.source_role && bando.source_role !== 'SEGRETARIO') {
                         <span class="badge text-bg-secondary align-self-start">Ruolo: {{ bando.source_role }}</span>
@@ -251,7 +250,7 @@ export class BandiComponent {
 
   emptyMessage(): string {
     if (this.mode === 'segretario') {
-      return 'Non risultano bandi per cui sei segretario abilitato su Selezioni Online.';
+      return 'Non risultano bandi collegati al tuo utente su Selezioni Online.';
     }
     return 'Nessuna commissione disponibile.';
   }

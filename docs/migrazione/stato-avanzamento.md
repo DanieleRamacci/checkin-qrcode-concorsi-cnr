@@ -77,20 +77,25 @@ scenario reale. Gap reali trovati e risolti finora:
    `admin_globale` vedeva tutti i bandi locali anche entrando come
    Segretario, creando confusione con i permessi reali di Selezioni Online.
    Separata la vista: `/bandi` resta filtrata sui bandi propri, mentre
-   `/bandi?mode=admin` mostra il totale locale con badge "Solo admin - non
-   sei segretario". Lo scarico candidati e' bloccato lato API quando manca
-   la relazione locale di commissione per la sessione. Dettaglio operativo in
+   `/bandi?mode=admin` mostra il totale locale con badge "Solo vista admin"
+   quando l'utente non risulta collegato localmente come membro operativo.
+   Lo scarico candidati e' bloccato lato API quando manca la relazione locale
+   di commissione per la sessione. Dettaglio operativo in
    [`docs/operativa/selezioni-online.md`](../operativa/selezioni-online.md).
 7. **Ruoli Selezioni Online non equivalenti a segretario**: dai test reali e'
    emerso che `/openapi/v1/call/commissions` puo restituire bandi collegati
    all'utente anche quando l'utente e' presidente, componente o esperto, non
-   segretario. La sync ora verifica il dettaglio commissione, salva
-   `source_role/access_active`, mostra in dashboard Segretario solo
-   `SEGRETARIO` attivi e marca come non attive le relazioni non piu restituite
-   da una sync remota valida. I bandi e i dati operativi non vengono cancellati:
-   restano disponibili agli altri utenti autorizzati e alla vista admin.
-   Inoltre `email_segretario` viene riallineata a Selezioni Online e non e'
-   piu inseribile a mano fuori dalla lista dei `SEGRETARIO`.
+   segretario. Conferma 2026-07-15: mettendo l'utente come solo
+   `COMPONENTE`, il bando compare comunque in `/bandi` quando la sync usa solo
+   `/call/commissions`. Questo endpoint quindi non puo essere considerato prova
+   del ruolo Segretario. Aggiornamento 2026-07-16: lo stesso scenario ha
+   mostrato che un `COMPONENTE` interno CNR puo anche scaricare i candidati da
+   Selezioni Online. Quindi il filtro "solo Segretario" non e' imposto
+   dall'API esterna osservata, ma e' una possibile regola applicativa piu
+   restrittiva. Decisione 2026-07-16: per il perimetro corrente si accetta
+   "membro commissione abilitato da Selezioni Online" come criterio operativo,
+   senza sync ruolo complessa. La vista amministratore resta utile per supporto,
+   audit e visione globale dei bandi locali non collegati all'utente.
 
 ## Cosa resta da fare
 

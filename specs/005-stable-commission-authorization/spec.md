@@ -4,9 +4,56 @@
 
 **Created**: 2026-07-10
 
-**Status**: Draft
+**Status**: Decisione SOL chiusa per il perimetro attuale (2026-07-16)
 
 **Input**: User description: "Definire una correzione strutturale per separare il bando/commissione come dato operativo stabile dalle autorizzazioni dei singoli utenti sincronizzate da Selezioni Online. Se un utente non vede piu un bando dalla fonte remota, il sistema non deve cancellare dati operativi gia avviati; deve revocare o disattivare l'accesso di quell'utente, mantenendo bando, configurazione, sessioni, candidati, stati, liste e dispositivi disponibili agli altri utenti ancora autorizzati."
+
+## Evidenze di collaudo Selezioni Online
+
+- **2026-07-15**: prova reale su ambiente test. Con sync basata solo su
+  `/openapi/v1/call/commissions`, un utente CNR inserito in un bando come
+  `COMPONENTE` e non come `SEGRETARIO` vede comunque il bando nella dashboard
+  `/bandi`. Quindi quell'endpoint conferma una relazione utente-bando, ma non
+  basta per certificare il ruolo Segretario.
+- Implicazione: la dashboard Segretario non puo usare soltanto
+  `/call/commissions` come fonte di verita del ruolo. Serve una decisione
+  successiva tra verifica dettaglio/bulk da `/openapi/v1/call` con
+  `detailCommission=true`, verifica puntuale sulle azioni critiche, oppure
+  accettazione temporanea del rischio UX per commissari interni CNR.
+- **2026-07-16**: ulteriore prova reale su ambiente test. Lo stesso utente CNR
+  inserito come `COMPONENTE` riesce anche a scaricare i candidati da Selezioni
+  Online. Quindi l'API esterna di import candidati non distingue, almeno nel
+  test osservato, tra segretario e componente della commissione.
+- Implicazione aggiornata: il filtro "solo SEGRETARIO" non e' richiesto da un
+  blocco tecnico osservato su Selezioni Online. La decisione applicativa del
+  2026-07-16 e' accettare come operativo il perimetro "membro commissione
+  abilitato da Selezioni Online", evitando una sync ruolo complessa.
+- La vista amministratore resta utile per supporto, audit e visione globale dei
+  bandi locali non collegati all'utente. Non serve piu come meccanismo per
+  separare "segretario" da "componente" nel flusso ordinario.
+
+## Decisione di chiusura SOL 2026-07-16
+
+Per il perimetro corrente, Check-in CNR Concorsi accetta "membro commissione
+abilitato da Selezioni Online" come criterio operativo. Non viene introdotta una
+sync bloccante in background per certificare il solo ruolo `SEGRETARIO` prima di
+mostrare o rendere operativo un bando. La regola documentata resta:
+
+- il bando viene considerato operativo per l'utente quando Selezioni Online lo
+  restituisce come collegato alla commissione e l'utente risulta abilitato dalla
+  fonte esterna;
+- la vista amministratore resta separata e serve per supporto, audit e visione
+  globale dei bandi locali non collegati all'utente, non per confondere un
+  accesso locale admin con una relazione operativa restituita da Selezioni
+  Online;
+- il filtro rigido "solo `SEGRETARIO`" e' rinviato a una decisione di processo:
+  se verra richiesto, dovra essere implementato come regola applicativa
+  esplicita usando dettaglio commissione o altra fonte attendibile del ruolo,
+  preferibilmente senza bloccare la dashboard iniziale.
+
+Di conseguenza, nelle user story storiche sotto, il termine "segretario" va
+letto come "utente operativo collegato alla commissione da Selezioni Online"
+finche non viene formalizzata una policy piu restrittiva.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -206,6 +253,14 @@ mai autorizzato; verificare che l'amministratore possa distinguere i tre casi.
   distinguibile dalla cancellazione di dati operativi.
 - **FR-024**: La documentazione operativa DEVE descrivere il significato degli
   stati di autorizzazione, della cache locale e delle revoche.
+- **FR-025**: Il sistema DEVE distinguere chiaramente la visibilita
+  amministrativa locale dalla relazione operativa restituita da Selezioni
+  Online, usando testi e badge che non assumano automaticamente il ruolo
+  `SEGRETARIO`.
+- **FR-026**: Un eventuale blocco applicativo limitato al solo ruolo
+  `SEGRETARIO` DEVE essere introdotto solo dopo decisione di processo esplicita
+  e usando una fonte ruolo attendibile; non deve essere dedotto dalla sola
+  presenza del bando in `/openapi/v1/call/commissions`.
 
 ### Key Entities *(include if feature involves data)*
 

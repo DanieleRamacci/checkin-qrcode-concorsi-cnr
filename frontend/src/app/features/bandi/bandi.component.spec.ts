@@ -71,7 +71,7 @@ describe('BandiComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Concorso CNR');
     expect(fixture.nativeElement.textContent).toContain('Dashboard Segretario');
     expect(fixture.nativeElement.textContent).toContain('Aggiorna da Selezioni Online');
-    expect(fixture.nativeElement.textContent).toContain('nominativo deve essere');
+    expect(fixture.nativeElement.textContent).toContain('nominativo deve risultare collegato');
     expect(fixture.nativeElement.textContent).toContain('abilitato su Selezioni Online');
     expect(fixture.nativeElement.textContent).not.toContain('Configura');
   });
@@ -88,7 +88,7 @@ describe('BandiComponent', () => {
     const fixture = await createComponent('segretario', true);
 
     expect(fixture.nativeElement.textContent).toContain('admin globale');
-    expect(fixture.nativeElement.textContent).toContain('import candidati resta autorizzato da Selezioni Online');
+    expect(fixture.nativeElement.textContent).toContain('membro operativo');
   });
 
   it('renders the explicit admin dashboard with admin-only badges', async () => {
@@ -96,7 +96,7 @@ describe('BandiComponent', () => {
 
     expect(fixture.nativeElement.textContent).toContain('Dashboard Amministratore');
     expect(fixture.nativeElement.textContent).toContain('Vista amministratore');
-    expect(fixture.nativeElement.textContent).toContain('Solo admin - non sei segretario');
+    expect(fixture.nativeElement.textContent).toContain('Solo vista admin');
     expect(fixture.nativeElement.textContent).toContain('Ruolo: PRESIDENTE');
   });
 });

@@ -41,9 +41,9 @@ def candidati_import(session_id):
         return error_response(
             "selezioni_online_secretary_required",
             (
-                "Scarica candidati richiede che il tuo utente sia segretario della "
-                "commissione e abilitato in Selezioni Online per questo bando. "
-                "La sola visibilita admin locale non basta."
+                "Scarica candidati richiede che il tuo utente risulti collegato "
+                "operativamente alla commissione e abilitato in Selezioni Online "
+                "per questo bando. La sola visibilita admin locale non basta."
             ),
             403,
         )
