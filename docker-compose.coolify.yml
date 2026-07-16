@@ -22,7 +22,7 @@ services:
       - "5050"
     environment:
       APP_ENV: "${APP_ENV:-production}"
-      APP_VERSION: "${APP_VERSION:-coolify}"
+      APP_VERSION: "${APP_VERSION:-${SOURCE_COMMIT:-coolify}}"
       APP_BUILD_TIME: "${APP_BUILD_TIME:-}"
       DEBUG: "${DEBUG:-0}"
       FLASK_ENV: "${FLASK_ENV:-production}"

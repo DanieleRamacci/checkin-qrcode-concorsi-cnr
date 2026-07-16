@@ -6,6 +6,8 @@ export interface UserContext {
   capabilities: string[];
   csrf_token: string;
   dev_mode?: boolean;
+  app_version?: string;
+  app_build_time?: string;
 }
 
 export interface BandoSummary {

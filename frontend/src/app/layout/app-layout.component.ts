@@ -1,5 +1,6 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { RouterLink, RouterOutlet } from '@angular/router';
+import { AuthService } from '../core/auth.service';
 
 @Component({
   selector: 'app-layout',
@@ -45,8 +46,8 @@ import { RouterLink, RouterOutlet } from '@angular/router';
                 <p class="mb-1"><a href="/privacy-policy">Privacy Policy</a></p>
               </div>
               <div class="col-12 col-md-4 text-md-end text-start mt-3 mt-md-0">
-                <small class="d-block">Versione: n/d</small>
-                <small class="d-block">Aggiornato: n/d</small>
+                <small class="d-block">Versione: {{ appVersion }}</small>
+                <small class="d-block">Aggiornato: {{ appBuildTime }}</small>
               </div>
             </div>
           </div>
@@ -84,5 +85,14 @@ import { RouterLink, RouterOutlet } from '@angular/router';
   `,
 })
 export class AppLayoutComponent {
+  private readonly auth = inject(AuthService);
   readonly currentYear = new Date().getFullYear();
+
+  get appVersion(): string {
+    return this.auth.user()?.app_version || 'n/d';
+  }
+
+  get appBuildTime(): string {
+    return this.auth.user()?.app_build_time || 'n/d';
+  }
 }

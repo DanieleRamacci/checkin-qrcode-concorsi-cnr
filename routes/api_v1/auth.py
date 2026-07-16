@@ -52,6 +52,8 @@ def me():
         capabilities=capabilities_for_roles(roles),
         csrf_token=get_csrf_token(),
         dev_mode=bool(current_app.config.get("DEV_MODE")),
+        app_version=current_app.config.get("APP_VERSION", "n/d"),
+        app_build_time=current_app.config.get("APP_BUILD_TIME", "n/d"),
     )
 
 

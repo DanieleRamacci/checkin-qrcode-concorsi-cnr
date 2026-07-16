@@ -28,6 +28,8 @@ def test_me_returns_user_context_and_csrf(monkeypatch):
         lambda email: {"esperto_informatico"},
     )
     app = create_test_app()
+    app.config["APP_VERSION"] = "abc1234"
+    app.config["APP_BUILD_TIME"] = "2026-07-16T12:00:00Z"
     client = app.test_client()
     with client.session_transaction() as flask_session:
         flask_session["user_email"] = "expert@cnr.it"
@@ -43,6 +45,8 @@ def test_me_returns_user_context_and_csrf(monkeypatch):
     assert payload["roles"] == ["esperto_informatico"]
     assert "expert_workflow" in payload["capabilities"]
     assert payload["csrf_token"]
+    assert payload["app_version"] == "abc1234"
+    assert payload["app_build_time"] == "2026-07-16T12:00:00Z"
 
 
 def test_session_refresh_returns_new_expiry(monkeypatch):
