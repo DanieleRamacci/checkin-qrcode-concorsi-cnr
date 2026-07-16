@@ -348,15 +348,16 @@ export class AzioniComponent {
   }
 
   private loadContextData(): void {
+    const modeParam = encodeURIComponent(this.viewMode());
     if (this.currentState() === 'iniziale') {
-      this.api.get<Record<string, string>>(`/sessioni/${this.sessionId()}/config`).subscribe((data) => {
+      this.api.get<Record<string, string>>(`/sessioni/${this.sessionId()}/config?mode=${modeParam}`).subscribe((data) => {
         this.sessionConfigModel = {
           nome_informatico_sede: data['nome_informatico_sede'] ?? '',
           email_informatico_sede: data['email_informatico_sede'] ?? '',
           telefono_informatico_sede: data['telefono_informatico_sede'] ?? '',
         };
       });
-      this.api.get<Record<string, any>>(`/bandi/${this.commissionId()}/config`).subscribe((data) => {
+      this.api.get<Record<string, any>>(`/bandi/${this.commissionId()}/config?mode=${modeParam}`).subscribe((data) => {
         this.bandoConfigModel = {
           email_esperto_remoto: data['email_esperto_remoto'] ?? '',
         };
@@ -364,8 +365,8 @@ export class AzioniComponent {
       });
     }
     if (this.currentState() === 'configurata') {
-      this.api.get<MergedConfig>(`/bandi/${this.commissionId()}/config`).subscribe((bando) => {
-        this.api.get<MergedConfig>(`/sessioni/${this.sessionId()}/config`).subscribe((sessione) => {
+      this.api.get<MergedConfig>(`/bandi/${this.commissionId()}/config?mode=${modeParam}`).subscribe((bando) => {
+        this.api.get<MergedConfig>(`/sessioni/${this.sessionId()}/config?mode=${modeParam}`).subscribe((sessione) => {
           this.mergedConfig.set({ ...bando, ...Object.fromEntries(Object.entries(sessione).filter(([, v]) => v)) });
         });
       });
@@ -378,7 +379,7 @@ export class AzioniComponent {
       'esame_in_corso',
       'esame_concluso',
     ].includes(this.currentState() ?? '')) {
-      this.api.get<ListSummary>(`/sessioni/${this.sessionId()}/lists/latest`).subscribe({
+      this.api.get<ListSummary>(`/sessioni/${this.sessionId()}/lists/latest?mode=${modeParam}`).subscribe({
         next: (item) => this.latestList.set(item),
         error: () => this.latestList.set(null),
       });
@@ -416,7 +417,7 @@ export class AzioniComponent {
     if (confirmation && !window.confirm(confirmation)) return;
     this.error.set('');
     this.busy.set(true);
-    this.api.post(`/sessioni/${this.sessionId()}/actions/${action}`).subscribe({
+    this.api.post(`/sessioni/${this.sessionId()}/actions/${action}?mode=${encodeURIComponent(this.viewMode())}`).subscribe({
       next: () => { this.busy.set(false); this.changed.emit(); },
       error: (err) => { this.busy.set(false); this.error.set(this.extractError(err)); },
     });

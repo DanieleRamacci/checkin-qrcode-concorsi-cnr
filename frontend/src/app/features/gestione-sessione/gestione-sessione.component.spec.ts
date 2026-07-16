@@ -28,7 +28,7 @@ describe('GestioneSessioneComponent', () => {
           provide: ApiClient,
           useValue: {
             get: (path: string) => {
-              if (path === '/sessioni/session-1') {
+              if (path.startsWith('/sessioni/session-1?')) {
                 return of({
                   session_id: 'session-1',
                   commission_id: 'c1',
@@ -39,8 +39,8 @@ describe('GestioneSessioneComponent', () => {
                   device_count: 1,
                 });
               }
-              if (path.endsWith('/state')) return of({ current_state: 'liste_inviate', actions: [] });
-              if (path.endsWith('/lists/latest')) {
+              if (path.includes('/state?')) return of({ current_state: 'liste_inviate', actions: [] });
+              if (path.includes('/lists/latest?')) {
                 return of({
                   id: 1,
                   session_id: 'session-1',

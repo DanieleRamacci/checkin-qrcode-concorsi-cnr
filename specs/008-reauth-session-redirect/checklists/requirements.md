@@ -1,4 +1,4 @@
-# Specification Quality Checklist: Accesso profili informatici assegnati
+# Specification Quality Checklist: Redirect coerente per sessione scaduta
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-07-16
@@ -32,6 +32,3 @@
 ## Notes
 
 - Validation passed. The spec is ready for planning.
-- Aggiornata il 2026-07-16 per includere la separazione tra segretario,
-  referente/RDP, esperto informatico da remoto e informatico in sede, con
-  eccezione admin solo per supporto.

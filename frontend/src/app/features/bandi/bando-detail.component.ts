@@ -9,7 +9,7 @@ import { BandiService } from './bandi.service';
   imports: [RouterLink],
   template: `
     <div class="container my-5" style="max-width: 860px;">
-      <a [routerLink]="['/bandi', commissionId, 'sessioni']" class="btn btn-outline-secondary btn-sm mb-3">
+      <a [routerLink]="['/bandi', commissionId, 'sessioni']" [queryParams]="{ mode: mode }" class="btn btn-outline-secondary btn-sm mb-3">
         &larr; Torna alle sessioni
       </a>
 
@@ -110,7 +110,7 @@ export class BandoDetailComponent {
   readonly warning = signal('');
 
   constructor() {
-    this.service.detail(this.commissionId).subscribe({
+    this.service.detail(this.commissionId, this.mode).subscribe({
       next: (detail) => {
         this.detail.set(detail);
         this.rdps.set(detail.rdps ?? []);

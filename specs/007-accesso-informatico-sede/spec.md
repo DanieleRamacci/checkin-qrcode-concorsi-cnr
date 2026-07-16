@@ -1,4 +1,4 @@
-# Feature Specification: Accesso informatico in sede
+# Feature Specification: Accesso profili informatici assegnati
 
 **Feature Branch**: `007-accesso-informatico-sede`
 
@@ -6,7 +6,40 @@
 
 **Status**: Draft
 
-**Input**: User description: "Per l'informatico in sede non esiste un ruolo applicativo dedicato, pero un utente SSO qualsiasi non deve poter vedere la scheda o la lista dei bandi come informatico in sede. Serve controllare che l'utente sia effettivamente l'informatico indicato per il concorso/sessione, probabilmente usando l'email inserita dal segretario o referente nella configurazione."
+**Input**: User description: "Per l'informatico in sede non esiste un ruolo applicativo dedicato, pero un utente SSO qualsiasi non deve poter vedere la scheda o la lista dei bandi come informatico in sede. Serve controllare che l'utente sia effettivamente l'informatico indicato per il concorso/sessione, probabilmente usando l'email inserita dal segretario o referente nella configurazione. Inoltre ogni profilo operativo deve aprire solo le proprie pagine: segretario, referente, esperto informatico da remoto e informatico in sede restano separati, salvo admin globale."
+
+## Analisi comportamento corrente
+
+- L'admin globale puo aprire pagine operative anche quando non e' configurato
+  come esperto o informatico assegnato: questo e' accettabile solo come accesso
+  di supporto, purche' sia visibile e distinguibile dalla normale operativita.
+- La modalita "Informatico in sede" oggi non deve essere interpretata come un
+  ruolo globale: deve essere valida solo quando l'email dell'utente coincide con
+  l'informatico in sede indicato sulla sessione.
+- La modalita "Esperto informatico da remoto" non deve bastare da sola tramite
+  ruolo globale o URL: l'utente deve essere l'esperto remoto configurato per quel
+  bando, salvo admin globale.
+- Segretario, referente/RDP, membro commissione, esperto remoto e informatico in
+  sede sono profili distinti. Il fatto che un utente possa aprire una pagina di
+  un profilo non deve autorizzarlo automaticamente sulle pagine degli altri
+  profili.
+
+## Implementazione 2026-07-16
+
+- Aggiunti controlli backend per `mode=sede` e `mode=expert/esperto` basati
+  sulle email configurate: `email_informatico_sede` a livello sessione e
+  `email_esperto_remoto` a livello bando.
+- Per utenti non-admin, la dashboard sede mostra solo bandi con almeno una
+  sessione assegnata; la dashboard esperto mostra solo bandi dove l'utente e'
+  l'esperto remoto configurato.
+- I link diretti a sessione, configurazioni in lettura, candidati, reset,
+  dispositivi e stato workflow propagano il profilo operativo richiesto e
+  vengono bloccati se l'utente non e' assegnato.
+- L'admin globale resta autorizzato come supporto, ma le viste restituiscono
+  `visibility_reason=admin` e la UI mostra un avviso di accesso amministrativo
+  non assegnato.
+- Non e' stata introdotta una tabella dedicata: il perimetro iniziale usa i dati
+  gia' configurati su bando/sessione.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -89,6 +122,38 @@ aggiornata.
    salvata, **Then** il sistema impedisce o segnala che il profilo sede non sara
    utilizzabile.
 
+---
+
+### User Story 4 - Ogni profilo apre solo il proprio flusso (Priority: P1)
+
+Un utente autenticato prova ad aprire una pagina operativa diversa dal profilo
+per cui risulta assegnato: ad esempio un segretario prova ad aprire la vista
+informatico in sede, un informatico in sede prova ad aprire la vista esperto
+remoto, o un esperto remoto prova ad aprire una sessione dove non e' configurato.
+
+**Why this priority**: la separazione dei profili evita accessi impropri e
+riduce la confusione tra ruoli SOL, ruoli applicativi globali e incarichi
+operativi sul singolo bando/sessione.
+
+**Independent Test**: configurare un bando con segretario, referente, esperto
+remoto e informatico in sede diversi; autenticarsi con ciascun utente e
+verificare che ogni profilo apra solo le pagine coerenti con il proprio incarico.
+
+**Acceptance Scenarios**:
+
+1. **Given** un segretario non configurato come informatico in sede, **When**
+   apre una URL in modalita sede, **Then** il sistema rifiuta l'accesso alla
+   pagina sede.
+2. **Given** un referente/RDP non configurato come esperto remoto, **When** apre
+   una URL in modalita esperto, **Then** il sistema rifiuta l'accesso alla pagina
+   esperto.
+3. **Given** un esperto informatico da remoto configurato su un bando, **When**
+   apre la dashboard esperto, **Then** vede solo i bandi in cui la sua email e'
+   configurata come esperto remoto.
+4. **Given** un admin globale non configurato sul bando, **When** apre una vista
+   sede o esperto per supporto, **Then** la pagina si apre solo con indicazione
+   chiara di accesso amministrativo.
+
 ### Edge Cases
 
 - Email inserita con maiuscole/minuscole diverse dall'email SSO.
@@ -101,6 +166,16 @@ aggiornata.
 - Email personale o non istituzionale inserita per errore.
 - Piu informatici in sede per una stessa sessione, se in futuro il processo lo
   richiedera.
+- Segretario o membro di commissione che prova ad aprire la vista informatico in
+  sede senza essere indicato come informatico della sessione.
+- Referente/RDP che prova ad aprire la vista esperto remoto senza essere
+  indicato come esperto remoto del bando.
+- Esperto informatico da remoto globale che prova ad aprire un bando dove non e'
+  configurato come esperto remoto.
+- Bando senza esperto informatico remoto configurato: nessun utente non-admin
+  deve poter aprire la vista esperto per quel bando.
+- Admin globale che apre una vista tecnica non assegnata: l'accesso deve restare
+  tracciabile e visivamente distinto.
 
 ## Requirements *(mandatory)*
 
@@ -138,6 +213,25 @@ aggiornata.
   questo flusso riguarda i candidati e non l'autenticazione dell'informatico.
 - **FR-013**: Ogni rifiuto di accesso alla vista sede DEVE avere un messaggio
   comprensibile e tracciabile.
+- **FR-014**: Il sistema DEVE separare i profili operativi: segretario,
+  referente/RDP, esperto informatico da remoto e informatico in sede non devono
+  ereditare accesso alle rispettive pagine solo perche' autorizzati sullo stesso
+  bando.
+- **FR-015**: La vista "Esperto informatico da remoto" DEVE essere accessibile a
+  utenti non-admin solo se la loro email coincide con l'esperto remoto
+  configurato sul bando.
+- **FR-016**: Un ruolo applicativo globale di esperto informatico, se presente,
+  NON DEVE consentire da solo l'apertura di tutti i bandi in modalita esperto.
+- **FR-017**: Un segretario, referente/RDP o membro di commissione NON DEVE
+  poter aprire la pagina informatico in sede se non e' anche l'informatico in
+  sede assegnato alla sessione.
+- **FR-018**: Un informatico in sede NON DEVE poter aprire la pagina esperto
+  remoto se non e' anche l'esperto remoto configurato per quel bando.
+- **FR-019**: Se un bando non ha esperto remoto configurato, la vista esperto per
+  quel bando DEVE essere inaccessibile agli utenti non-admin.
+- **FR-020**: L'accesso admin alle viste tecniche DEVE essere ammesso solo come
+  supporto e DEVE mostrare un'indicazione esplicita che l'utente non e'
+  l'assegnatario operativo.
 
 ### Key Entities
 
@@ -150,6 +244,10 @@ aggiornata.
   assegnate e gestire le richieste di reset password dei candidati.
 - **Accesso amministrativo sede**: accesso eccezionale o di supporto che non
   equivale a essere l'informatico assegnato.
+- **Esperto informatico da remoto assegnato**: persona indicata nella
+  configurazione del bando come destinatario tecnico remoto del flusso esperto.
+- **Accesso amministrativo tecnico**: accesso di supporto alle viste sede o
+  esperto con privilegi admin, distinto dagli incarichi operativi assegnati.
 
 ## Success Criteria *(mandatory)*
 
@@ -167,6 +265,14 @@ aggiornata.
   comprensibili senza consultare log tecnici.
 - **SC-006**: La documentazione e la UI non lasciano intendere che serva una
   password/login separata per l'informatico in sede.
+- **SC-007**: Nel 100% dei test, segretario, referente/RDP e membro commissione
+  non aprono la vista sede se non sono anche informatico in sede assegnato.
+- **SC-008**: Nel 100% dei test, un esperto informatico globale non vede bandi in
+  modalita esperto dove non e' configurato come esperto remoto.
+- **SC-009**: Nel 100% dei test, un bando senza esperto remoto configurato non
+  apre la vista esperto per utenti non-admin.
+- **SC-010**: Nel 100% dei test admin, l'apertura di una vista tecnica non
+  assegnata mostra chiaramente che si tratta di accesso amministrativo.
 
 ## Assumptions
 
@@ -178,5 +284,7 @@ aggiornata.
   dell'informatico in sede.
 - Non si introduce un ruolo applicativo globale "informatico in sede" valido per
   tutti i concorsi.
-- L'eventuale accesso admin alla vista sede e' supporto, non operativita
-  ordinaria.
+- Il ruolo globale "esperto_informatico", se mantenuto, abilita al tipo di
+  flusso ma non sostituisce l'assegnazione sul singolo bando.
+- L'eventuale accesso admin alla vista sede o esperto e' supporto, non
+  operativita ordinaria.

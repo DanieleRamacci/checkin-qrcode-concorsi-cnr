@@ -35,7 +35,7 @@ def test_bandi_returns_owned_summaries(monkeypatch):
     monkeypatch.setattr(
         bandi,
         "list_bandi",
-        lambda email, include_all=False: captured.setdefault("items", [
+        lambda email, include_all=False, mode=None: captured.setdefault("items", [
             {
                 "commission_id": "commission-1",
                 "title": "Concorso CNR",
@@ -65,7 +65,7 @@ def test_bandi_admin_default_keeps_secretary_scope(monkeypatch):
     monkeypatch.setattr(
         bandi,
         "list_bandi",
-        lambda email, include_all=False: captured.setdefault("items", [])
+        lambda email, include_all=False, mode=None: captured.setdefault("items", [])
         if not captured.setdefault("include_all", include_all)
         else [],
     )
@@ -84,7 +84,7 @@ def test_bandi_admin_mode_includes_all_local_bandi(monkeypatch):
     monkeypatch.setattr(
         bandi,
         "list_bandi",
-        lambda email, include_all=False: captured.setdefault("items", [])
+        lambda email, include_all=False, mode=None: captured.setdefault("items", [])
         if captured.setdefault("include_all", include_all)
         else [],
     )
@@ -105,7 +105,7 @@ def test_bandi_non_admin_cannot_enable_admin_mode(monkeypatch):
     monkeypatch.setattr(
         bandi,
         "list_bandi",
-        lambda email, include_all=False: captured.setdefault("items", [])
+        lambda email, include_all=False, mode=None: captured.setdefault("items", [])
         if not captured.setdefault("include_all", include_all)
         else [],
     )
@@ -114,6 +114,50 @@ def test_bandi_non_admin_cannot_enable_admin_mode(monkeypatch):
 
     assert response.status_code == 200
     assert captured["include_all"] is False
+
+
+def test_bandi_sede_mode_passes_mode_to_filtered_list(monkeypatch):
+    from routes.api_v1 import bandi
+
+    captured = {}
+    monkeypatch.setattr(bandi, "get_user_roles", lambda email: set())
+    monkeypatch.setattr(
+        bandi,
+        "list_bandi",
+        lambda email, include_all=False, mode=None: captured.setdefault(
+            "args",
+            (email, include_all, mode),
+        ) and [],
+    )
+
+    response = authenticated_client(create_test_app(), "tech@cnr.it").get(
+        "/api/v1/bandi?mode=sede"
+    )
+
+    assert response.status_code == 200
+    assert captured["args"] == ("tech@cnr.it", False, "sede")
+
+
+def test_bandi_expert_mode_for_admin_is_support_view(monkeypatch):
+    from routes.api_v1 import bandi
+
+    captured = {}
+    monkeypatch.setattr(bandi, "get_user_roles", lambda email: {bandi.ROLE_ADMIN})
+    monkeypatch.setattr(
+        bandi,
+        "list_bandi",
+        lambda email, include_all=False, mode=None: captured.setdefault(
+            "args",
+            (email, include_all, mode),
+        ) and [],
+    )
+
+    response = authenticated_client(create_test_app(), "admin@cnr.it").get(
+        "/api/v1/bandi?mode=expert"
+    )
+
+    assert response.status_code == 200
+    assert captured["args"] == ("admin@cnr.it", True, "expert")
 
 
 def test_list_bandi_counts_sessions_by_commission_not_original_user(monkeypatch):
@@ -194,7 +238,7 @@ def test_bandi_sync_preserves_cache_error_context(monkeypatch):
     monkeypatch.setattr(
         bandi,
         "list_bandi",
-        lambda email, include_all=False: [
+        lambda email, include_all=False, mode=None: [
             {
                 "commission_id": "cached",
                 "title": "Bando in cache",
@@ -389,7 +433,7 @@ def test_sessions_for_bando_return_summary(monkeypatch):
     monkeypatch.setattr(
         sessioni,
         "list_sessioni",
-        lambda commission_id: [
+        lambda commission_id, **kwargs: [
             {
                 "session_id": "session-1",
                 "commission_id": commission_id,
@@ -416,6 +460,79 @@ def test_sessions_for_bando_return_summary(monkeypatch):
     assert payload["items"][0]["checked_in_count"] == 3
 
 
+def test_sessions_for_bando_sede_mode_requires_profile_access(monkeypatch):
+    from routes.api_v1 import sessioni
+
+    captured = {}
+    monkeypatch.setattr(
+        sessioni.authorization,
+        "can_access_commission",
+        lambda email, commission_id, **kwargs: captured.update(kwargs) or False,
+    )
+
+    response = authenticated_client(create_test_app(), "owner@cnr.it").get(
+        "/api/v1/bandi/commission-1/sessioni?mode=sede"
+    )
+
+    assert response.status_code == 403
+    assert captured["profile_mode"] == "sede"
+
+
+def test_session_detail_sede_direct_link_requires_assigned_profile(monkeypatch):
+    from utils import authorization
+
+    captured = {}
+    monkeypatch.setattr(
+        authorization,
+        "can_access_session",
+        lambda email, session_id, **kwargs: captured.update(kwargs) or False,
+    )
+
+    response = authenticated_client(create_test_app(), "owner@cnr.it").get(
+        "/api/v1/sessioni/session-1?mode=sede"
+    )
+
+    assert response.status_code == 403
+    assert captured["profile_mode"] == "sede"
+
+
+def test_session_detail_expert_mode_returns_admin_visibility(monkeypatch):
+    from routes.api_v1 import sessioni
+    from utils import authorization
+
+    monkeypatch.setattr(
+        authorization,
+        "can_access_session",
+        lambda email, session_id, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        sessioni,
+        "get_sessione",
+        lambda session_id, user_email=None, mode=None: {
+            "session_id": session_id,
+            "commission_id": "commission-1",
+            "name": "Prova",
+            "date": "02/07/2026",
+            "time": "10:00",
+            "location": "Roma",
+            "current_state": "iniziale",
+            "candidate_count": 0,
+            "checked_in_count": 0,
+            "device_count": 0,
+            "visibility_reason": "admin",
+            "capabilities": ["configure", "manage"],
+            "mode": mode,
+        },
+    )
+
+    response = authenticated_client(create_test_app(), "admin@cnr.it").get(
+        "/api/v1/sessioni/session-1?mode=expert"
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["visibility_reason"] == "admin"
+
+
 def test_session_detail_returns_404_when_missing(monkeypatch):
     from routes.api_v1 import sessioni
     from utils import authorization
@@ -425,7 +542,11 @@ def test_session_detail_returns_404_when_missing(monkeypatch):
         "can_access_session",
         lambda email, session_id, **kwargs: True,
     )
-    monkeypatch.setattr(sessioni, "get_sessione", lambda session_id, user_email=None: None)
+    monkeypatch.setattr(
+        sessioni,
+        "get_sessione",
+        lambda session_id, user_email=None, mode=None: None,
+    )
 
     response = authenticated_client(create_test_app()).get(
         "/api/v1/sessioni/missing"

@@ -172,6 +172,7 @@ export function candidateQrPayload(uid: string): string {
 })
 export class CandidatiComponent {
   readonly sessionId = input.required<string>();
+  readonly viewMode = input<'segretario' | 'sede' | 'esperto' | 'admin'>('segretario');
   private readonly api = inject(ApiClient);
   readonly items = signal<CandidateSummary[]>([]);
   readonly message = signal('');
@@ -217,7 +218,7 @@ export class CandidatiComponent {
   load(): void {
     this.loading.set(true);
     this.error.set('');
-    const params = new URLSearchParams({ q: this.query(), checkin: this.checkin() });
+    const params = new URLSearchParams({ q: this.query(), checkin: this.checkin(), mode: this.viewMode() });
     this.api
       .get<ApiList<CandidateSummary>>(`/sessioni/${this.sessionId()}/candidati?${params}`)
       .subscribe({
@@ -235,7 +236,7 @@ export class CandidatiComponent {
   toggle(item: CandidateSummary): void {
     this.mutationUid.set(item.uid);
     this.message.set('');
-    this.api.post<CandidateSummary>(`/sessioni/${this.sessionId()}/candidati/${encodeURIComponent(item.uid)}/toggle-checkin`).subscribe({
+    this.api.post<CandidateSummary>(`/sessioni/${this.sessionId()}/candidati/${encodeURIComponent(item.uid)}/toggle-checkin?mode=${encodeURIComponent(this.viewMode())}`).subscribe({
       next: () => {
         this.mutationUid.set(null);
         this.load();

@@ -470,7 +470,7 @@ def test_expert_action_requests_expert_or_admin_session_access(monkeypatch):
     monkeypatch.setattr(
         workflow.authorization,
         "can_access_session",
-        lambda email, session_id, allowed_roles=(): (
+        lambda email, session_id, allowed_roles=(), **kwargs: (
             captured.update(allowed_roles=set(allowed_roles)) or True
         ),
     )

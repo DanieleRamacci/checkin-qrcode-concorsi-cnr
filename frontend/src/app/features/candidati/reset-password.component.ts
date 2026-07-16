@@ -129,6 +129,7 @@ export class ResetPasswordComponent {
     const params = new URLSearchParams({
       q: this.query.trim(),
       reset: resetFilterForApi(this.viewMode(), this.filter),
+      mode: this.viewMode(),
     });
     this.api.get<ApiList<CandidateSummary>>(`/sessioni/${this.sessionId()}/candidati?${params}`).subscribe({
       next: ({ items }) => {
@@ -146,7 +147,7 @@ export class ResetPasswordComponent {
     this.busyUid.set(candidate.uid);
     this.error.set('');
     this.api.post(
-      `/sessioni/${this.sessionId()}/candidati/${encodeURIComponent(candidate.uid)}/reset-password`,
+      `/sessioni/${this.sessionId()}/candidati/${encodeURIComponent(candidate.uid)}/reset-password?mode=${encodeURIComponent(this.viewMode())}`,
       { operation },
     ).subscribe({
       next: () => {

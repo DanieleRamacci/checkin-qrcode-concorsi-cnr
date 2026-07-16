@@ -193,12 +193,13 @@ export class DispositiviComponent {
   readonly linkError = signal('');
 
   ngOnInit(): void {
-    this.api.get<SessionSummary>(`/sessioni/${this.sessionId}`).subscribe((detail) => {
+    const modeParam = encodeURIComponent(this.mode);
+    this.api.get<SessionSummary>(`/sessioni/${this.sessionId}?mode=${modeParam}`).subscribe((detail) => {
       this.sessionName.set(detail.name);
       this.sessionDetail.set(detail);
       forkJoin({
-        bando: this.api.get<OperationalConfig>(`/bandi/${detail.commission_id}/config`),
-        sessione: this.api.get<OperationalConfig>(`/sessioni/${this.sessionId}/config`),
+        bando: this.api.get<OperationalConfig>(`/bandi/${detail.commission_id}/config?mode=${modeParam}`),
+        sessione: this.api.get<OperationalConfig>(`/sessioni/${this.sessionId}/config?mode=${modeParam}`),
       }).subscribe(({ bando, sessione }) => {
         const sessionValues = Object.fromEntries(
           Object.entries(sessione).filter(([, value]) => value !== null && value !== ''),
@@ -219,7 +220,7 @@ export class DispositiviComponent {
   load(): void {
     this.loading.set(true);
     this.error.set('');
-    this.api.get<ApiList<DeviceSummary>>(`/sessioni/${this.sessionId}/devices`).subscribe({
+    this.api.get<ApiList<DeviceSummary>>(`/sessioni/${this.sessionId}/devices?mode=${encodeURIComponent(this.mode)}`).subscribe({
       next: ({ items }) => {
         this.items.set(items);
         this.loading.set(false);
@@ -233,7 +234,7 @@ export class DispositiviComponent {
 
   createLink(): void {
     this.linkError.set('');
-    this.api.post<{ registration_token: string }>(`/sessioni/${this.sessionId}/devices/registration-token`).subscribe({
+    this.api.post<{ registration_token: string }>(`/sessioni/${this.sessionId}/devices/registration-token?mode=${encodeURIComponent(this.mode)}`).subscribe({
       next: ({ registration_token }) => {
         const params = new URLSearchParams({ sessionId: this.sessionId, token: registration_token });
         const url = `${window.location.origin}/scanner?${params}`;

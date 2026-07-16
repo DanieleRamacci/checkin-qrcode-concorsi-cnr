@@ -6,6 +6,7 @@ from flask import Blueprint, jsonify, request, session
 from routes.api_v1.auth import api_auth_required
 from routes.api_v1.errors import error_response
 from utils.bando_service import list_expert_emails, request_bando_configuration
+from utils import authorization
 from utils.authorization import commission_access_required, session_access_required
 from utils.sessioni import (
     get_bando_config,
@@ -167,8 +168,14 @@ def _secretary_selection_error(config: dict, email: str) -> str | None:
 
 @configurazioni_api_bp.get("/bandi/<commission_id>/config")
 @api_auth_required
-@commission_access_required(allow_referente=True)
 def bando_config_get(commission_id):
+    if not authorization.can_access_commission(
+        session["user_email"],
+        commission_id,
+        allow_referente=True,
+        profile_mode=request.args.get("mode"),
+    ):
+        return error_response("forbidden", "Operazione non autorizzata.", 403)
     config = get_bando_config(commission_id) or {}
     return jsonify(
         commission_id=commission_id,
@@ -284,8 +291,13 @@ def bando_config_request(commission_id):
 
 @configurazioni_api_bp.get("/sessioni/<session_id>/config")
 @api_auth_required
-@session_access_required()
 def sessione_config_get(session_id):
+    if not authorization.can_access_session(
+        session["user_email"],
+        session_id,
+        profile_mode=request.args.get("mode"),
+    ):
+        return error_response("forbidden", "Operazione non autorizzata.", 403)
     config = get_sessione_config(session_id) or {}
     return jsonify(session_id=session_id, **_serialize(config))
 

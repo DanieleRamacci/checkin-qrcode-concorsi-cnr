@@ -89,8 +89,7 @@ interface OperationalConfig {
           @if (detail()?.visibility_reason === 'admin') {
             <div class="alert alert-warning mb-3" role="alert">
               <strong>Vista amministratore.</strong>
-              Questa sessione appartiene a un bando locale per cui non risulti segretario.
-              Puoi consultare lo stato, ma lo scarico candidati e bloccato finche Selezioni Online non ti abilita come segretario.
+              Stai usando un accesso di supporto su una sessione per cui non risulti assegnato al profilo operativo richiesto.
             </div>
           }
           <div class="it-card-wrapper mb-3">
@@ -107,7 +106,7 @@ interface OperationalConfig {
                     [adminOnly]="detail()?.visibility_reason === 'admin'"
                     (changed)="load()"
                   />
-                  <div class="mb-3"><app-candidati [sessionId]="sessionId" /></div>
+                  <div class="mb-3"><app-candidati [sessionId]="sessionId" [viewMode]="viewMode" /></div>
                   @if (viewMode === 'sede' || viewMode === 'esperto') {
                     <app-reset-password [sessionId]="sessionId" [viewMode]="viewMode" />
                   }
@@ -153,12 +152,13 @@ export class GestioneSessioneComponent {
   constructor() { this.load(); }
 
   load(): void {
-    this.api.get<SessionSummary>(`/sessioni/${this.sessionId}`).subscribe((detail) => {
+    const modeParam = encodeURIComponent(this.viewMode);
+    this.api.get<SessionSummary>(`/sessioni/${this.sessionId}?mode=${modeParam}`).subscribe((detail) => {
       this.detail.set(detail);
-      this.bandiService.detail(detail.commission_id).subscribe((bando) => this.bandoConfigured.set(bando.configured));
+      this.bandiService.detail(detail.commission_id, this.viewMode).subscribe((bando) => this.bandoConfigured.set(bando.configured));
       forkJoin({
-        bando: this.api.get<OperationalConfig>(`/bandi/${detail.commission_id}/config`),
-        sessione: this.api.get<OperationalConfig>(`/sessioni/${this.sessionId}/config`),
+        bando: this.api.get<OperationalConfig>(`/bandi/${detail.commission_id}/config?mode=${modeParam}`),
+        sessione: this.api.get<OperationalConfig>(`/sessioni/${this.sessionId}/config?mode=${modeParam}`),
       }).subscribe(({ bando, sessione }) => {
         const sessionValues = Object.fromEntries(
           Object.entries(sessione).filter(([, value]) => value !== null && value !== ''),
@@ -166,7 +166,7 @@ export class GestioneSessioneComponent {
         this.mergedConfig.set({ ...bando, ...sessionValues });
       });
     });
-    this.api.get<WorkflowState>(`/sessioni/${this.sessionId}/state`).subscribe((state) => this.workflowState.set(state));
+    this.api.get<WorkflowState>(`/sessioni/${this.sessionId}/state?mode=${encodeURIComponent(this.viewMode)}`).subscribe((state) => this.workflowState.set(state));
   }
 }
 

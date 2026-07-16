@@ -40,7 +40,7 @@ import { SessioniService } from './sessioni.service';
       @if (bando()?.visibility_reason === 'admin') {
         <div class="alert alert-warning py-2 mb-3" role="alert">
           <strong>Vista amministratore.</strong>
-          Stai vedendo un bando locale per cui non risulti segretario. Lo scarico candidati non e disponibile da questa vista.
+          Stai usando un accesso di supporto su un bando per cui non risulti assegnato al profilo operativo richiesto.
         </div>
       }
 
@@ -127,7 +127,7 @@ export class SessioniComponent {
   }
 
   constructor() {
-    this.bandiService.detail(this.commissionId).subscribe({
+    this.bandiService.detail(this.commissionId, this.mode).subscribe({
       next: (bando) => this.bando.set(bando),
       error: () => this.error.set('Impossibile caricare il dettaglio del bando.'),
     });
@@ -138,7 +138,7 @@ export class SessioniComponent {
     this.loading.set(true);
     this.error.set(null);
     if (sync) {
-      this.service.sync(this.commissionId).subscribe({
+      this.service.sync(this.commissionId, this.mode).subscribe({
         next: () => this.loadItems(),
         error: () => {
           this.error.set('Sincronizzazione sessioni non riuscita; sono mostrati i dati locali.');
@@ -151,7 +151,7 @@ export class SessioniComponent {
   }
 
   private loadItems(preserveError = false): void {
-    this.service.list(this.commissionId).subscribe({
+    this.service.list(this.commissionId, this.mode).subscribe({
       next: ({ items }) => {
         this.items.set(items);
         this.loading.set(false);

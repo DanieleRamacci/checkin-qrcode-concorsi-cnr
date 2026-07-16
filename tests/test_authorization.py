@@ -115,6 +115,86 @@ def test_explicit_role_can_be_allowed(monkeypatch):
     )
 
 
+def test_secretary_cannot_use_sede_profile_without_assignment(monkeypatch):
+    from utils import authorization
+
+    executed = []
+    monkeypatch.setattr(authorization, "get_user_roles", lambda email: set())
+    monkeypatch.setattr(
+        authorization,
+        "get_db_connection",
+        tracking_connection_factory(None, executed),
+    )
+
+    assert not authorization.can_access_session(
+        "segretario@cnr.it",
+        "session-1",
+        profile_mode="sede",
+    )
+    assert "email_informatico_sede" in executed[0][0]
+
+
+def test_sede_assignee_can_use_sede_profile(monkeypatch):
+    from utils import authorization
+
+    monkeypatch.setattr(authorization, "get_user_roles", lambda email: set())
+    monkeypatch.setattr(
+        authorization,
+        "get_db_connection",
+        connection_factory((1,)),
+    )
+
+    assert authorization.can_access_session(
+        "informatico@cnr.it",
+        "session-1",
+        profile_mode="sede",
+    )
+
+
+def test_global_expert_cannot_use_unassigned_expert_profile(monkeypatch):
+    from utils import authorization
+
+    executed = []
+    monkeypatch.setattr(
+        authorization,
+        "get_user_roles",
+        lambda email: {authorization.ROLE_ESPERTO},
+    )
+    monkeypatch.setattr(
+        authorization,
+        "get_db_connection",
+        tracking_connection_factory(None, executed),
+    )
+
+    assert not authorization.can_access_session(
+        "expert@cnr.it",
+        "session-1",
+        profile_mode="expert",
+    )
+    assert "email_esperto_remoto" in executed[0][0]
+
+
+def test_assigned_remote_expert_can_use_expert_profile(monkeypatch):
+    from utils import authorization
+
+    monkeypatch.setattr(
+        authorization,
+        "get_user_roles",
+        lambda email: {authorization.ROLE_ESPERTO},
+    )
+    monkeypatch.setattr(
+        authorization,
+        "get_db_connection",
+        connection_factory((1,)),
+    )
+
+    assert authorization.can_access_session(
+        "expert@cnr.it",
+        "session-1",
+        profile_mode="expert",
+    )
+
+
 def test_referente_can_access_assigned_bando(monkeypatch):
     from utils import authorization
 

@@ -6,15 +6,15 @@ import { SessionsResponse } from '../../core/models/api.models';
 export class SessioniService {
   private readonly api = inject(ApiClient);
 
-  list(commissionId: string) {
+  list(commissionId: string, mode = 'segretario') {
     return this.api.get<SessionsResponse>(
-      `/bandi/${encodeURIComponent(commissionId)}/sessioni`,
+      `/bandi/${encodeURIComponent(commissionId)}/sessioni?mode=${encodeURIComponent(mode)}`,
     );
   }
 
-  sync(commissionId: string) {
+  sync(commissionId: string, mode = 'segretario') {
     return this.api.post<{ success: boolean; inserted: number }>(
-      `/bandi/${encodeURIComponent(commissionId)}/sessioni/sync`,
+      `/bandi/${encodeURIComponent(commissionId)}/sessioni/sync?mode=${encodeURIComponent(mode)}`,
     );
   }
 }

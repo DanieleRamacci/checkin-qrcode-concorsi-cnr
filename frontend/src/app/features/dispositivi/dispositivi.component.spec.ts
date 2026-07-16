@@ -23,7 +23,7 @@ describe('DispositiviComponent', () => {
           provide: ApiClient,
           useValue: {
             get: (path: string) => {
-              if (path.endsWith('/devices')) {
+              if (path.includes('/devices?')) {
                 return of({ items: [{
                   id: 1,
                   session_id: 'session-1',
@@ -33,7 +33,7 @@ describe('DispositiviComponent', () => {
                   ip_address: '127.0.0.1',
                 }] });
               }
-              if (path === '/sessioni/session-1') {
+              if (path.startsWith('/sessioni/session-1?')) {
                 return of({
                   session_id: 'session-1',
                   commission_id: 'c1',

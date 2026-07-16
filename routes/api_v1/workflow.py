@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, session
+from flask import Blueprint, jsonify, request, session
 
 from routes.api_v1.auth import api_auth_required
 from routes.api_v1.errors import error_response
@@ -36,6 +36,7 @@ def workflow_action(session_id, action):
         email,
         session_id,
         allowed_roles=allowed_roles,
+        profile_mode=request.args.get("mode"),
     ):
         return error_response("forbidden", "Operazione non autorizzata.", 403)
     try:
