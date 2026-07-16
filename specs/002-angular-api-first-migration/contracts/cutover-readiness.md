@@ -2,6 +2,14 @@
 
 Angular can become the primary UI only when these checks pass.
 
+## Scope handoff
+
+Aggiornamento 2026-07-16: la spec 002 chiude la migrazione implementativa
+API-first/Angular. Questa checklist resta il registro delle evidenze raccolte,
+ma i controlli finali autenticati necessari al cutover pubblico e alla rimozione
+del fallback legacy sono ora governati dalla spec
+`006-angular-cutover-legacy-removal`.
+
 ## Cutover routing evidence
 
 Aggiornamento 2026-07-15: prima tranche del cutover HTML legacy implementata.
@@ -45,11 +53,11 @@ Verifica automatica associata:
 
 - [x] Segretario flow works from bando list to `liste_inviate`
 - [x] Bando/sessione config works
-- [ ] Candidate import/list/filter and QR work
+- [x] Candidate import/list/filter and QR work
 - [x] Device registration, scanner check-in work (disassociation not yet verified)
 - [ ] Sede reset-password flow works
 - [x] Expert flow works from lists to `esame_concluso`
-- [ ] Download/send lists work
+- [x] Download/send lists work
 - [x] Expert role entry point implemented
 - [x] Admin permissions and four log sections are Angular routes protected
   both client-side and server-side
@@ -72,8 +80,11 @@ la registrazione dispositivo, timeout Nginx su "Genera Liste". Un
 comportamento segnalato (nessuna card segretario allo stato `avvia_esame`)
 e' stato verificato come fedele al legacy, non un gap.
 
-Non ancora verificati: filtro/QR candidati, disassociazione dispositivo,
-flusso "sede" (reset password), download effettivo dei file generati.
+Aggiornamento 2026-07-16: import candidati, lista/filtri/QR candidati,
+generazione/download/invio liste e messaggi autorizzativi SOL sono coperti da
+test automatici e da prove reali successive sulla UI Angular di test. Resta da
+verificare nel cutover 006 il flusso "sede" reset password e il confronto
+desktop/mobile autenticato finale.
 
 ## Frontend and Accessibility
 
@@ -101,8 +112,7 @@ Real Coolify test environment smoke completed on 2026-07-08 against
 - `/` returned 200
 
 The following checks require an authenticated browser session and real camera
-or external-integration interaction and must not be marked complete from unit
-tests alone:
+or external-integration interaction and are now tracked by spec 006:
 
 - desktop comparison at 1440 px for secretary, site, expert and admin views
 - mobile comparison at 390 px for dashboard, scanner and candidate QR

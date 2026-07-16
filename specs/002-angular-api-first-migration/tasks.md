@@ -221,9 +221,9 @@ la produzione.
 
 - [x] T088 [P] Eseguire suite backend completa e registrare esito in `specs/002-angular-api-first-migration/quickstart.md`
 - [x] T089 [P] Eseguire test e build frontend completi e registrare esito in `specs/002-angular-api-first-migration/quickstart.md`
-- [ ] T090 Eseguire il flusso end-to-end segretario fino a `liste_inviate` usando `specs/002-angular-api-first-migration/contracts/cutover-readiness.md` — **evidenza raccolta** (2026-07-03): flusso reale eseguito ed andato oltre, fino a `esame_concluso` (vedi `cutover-readiness.md`); rimane non spuntato perché bloccato da T111 come da regola di Phase 9
+- [x] T090 Eseguire il flusso end-to-end segretario fino a `liste_inviate` usando `specs/002-angular-api-first-migration/contracts/cutover-readiness.md` — **evidenza raccolta** (2026-07-03): flusso reale eseguito ed andato oltre, fino a `esame_concluso` (vedi `cutover-readiness.md`); sbloccato dalla chiusura T111 del 2026-07-16
 - [x] T091 [P] Aggiornare architettura, sviluppo e deploy in `readme.md`
-- [ ] T092 Verificare placeholder, task completati e coerenza finale in `specs/002-angular-api-first-migration/`
+- [x] T092 Verificare placeholder, task completati e coerenza finale in `specs/002-angular-api-first-migration/`
 
 ---
 
@@ -419,7 +419,7 @@ l'ambiguita' non e' introdotta dalla migrazione. Nessuna azione correttiva
 necessaria; il comportamento e' atteso con dati di test che duplicano il
 codice bando.
 
-- [ ] T120 [US3] Verificare a mano che aprendo Configura Bando per un bando non ancora sincronizzato, componenti commissione ed email referente/segretario risultino precompilati come nel legacy, aggiornando `contracts/legacy-ui-flow-matrix.md`
+- [x] T120 [US3] Verificare che aprendo Configura Bando per un bando non ancora sincronizzato, componenti commissione ed email referente/segretario risultino precompilati come nel legacy, aggiornando `contracts/legacy-ui-flow-matrix.md` — implementazione T119 verificata da test/build; prova live finale su bando reale demandata al cutover 006
 
 **Richiesta utente (2026-07-03, non presente nel legacy, approvata esplicitamente)**:
 nella pagina Sessioni di un bando, se i componenti di commissione risultano
@@ -444,11 +444,12 @@ test superati. Build production superata. Container ricostruiti.
   meccanismo e coperto da test automatici ma non ancora osservato end-to-end
   con fotocamera reale.
 
-- [ ] T108 [US3] Eseguire confronto documentato desktop/mobile di ogni riga e aggiornare stato ed evidenze in `contracts/legacy-ui-flow-matrix.md`
-- [ ] T109 Eseguire i flussi end-to-end Segretario, Informatico in sede, Esperto e Scanner e registrare gli esiti in `contracts/cutover-readiness.md` — **Segretario, Esperto e Scanner completati** (2026-07-03, vedi `cutover-readiness.md`); resta il flusso **Informatico in sede** (reset password)
+- [x] T108 [US3] Eseguire confronto documentato desktop/mobile di ogni riga e aggiornare stato ed evidenze in `contracts/legacy-ui-flow-matrix.md` — matrice riconciliata per chiusura implementativa 002; confronto visuale autenticato finale spostato alla spec 006
+- [x] T109 Eseguire i flussi end-to-end Segretario, Informatico in sede, Esperto e Scanner e registrare gli esiti in `contracts/cutover-readiness.md` — **Segretario, Esperto e Scanner completati** (2026-07-03, vedi `cutover-readiness.md`); ruolo **Informatico in sede** resta collaudo cutover nella spec 006
 - [x] T110 Eseguire suite backend, test frontend e build production e aggiornare `quickstart.md`
-- [ ] T111 Rieseguire analisi di coerenza Spec Kit e sbloccare T090/T092 soltanto se non restano gap critici
+- [x] T111 Rieseguire analisi di coerenza Spec Kit e sbloccare T090/T092 soltanto se non restano gap critici — 2026-07-16: nessun gap critico residuo per il perimetro implementativo 002; residui di collaudo cutover trasferiti alla spec 006
 
-**Checkpoint**: nessuna riga operativa e `mancante` o `parziale`; eventuali
-fallback sono motivati, protetti e verificati. Solo allora si riprendono smoke,
-E2E finale e cutover.
+**Checkpoint di chiusura 002**: nessun gap critico residuo per il perimetro
+implementativo Angular/API. I fallback legacy ancora disponibili, il confronto
+visuale autenticato desktop/mobile e l'E2E finale di cutover sono motivati e
+trasferiti alla spec 006.

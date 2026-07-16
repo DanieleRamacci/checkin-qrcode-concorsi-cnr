@@ -3,7 +3,7 @@
 Fonte: [`specs/002-angular-api-first-migration/tasks.md`](../../specs/002-angular-api-first-migration/tasks.md),
 [`contracts/legacy-ui-flow-matrix.md`](../../specs/002-angular-api-first-migration/contracts/legacy-ui-flow-matrix.md),
 [`contracts/cutover-readiness.md`](../../specs/002-angular-api-first-migration/contracts/cutover-readiness.md).
-Aggiornato al 2026-07-15.
+Aggiornato al 2026-07-16.
 
 ## Riepilogo
 
@@ -11,9 +11,9 @@ La migrazione e' organizzata in fasi Spec Kit (setup, hardening di
 sicurezza, contratti API, frontend Angular, coesistenza/deploy, hardening
 legacy, polish, convergenza di parita'). La maggior parte delle aree
 applicative ha gia' una controparte Angular funzionante e testata; il lavoro
-rimanente e' soprattutto **verifica manuale** (confronto visivo desktop/
-mobile, flussi end-to-end per ogni ruolo) piu' alcuni gap puntuali trovati e
-gia' corretti durante quella verifica.
+rimanente non appartiene piu alla migrazione implementativa 002 ma al cutover
+006: verifica manuale autenticata desktop/mobile, ultimo flusso "Informatico in
+sede" e rimozione definitiva dei fallback legacy pubblici.
 
 ## Cosa e' stato completato
 
@@ -28,6 +28,10 @@ gia' corretti durante quella verifica.
   bando, sessioni, gestione sessione (azioni per stato, timeline a 9 step,
   notifiche/chat, candidati con QR e reset password, dispositivi con
   scanner fotocamera), amministrazione permessi/log.
+- **Spec 002 chiusa per implementazione**: al 2026-07-16 API v1, frontend
+  Angular, redirect degli ingressi HTML legacy principali, badge `LEGACY HTML`,
+  test backend/frontend e build production sono verificati. Il cutover finale
+  passa alla spec 006.
 - **Deploy test reale**: Coolify clona il repository BaLTIG tramite deploy key
   read-only, builda `docker-compose.coolify.yml` dal branch `test` ed espone
   il frontend su `https://test-checkin.concorsi.cnr.it`. Il flusso runner/
@@ -99,13 +103,9 @@ scenario reale. Gap reali trovati e risolti finora:
 
 ## Cosa resta da fare
 
-- **Confronto visivo documentato** desktop/mobile di ogni area rispetto al
-  legacy (in corso, riga per riga nella matrice di parita').
-- **Flusso end-to-end per il ruolo "Informatico in sede"** (richiesta reset
-  password) — unico ruolo non ancora verificato manualmente tra Segretario,
-  Esperto e Scanner (gia' verificati).
-- **Verifica finale di coerenza Spec Kit** prima di sbloccare il cutover
-  definitivo (nessun placeholder, nessuna decisione tecnica aperta).
+- **Spec 006 cutover Angular/legacy removal**: confronto visivo autenticato
+  desktop/mobile, flusso end-to-end per il ruolo "Informatico in sede" e
+  rimozione/redirect definitivo delle pagine legacy ancora raggiungibili.
 - Vedi [`ambiente-test-coolify.md`](ambiente-test-coolify.md) per il flusso
   reale BaLTIG/Coolify e per i controlli ancora da fare sul dominio test.
 

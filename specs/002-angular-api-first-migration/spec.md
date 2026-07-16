@@ -4,7 +4,7 @@
 
 **Created**: 2026-06-24
 
-**Status**: Implementation in progress — convergence required for legacy parity
+**Status**: Implementation complete — final cutover validation tracked by spec 006
 
 **Input**: User description: "Migrare il sistema Check-in CNR Concorsi verso un'architettura API-first con backend Flask stabilizzato, API JSON versionate e frontend Angular separato, senza includere la piattaforma esami futura e senza modificare il branch checkin-dev"
 

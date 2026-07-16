@@ -64,7 +64,7 @@ import { SessioniService } from './sessioni.service';
         </div>
       }
 
-      @if (bando() && (bando()!.commissioners?.length ?? 0) === 0) {
+      @if (bando() && (bando()!.commissioners || []).length === 0) {
         <div class="alert alert-warning py-2 mb-3" role="alert">
           Componenti di commissione non sincronizzati o non aggiornati.
         </div>

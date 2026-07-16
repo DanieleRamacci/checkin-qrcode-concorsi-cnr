@@ -90,6 +90,13 @@ parita con i template. Il fallback legacy deve restare disponibile finche tutte
 le righe operative di `contracts/legacy-ui-flow-matrix.md` non sono migrate o
 classificate esplicitamente come fallback approvato.
 
+**Implementation close-out re-check (2026-07-16)**: PASS per il perimetro della
+spec 002. API v1, frontend Angular, redirect degli ingressi legacy principali,
+badge `LEGACY HTML`, test backend/frontend e build production sono verificati.
+La rimozione del fallback legacy e il collaudo finale autenticato
+desktop/mobile restano governati dalla spec 006, per evitare di confondere la
+chiusura implementativa della migrazione con il cutover definitivo.
+
 ## Project Structure
 
 ### Documentation (this feature)

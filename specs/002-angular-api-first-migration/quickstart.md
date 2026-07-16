@@ -205,3 +205,14 @@ Run Flask and Angular with the development proxy, then verify:
 - Latest production build passed with initial bundle 2.06 MB raw / 435.79 kB
   estimated transfer; the rebuilt backend/frontend stack passed `/healthz`,
   `/api/v1/health` and `/` smoke checks on `http://localhost:18080`.
+
+## Implementation close-out result (2026-07-16)
+
+- `PYTHONPATH=. .venv/bin/pytest -q`: 100 backend tests passed.
+- `npm run test:ci`: 16 frontend test files and 34 tests passed.
+- `npm run build:production`: passed; initial bundle 2.06 MB raw / 435.85 kB
+  estimated transfer.
+- The Angular/API implementation scope of this spec is closed. Remaining
+  authenticated browser validation for production cutover, including final
+  desktop/mobile visual checks and removal of public legacy fallbacks, is
+  tracked by `specs/006-angular-cutover-legacy-removal/`.
