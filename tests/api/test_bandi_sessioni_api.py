@@ -160,6 +160,77 @@ def test_bandi_expert_mode_for_admin_is_support_view(monkeypatch):
     assert captured["args"] == ("admin@cnr.it", True, "expert")
 
 
+def test_list_bandi_expert_mode_uses_remote_expert_assignment_without_global_role(monkeypatch):
+    from routes.api_v1 import bandi
+
+    executed = []
+    monkeypatch.setattr(bandi, "get_user_roles", lambda email: set())
+
+    class FakeCursor:
+        def execute(self, query, params):
+            executed.append((query, params))
+
+        def fetchall(self):
+            return [
+                {
+                    "commission_id": "commission-1",
+                    "title": "Concorso CNR",
+                    "configured": True,
+                    "referente_email": "referente@cnr.it",
+                    "esperto_remoto_email": "expert@cnr.it",
+                    "config_status": "esperto_assegnato",
+                    "expert_assigned": True,
+                    "required_data_complete": False,
+                    "session_count": 1,
+                    "last_sync": None,
+                }
+            ]
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+    class FakeConnection:
+        def cursor(self, *args, **kwargs):
+            return FakeCursor()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+    @contextmanager
+    def fake_connection():
+        yield FakeConnection()
+
+    monkeypatch.setattr(bandi, "get_db_connection", fake_connection)
+
+    items = bandi.list_bandi(" Expert@CNR.it ", mode="expert")
+
+    assert items == [
+        {
+            "commission_id": "commission-1",
+            "title": "Concorso CNR",
+            "configured": True,
+            "referente_email": "referente@cnr.it",
+            "esperto_remoto_email": "expert@cnr.it",
+            "config_status": "esperto_assegnato",
+            "expert_assigned": True,
+            "required_data_complete": False,
+            "session_count": 1,
+            "last_sync": None,
+            "visibility_reason": "expert",
+            "source_role": None,
+            "access_active": True,
+            "capabilities": ["view"],
+        }
+    ]
+    assert executed[0][1] == ("expert@cnr.it",)
+
+
 def test_list_bandi_counts_sessions_by_commission_not_original_user(monkeypatch):
     from routes.api_v1 import bandi
 

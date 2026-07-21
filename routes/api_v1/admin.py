@@ -7,6 +7,7 @@ from psycopg2.extras import RealDictCursor
 from db import get_db_connection
 from routes.api_v1.auth import api_auth_required
 from routes.api_v1.errors import error_response
+from utils.app_settings import get_app_settings, save_app_settings
 from utils.roles import ROLE_ADMIN, ROLE_ESPERTO, get_user_roles
 
 
@@ -146,6 +147,41 @@ def roles_delete(email, role):
                 return error_response("role_not_found", "Ruolo non trovato.", 404)
         conn.commit()
     return "", 204
+
+
+@admin_api_bp.get("/admin/settings")
+@api_auth_required
+@admin_required
+def settings_show():
+    return jsonify(get_app_settings())
+
+
+@admin_api_bp.put("/admin/settings")
+@api_auth_required
+@admin_required
+def settings_update():
+    data = request.get_json(silent=True) or {}
+    errors = {}
+    for key, label in {
+        "slim_title": "Ente di appartenenza",
+        "institution_name": "Nome istituzione",
+        "app_title": "Nome applicazione",
+        "tagline": "Sottotitolo",
+        "footer_owner": "Intestazione footer",
+    }.items():
+        value = str(data.get(key) or "").strip()
+        if not value:
+            errors[key] = f"{label} obbligatorio."
+        elif len(value) > 160:
+            errors[key] = f"{label} troppo lungo."
+    if errors:
+        return error_response(
+            "validation_error",
+            "Impostazioni applicazione non valide.",
+            422,
+            details=errors,
+        )
+    return jsonify(save_app_settings(data, session["user_email"]))
 
 
 @admin_api_bp.get("/admin/logs")

@@ -5,6 +5,7 @@ from flask import Blueprint, current_app, jsonify, session
 from routes.api_v1.csrf import get_csrf_token
 from routes.api_v1.errors import error_response
 from utils.oidc import ensure_fresh_access_token
+from utils.app_settings import get_app_settings
 from utils.permissions import capabilities_for_roles
 from utils.roles import get_user_roles
 
@@ -54,6 +55,7 @@ def me():
         dev_mode=bool(current_app.config.get("DEV_MODE")),
         app_version=current_app.config.get("APP_VERSION", "n/d"),
         app_build_time=current_app.config.get("APP_BUILD_TIME", "n/d"),
+        app_settings=get_app_settings(),
     )
 
 

@@ -106,3 +106,53 @@ def test_admin_logs_returns_all_legacy_sections(monkeypatch):
     assert payload["email_logs"][0]["id"] == 2
     assert payload["session_state_logs"][0]["id"] == 3
     assert payload["exam_state_logs"][0]["id"] == 4
+
+
+def test_admin_settings_requires_admin(monkeypatch):
+    from routes.api_v1 import admin
+
+    monkeypatch.setattr(admin, "get_user_roles", lambda email: set())
+
+    response = authenticated_client(create_test_app()).get("/api/v1/admin/settings")
+
+    assert response.status_code == 403
+    assert response.get_json()["error"]["code"] == "forbidden"
+
+
+def test_admin_settings_can_be_updated(monkeypatch):
+    from routes.api_v1 import admin
+    from routes.api_v1.csrf import get_csrf_token
+
+    saved = {}
+    monkeypatch.setattr(admin, "get_user_roles", lambda email: {"admin_globale"})
+    monkeypatch.setattr(
+        admin,
+        "save_app_settings",
+        lambda values, actor: saved.setdefault("args", (values, actor)) and {
+            "slim_title": values["slim_title"],
+            "institution_name": values["institution_name"],
+            "app_title": values["app_title"],
+            "tagline": values["tagline"],
+            "footer_owner": values["footer_owner"],
+        },
+    )
+    app = create_test_app()
+    client = authenticated_client(app, "admin@cnr.it")
+    with client.session_transaction() as flask_session:
+        csrf_token = get_csrf_token(flask_session)
+
+    response = client.put(
+        "/api/v1/admin/settings",
+        json={
+            "slim_title": "Ente",
+            "institution_name": "Istituzione",
+            "app_title": "Applicazione",
+            "tagline": "Tagline",
+            "footer_owner": "Footer",
+        },
+        headers={"X-CSRF-Token": csrf_token},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["app_title"] == "Applicazione"
+    assert saved["args"][1] == "admin@cnr.it"

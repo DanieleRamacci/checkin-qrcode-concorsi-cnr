@@ -177,11 +177,7 @@ def test_global_expert_cannot_use_unassigned_expert_profile(monkeypatch):
 def test_assigned_remote_expert_can_use_expert_profile(monkeypatch):
     from utils import authorization
 
-    monkeypatch.setattr(
-        authorization,
-        "get_user_roles",
-        lambda email: {authorization.ROLE_ESPERTO},
-    )
+    monkeypatch.setattr(authorization, "get_user_roles", lambda email: set())
     monkeypatch.setattr(
         authorization,
         "get_db_connection",

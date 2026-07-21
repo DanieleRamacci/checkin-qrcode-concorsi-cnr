@@ -1,3 +1,11 @@
+export interface AppSettings {
+  slim_title: string;
+  institution_name: string;
+  app_title: string;
+  tagline: string;
+  footer_owner: string;
+}
+
 export interface UserContext {
   authenticated: boolean;
   email: string;
@@ -8,6 +16,7 @@ export interface UserContext {
   dev_mode?: boolean;
   app_version?: string;
   app_build_time?: string;
+  app_settings?: AppSettings;
 }
 
 export interface BandoSummary {

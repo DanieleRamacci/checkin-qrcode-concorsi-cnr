@@ -27,6 +27,11 @@ def test_me_returns_user_context_and_csrf(monkeypatch):
         "get_user_roles",
         lambda email: {"esperto_informatico"},
     )
+    monkeypatch.setattr(
+        auth,
+        "get_app_settings",
+        lambda: {"institution_name": "CNR", "app_title": "Check-in"},
+    )
     app = create_test_app()
     app.config["APP_VERSION"] = "abc1234"
     app.config["APP_BUILD_TIME"] = "2026-07-16T12:00:00Z"
@@ -47,6 +52,7 @@ def test_me_returns_user_context_and_csrf(monkeypatch):
     assert payload["csrf_token"]
     assert payload["app_version"] == "abc1234"
     assert payload["app_build_time"] == "2026-07-16T12:00:00Z"
+    assert payload["app_settings"]["institution_name"] == "CNR"
 
 
 def test_session_refresh_returns_new_expiry(monkeypatch):

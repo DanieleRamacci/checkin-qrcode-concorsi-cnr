@@ -23,6 +23,7 @@ import { AuthService } from '../../core/auth.service';
             @if (adminMenuOpen()) {
               <ul class="dropdown-menu dropdown-menu-end show">
                 <li><a class="dropdown-item" routerLink="/admin/permessi">Gestione permessi</a></li>
+                <li><a class="dropdown-item" routerLink="/admin/impostazioni">Impostazioni applicazione</a></li>
                 <li><a class="dropdown-item" routerLink="/admin/logs">Log sistema</a></li>
                 <li><a class="dropdown-item" routerLink="/bandi" [queryParams]="{ mode: 'admin' }">Vista amministratore bandi</a></li>
               </ul>

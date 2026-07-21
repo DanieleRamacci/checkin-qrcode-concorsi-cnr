@@ -19,7 +19,10 @@ interface AdminRole {
     <section class="container my-5 admin-page" aria-labelledby="admin-roles-title">
       <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 id="admin-roles-title" class="mb-0">Gestione permessi</h1>
-        <a class="btn btn-outline-primary btn-sm" routerLink="/admin/logs">Log sistema</a>
+        <div class="d-flex gap-2">
+          <a class="btn btn-outline-primary btn-sm" routerLink="/admin/impostazioni">Impostazioni</a>
+          <a class="btn btn-outline-primary btn-sm" routerLink="/admin/logs">Log sistema</a>
+        </div>
       </div>
 
       @if (error()) { <div class="alert alert-danger" role="alert">{{ error() }}</div> }

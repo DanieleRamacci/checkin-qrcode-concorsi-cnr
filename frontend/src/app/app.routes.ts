@@ -84,6 +84,15 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'admin/impostazioni',
+        title: 'Impostazioni applicazione — Check-in CNR Concorsi',
+        canActivate: [adminGuard],
+        loadComponent: () =>
+          import('./features/admin/admin-settings.component').then(
+            (module) => module.AdminSettingsComponent,
+          ),
+      },
+      {
         path: 'admin/logs',
         title: 'Log sistema — Check-in CNR Concorsi',
         canActivate: [adminGuard],
@@ -98,6 +107,14 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/scanner/scanner.component').then(
             (module) => module.ScannerComponent,
+          ),
+      },
+      {
+        path: 'area-personale',
+        title: 'Area personale — Check-in CNR Concorsi',
+        loadComponent: () =>
+          import('./features/user/personal-area.component').then(
+            (module) => module.PersonalAreaComponent,
           ),
       },
     ],

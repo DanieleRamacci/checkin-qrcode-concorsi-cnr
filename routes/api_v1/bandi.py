@@ -121,8 +121,6 @@ def list_bandi(
 ) -> list[dict]:
     normalized_mode = authorization.normalize_operational_mode(mode)
     if normalized_mode == authorization.TECHNICAL_MODE_EXPERT and not include_all:
-        if authorization.ROLE_ESPERTO not in get_user_roles(user_email):
-            return []
         return _list_remote_expert_bandi(user_email)
     if normalized_mode == authorization.TECHNICAL_MODE_SEDE and not include_all:
         return _list_sede_bandi(user_email)

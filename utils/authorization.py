@@ -34,7 +34,7 @@ def _has_admin_role(user_email: str) -> bool:
 
 
 def is_assigned_remote_expert(user_email: str | None, commission_id: str) -> bool:
-    if not user_email or ROLE_ESPERTO not in get_user_roles(user_email):
+    if not user_email:
         return False
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
@@ -93,7 +93,7 @@ def is_assigned_remote_expert_for_session(
     user_email: str | None,
     session_id: str,
 ) -> bool:
-    if not user_email or ROLE_ESPERTO not in get_user_roles(user_email):
+    if not user_email:
         return False
     with get_db_connection() as conn:
         with conn.cursor() as cursor:

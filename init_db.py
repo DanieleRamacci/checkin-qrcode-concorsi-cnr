@@ -67,6 +67,16 @@ try:
         PRIMARY KEY (user_email, role)
     );
     """)
+
+    # Impostazioni generiche applicazione, configurabili da area admin.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS app_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_by TEXT,
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    """)
     # Admin bootstrap (opzionale): BOOTSTRAP_ADMIN_EMAILS="a@x.it,b@y.it"
     bootstrap_emails = os.getenv("BOOTSTRAP_ADMIN_EMAILS", "daniele.ramacci@cnr.it")
     for raw_email in bootstrap_emails.split(","):
