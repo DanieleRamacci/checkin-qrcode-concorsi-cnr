@@ -114,8 +114,8 @@ export class ReferenteBandiComponent {
         this.items.set(response.items);
         this.loading.set(false);
       },
-      error: () => {
-        this.error.set('Non e stato possibile recuperare i bandi referente da Selezioni Online.');
+      error: (error) => {
+        this.error.set(apiErrorText(error, 'Non e stato possibile recuperare i bandi referente da Selezioni Online.'));
         this.loading.set(false);
       },
     });
@@ -142,4 +142,20 @@ export class ReferenteBandiComponent {
         return 'bg-secondary';
     }
   }
+}
+
+function apiErrorText(error: unknown, fallback: string): string {
+  const httpError = error as {
+    status?: number;
+    error?: string | { error?: { code?: string; message?: string; details?: Record<string, string> } };
+  };
+  const apiError = typeof httpError.error === 'object' ? httpError.error?.error : undefined;
+  const details = apiError?.details ? Object.values(apiError.details).filter(Boolean).join(' ') : '';
+  return [
+    fallback,
+    httpError.status ? `HTTP ${httpError.status}` : '',
+    apiError?.code ?? '',
+    apiError?.message ?? '',
+    details,
+  ].filter(Boolean).join(' - ');
 }

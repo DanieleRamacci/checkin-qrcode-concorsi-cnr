@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { ReferenteBandiComponent } from './referente-bandi.component';
 import { BandiService } from './bandi.service';
 
@@ -75,5 +75,36 @@ describe('ReferenteBandiComponent', () => {
     expect(fixture.nativeElement.textContent).toContain(
       'Non risultano bandi per cui la tua utenza e indicata come RDP o referente.',
     );
+  });
+
+  it('shows API diagnostic details when referente sync fails', async () => {
+    await TestBed.configureTestingModule({
+      imports: [ReferenteBandiComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: BandiService,
+          useValue: {
+            syncReferente: () => throwError(() => ({
+              status: 502,
+              error: {
+                error: {
+                  code: 'external_service_unavailable',
+                  message: 'Selezioni Online non disponibile.',
+                },
+              },
+            })),
+          },
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(ReferenteBandiComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('HTTP 502');
+    expect(fixture.nativeElement.textContent).toContain('external_service_unavailable');
   });
 });

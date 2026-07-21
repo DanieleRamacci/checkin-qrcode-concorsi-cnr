@@ -1,5 +1,4 @@
 export interface AppSettings {
-  slim_title: string;
   institution_name: string;
   app_title: string;
   tagline: string;

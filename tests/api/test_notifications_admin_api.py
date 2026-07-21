@@ -129,7 +129,6 @@ def test_admin_settings_can_be_updated(monkeypatch):
         admin,
         "save_app_settings",
         lambda values, actor: saved.setdefault("args", (values, actor)) and {
-            "slim_title": values["slim_title"],
             "institution_name": values["institution_name"],
             "app_title": values["app_title"],
             "tagline": values["tagline"],
@@ -144,8 +143,7 @@ def test_admin_settings_can_be_updated(monkeypatch):
     response = client.put(
         "/api/v1/admin/settings",
         json={
-            "slim_title": "Ente",
-            "institution_name": "Istituzione",
+            "institution_name": "Ente",
             "app_title": "Applicazione",
             "tagline": "Tagline",
             "footer_owner": "Footer",

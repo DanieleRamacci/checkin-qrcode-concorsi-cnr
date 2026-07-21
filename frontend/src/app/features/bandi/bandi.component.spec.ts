@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { BandiComponent } from './bandi.component';
 import { BandiService } from './bandi.service';
 import { ActivatedRoute } from '@angular/router';
@@ -98,5 +98,52 @@ describe('BandiComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Vista amministratore');
     expect(fixture.nativeElement.textContent).toContain('Solo vista admin');
     expect(fixture.nativeElement.textContent).toContain('Ruolo: PRESIDENTE');
+  });
+
+  it('shows API diagnostic details when expert bandi cannot be loaded', async () => {
+    await TestBed.configureTestingModule({
+      imports: [BandiComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { queryParamMap: new Map([['mode', 'expert']]) } },
+        },
+        {
+          provide: BandiService,
+          useValue: {
+            sync: () => throwError(() => ({ status: 500 })),
+            list: () => throwError(() => ({
+              status: 403,
+              error: { error: { code: 'forbidden', message: 'Operazione non autorizzata.' } },
+            })),
+          },
+        },
+        {
+          provide: AuthService,
+          useValue: {
+            user: signal({
+              authenticated: true,
+              email: 'expert@cnr.it',
+              display_name: 'Expert CNR',
+              roles: [],
+              capabilities: [],
+              csrf_token: 'csrf',
+              dev_mode: false,
+            }),
+            hasCapability: () => false,
+          },
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(BandiComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Impossibile caricare i bandi.');
+    expect(fixture.nativeElement.textContent).toContain('HTTP 403');
+    expect(fixture.nativeElement.textContent).toContain('forbidden');
   });
 });

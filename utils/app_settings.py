@@ -4,7 +4,6 @@ from db import get_db_connection
 
 
 DEFAULT_APP_SETTINGS = {
-    "slim_title": "Consiglio Nazionale delle Ricerche",
     "institution_name": "CNR",
     "app_title": "Check-in CNR Concorsi",
     "tagline": "Sistema gestione presenze concorsi",

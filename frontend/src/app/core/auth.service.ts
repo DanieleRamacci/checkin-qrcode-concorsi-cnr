@@ -17,7 +17,6 @@ export class AuthService {
   private readonly csrf = inject(CsrfTokenStore);
   readonly user = signal<UserContext | null>(null);
   readonly defaultSettings: AppSettings = {
-    slim_title: 'Consiglio Nazionale delle Ricerche',
     institution_name: 'CNR',
     app_title: 'Check-in CNR Concorsi',
     tagline: 'Sistema gestione presenze concorsi',

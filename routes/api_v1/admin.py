@@ -163,8 +163,7 @@ def settings_update():
     data = request.get_json(silent=True) or {}
     errors = {}
     for key, label in {
-        "slim_title": "Ente di appartenenza",
-        "institution_name": "Nome istituzione",
+        "institution_name": "Nome ente",
         "app_title": "Nome applicazione",
         "tagline": "Sottotitolo",
         "footer_owner": "Intestazione footer",

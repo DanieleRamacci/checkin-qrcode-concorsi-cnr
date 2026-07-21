@@ -16,7 +16,7 @@ import { AuthService } from '../core/auth.service';
 
     <div class="app-shell">
       <it-header
-        [slimTitle]="settings.slim_title"
+        [slimTitle]="settings.institution_name"
         slimTitleLink="#"
         loginStyle="none"
         [showSearch]="false"

@@ -28,11 +28,7 @@ import { AppSettings } from '../../core/models/api.models';
         <div class="card-body">
           <div class="row g-3">
             <div class="col-md-6">
-              <label class="form-label" for="slim-title">Ente di appartenenza</label>
-              <input id="slim-title" class="form-control" name="slimTitle" [(ngModel)]="model.slim_title" required maxlength="160" />
-            </div>
-            <div class="col-md-6">
-              <label class="form-label" for="institution-name">Nome istituzione</label>
+              <label class="form-label" for="institution-name">Nome ente</label>
               <input id="institution-name" class="form-control" name="institutionName" [(ngModel)]="model.institution_name" required maxlength="160" />
             </div>
             <div class="col-md-6">

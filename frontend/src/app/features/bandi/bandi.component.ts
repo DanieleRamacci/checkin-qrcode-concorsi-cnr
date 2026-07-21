@@ -264,13 +264,13 @@ export class BandiComponent {
     this.error.set(null);
     this.service.sync(this.mode).subscribe({
       next: (response) => this.applyResponse(response),
-      error: () => {
-        this.syncError.set('Sincronizzazione remota non disponibile.');
+      error: (syncError) => {
+        this.syncError.set(apiErrorText(syncError, 'Sincronizzazione commissioni non riuscita.'));
         this.syncSource.set('db_fallback');
         this.service.list(this.mode).subscribe({
           next: (response) => this.applyResponse(response, true),
-          error: () => {
-            this.error.set('Impossibile caricare i bandi.');
+          error: (listError) => {
+            this.error.set(apiErrorText(listError, 'Impossibile caricare i bandi.'));
             this.loading.set(false);
           },
         });
@@ -289,4 +289,21 @@ export class BandiComponent {
     }
     this.loading.set(false);
   }
+}
+
+function apiErrorText(error: unknown, fallback: string): string {
+  const httpError = error as {
+    status?: number;
+    message?: string;
+    error?: string | { error?: { code?: string; message?: string; details?: Record<string, string> } };
+  };
+  const apiError = typeof httpError.error === 'object' ? httpError.error?.error : undefined;
+  const details = apiError?.details ? Object.values(apiError.details).filter(Boolean).join(' ') : '';
+  return [
+    fallback,
+    httpError.status ? `HTTP ${httpError.status}` : '',
+    apiError?.code ?? '',
+    apiError?.message ?? '',
+    details,
+  ].filter(Boolean).join(' - ');
 }

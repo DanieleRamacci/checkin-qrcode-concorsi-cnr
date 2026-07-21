@@ -51,8 +51,7 @@ describe('AppLayoutComponent', () => {
             }),
             hasCapability: (capability: string) => capability === 'admin',
             settings: () => ({
-              slim_title: 'Ente Test',
-              institution_name: 'Istituzione Test',
+              institution_name: 'Ente Test',
               app_title: 'Applicazione Test',
               tagline: 'Tagline Test',
               footer_owner: 'Footer Test',
@@ -70,7 +69,7 @@ describe('AppLayoutComponent', () => {
     expect(fixture.nativeElement.querySelector('header')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('#main-content')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('footer')).toBeTruthy();
-    expect(fixture.nativeElement.textContent).toContain('Istituzione Test');
+    expect(fixture.nativeElement.textContent).toContain('Ente Test');
     expect(fixture.nativeElement.textContent).toContain('Applicazione Test');
     expect(fixture.nativeElement.textContent).toContain('Utente Test');
     expect(fixture.nativeElement.textContent).toContain('Versione: abc1234');
