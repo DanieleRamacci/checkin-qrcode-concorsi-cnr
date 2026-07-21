@@ -13,7 +13,7 @@ describe('ReferenteBandiComponent', () => {
         {
           provide: BandiService,
           useValue: {
-            syncReferente: () =>
+            listReferente: () =>
               of({
                 items: [
                   {
@@ -31,6 +31,7 @@ describe('ReferenteBandiComponent', () => {
                 sync_error: null,
                 sync_source: 'remote',
               }),
+            syncReferente: () => of({ items: [], sync_error: null, sync_source: 'remote' }),
           },
         },
       ],
@@ -56,12 +57,13 @@ describe('ReferenteBandiComponent', () => {
         {
           provide: BandiService,
           useValue: {
-            syncReferente: () =>
+            listReferente: () =>
               of({
                 items: [],
                 sync_error: null,
                 sync_source: 'remote',
               }),
+            syncReferente: () => of({ items: [], sync_error: null, sync_source: 'remote' }),
           },
         },
       ],
@@ -85,6 +87,7 @@ describe('ReferenteBandiComponent', () => {
         {
           provide: BandiService,
           useValue: {
+            listReferente: () => of({ items: [], sync_error: null, sync_source: 'local' }),
             syncReferente: () => throwError(() => ({
               status: 502,
               error: {

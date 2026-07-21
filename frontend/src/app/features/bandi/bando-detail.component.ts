@@ -1,5 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { BandoDetail, BandoPerson } from '../../core/models/api.models';
 import { AuthService } from '../../core/auth.service';
 import { BandiService } from './bandi.service';
@@ -89,7 +89,7 @@ import { BandiService } from './bandi.service';
 
       @if (canConfigureBando()) {
         <div class="text-end">
-          <a [routerLink]="['/bandi', commissionId, 'config']" class="btn btn-primary btn-sm">
+          <a [routerLink]="['/bandi', commissionId, 'config']" [queryParams]="{ returnUrl: currentUrl() }" class="btn btn-primary btn-sm">
             Vai a Configura Bando
           </a>
         </div>
@@ -100,6 +100,7 @@ import { BandiService } from './bandi.service';
 export class BandoDetailComponent {
   private readonly service = inject(BandiService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   readonly auth = inject(AuthService);
   readonly commissionId = this.route.snapshot.paramMap.get('commissionId') ?? '';
   readonly mode = this.route.snapshot.queryParamMap.get('mode') ?? 'segretario';
@@ -149,5 +150,9 @@ export class BandoDetailComponent {
 
   canConfigureBando(): boolean {
     return this.mode === 'referente' || this.auth.hasCapability('admin') || !!this.auth.user()?.dev_mode;
+  }
+
+  currentUrl(): string {
+    return this.router.url;
   }
 }

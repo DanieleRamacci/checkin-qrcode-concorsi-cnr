@@ -1,5 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { BandoSummary } from '../../core/models/api.models';
 import { AuthService } from '../../core/auth.service';
@@ -141,10 +141,11 @@ import { BandiService } from './bandi.service';
                       Visualizza Sessioni
                     </a>
                     @if (canConfigureBando()) {
-                      <a
-                        class="btn btn-sm btn-outline-primary ms-2"
-                        [routerLink]="['/bandi', bando.commission_id, 'config']"
-                      >
+	                      <a
+	                        class="btn btn-sm btn-outline-primary ms-2"
+	                        [routerLink]="['/bandi', bando.commission_id, 'config']"
+	                        [queryParams]="{ returnUrl: currentUrl() }"
+	                      >
                         Configura
                       </a>
                     } @else {
@@ -196,6 +197,7 @@ import { BandiService } from './bandi.service';
 export class BandiComponent {
   private readonly service = inject(BandiService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   readonly auth = inject(AuthService);
   readonly mode = this.route.snapshot.queryParamMap.get('mode') ?? 'segretario';
   readonly items = signal<BandoSummary[]>([]);
@@ -253,6 +255,10 @@ export class BandiComponent {
       return 'Non risultano bandi collegati al tuo utente su Selezioni Online.';
     }
     return 'Nessuna commissione disponibile.';
+  }
+
+  currentUrl(): string {
+    return this.router.url;
   }
 
   constructor() {

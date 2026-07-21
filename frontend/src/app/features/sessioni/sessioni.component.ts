@@ -1,5 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { BandoDetail, SessionSummary } from '../../core/models/api.models';
 import { AuthService } from '../../core/auth.service';
 import { BandiService } from '../bandi/bandi.service';
@@ -51,14 +51,14 @@ import { SessioniService } from './sessioni.service';
             Il referente deve completare i riferimenti operativi del bando. Puoi gestire la sessione dalla scheda azioni.
           </span>
           @if (canConfigureBando()) {
-            <a [routerLink]="['/bandi', commissionId, 'config']" class="btn btn-sm btn-warning ms-3 text-nowrap">
+            <a [routerLink]="['/bandi', commissionId, 'config']" [queryParams]="{ returnUrl: currentUrl() }" class="btn btn-sm btn-warning ms-3 text-nowrap">
               Configura Bando
             </a>
           }
         </div>
       } @else if (bando()?.configured && canConfigureBando()) {
         <div class="d-flex justify-content-end mb-2">
-          <a [routerLink]="['/bandi', commissionId, 'config']" class="btn btn-sm btn-outline-secondary">
+          <a [routerLink]="['/bandi', commissionId, 'config']" [queryParams]="{ returnUrl: currentUrl() }" class="btn btn-sm btn-outline-secondary">
             Modifica config bando
           </a>
         </div>
@@ -112,6 +112,7 @@ import { SessioniService } from './sessioni.service';
 })
 export class SessioniComponent {
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly service = inject(SessioniService);
   private readonly bandiService = inject(BandiService);
   readonly auth = inject(AuthService);
@@ -124,6 +125,10 @@ export class SessioniComponent {
 
   canConfigureBando(): boolean {
     return this.mode === 'referente' || this.auth.hasCapability('admin') || !!this.auth.user()?.dev_mode;
+  }
+
+  currentUrl(): string {
+    return this.router.url;
   }
 
   constructor() {

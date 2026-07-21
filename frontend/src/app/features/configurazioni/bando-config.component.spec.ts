@@ -12,7 +12,12 @@ describe('BandoConfigComponent', () => {
         provideRouter([]),
         {
           provide: ActivatedRoute,
-          useValue: { snapshot: { paramMap: new Map([['commissionId', 'c1']]) } },
+          useValue: {
+            snapshot: {
+              paramMap: new Map([['commissionId', 'c1']]),
+              queryParamMap: new Map(),
+            },
+          },
         },
         {
           provide: ApiClient,
@@ -50,7 +55,12 @@ describe('BandoConfigComponent', () => {
         provideRouter([]),
         {
           provide: ActivatedRoute,
-          useValue: { snapshot: { paramMap: new Map([['commissionId', 'c1']]) } },
+          useValue: {
+            snapshot: {
+              paramMap: new Map([['commissionId', 'c1']]),
+              queryParamMap: new Map(),
+            },
+          },
         },
         {
           provide: ApiClient,

@@ -93,6 +93,7 @@ import { BandiService } from './bandi.service';
                       <a
                         class="btn btn-sm btn-outline-primary"
                         [routerLink]="['/bandi', bando.commission_id, 'config']"
+                        [queryParams]="{ returnUrl: '/referenti/bandi' }"
                       >
                         Configura bando
                       </a>
@@ -144,12 +145,22 @@ export class ReferenteBandiComponent {
     this.syncing.set(true);
     this.syncError.set(null);
     this.service.syncReferente().subscribe({
+      next: () => this.reloadLocalAfterSync(),
+      error: (error) => {
+        this.syncError.set(apiErrorText(error, 'Aggiornamento remoto non riuscito: restano visibili i bandi gia sincronizzati.'));
+        this.syncing.set(false);
+      },
+    });
+  }
+
+  private reloadLocalAfterSync(): void {
+    this.service.listReferente().subscribe({
       next: (response) => {
         this.items.set(response.items);
         this.syncing.set(false);
       },
       error: (error) => {
-        this.syncError.set(apiErrorText(error, 'Aggiornamento remoto non riuscito: restano visibili i bandi gia sincronizzati.'));
+        this.syncError.set(apiErrorText(error, 'Aggiornamento completato, ma ricaricamento locale non riuscito.'));
         this.syncing.set(false);
       },
     });

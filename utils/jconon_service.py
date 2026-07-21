@@ -88,24 +88,6 @@ def _serialize_referente_bando(item: dict, user_email: str) -> dict | None:
     }
 
 
-def _with_local_config_status(item: dict) -> dict:
-    config = get_bando_config(item["commission_id"]) or {}
-    return {
-        **item,
-        "configured": bool(config),
-        "referente_email": config.get("email_referente") or item.get("referente_email"),
-        "esperto_remoto_email": config.get("email_esperto_remoto"),
-        "config_status": config.get("config_status") or "da_configurare",
-        "expert_assigned": bool(config.get("expert_assigned")),
-        "required_data_complete": bool(config.get("required_data_complete")),
-        "last_sync": _json_value(
-            config.get("configured_at")
-            or config.get("fetched_at")
-            or item.get("last_sync")
-        ),
-    }
-
-
 def fetch_bando_metadata(
     commission_id: str,
     call_code: str,
@@ -313,10 +295,9 @@ def fetch_referente_bandi(access_token: str, user_email: str) -> dict:
         if (serialized := _serialize_referente_bando(item, user_email)) is not None
     ]
     _persist_referente_bandi(user_email, referenti, revoke_missing=complete)
-    referenti = [_with_local_config_status(item) for item in referenti]
     return {
         "success": True,
-        "items": referenti,
+        "items": list_local_referente_bandi(user_email),
     }
 
 

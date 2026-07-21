@@ -9,8 +9,8 @@ import { BandiService } from '../bandi/bandi.service';
   imports: [FormsModule, RouterLink],
   template: `
     <div class="container my-5" style="max-width: 760px;">
-      <a [routerLink]="['/bandi', id, 'sessioni']" class="btn btn-outline-secondary btn-sm mb-3">
-        &larr; Torna alle sessioni
+      <a [routerLink]="returnUrl()" class="btn btn-outline-secondary btn-sm mb-3">
+        &larr; {{ returnLabel() }}
       </a>
       <h1 class="mb-1">Configura Bando</h1>
       <p class="text-muted mb-4">{{ title() }}</p>
@@ -153,7 +153,7 @@ import { BandiService } from '../bandi/bandi.service';
         </div>
 
         <div class="d-flex justify-content-end gap-2">
-          <a [routerLink]="['/bandi', id, 'sessioni']" class="btn btn-outline-secondary">Annulla</a>
+          <a [routerLink]="returnUrl()" class="btn btn-outline-secondary">Annulla</a>
           <button class="btn btn-primary" type="submit" [disabled]="busy()">Salva configurazione</button>
         </div>
       </form>
@@ -163,7 +163,12 @@ import { BandiService } from '../bandi/bandi.service';
 export class BandoConfigComponent {
   private readonly api = inject(ApiClient);
   private readonly bandiService = inject(BandiService);
-  readonly id = inject(ActivatedRoute).snapshot.paramMap.get('commissionId') ?? '';
+  private readonly route = inject(ActivatedRoute);
+  readonly id = this.route.snapshot.paramMap.get('commissionId') ?? '';
+  readonly returnUrl = signal(
+    safeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl'))
+      ?? `/bandi/${encodeURIComponent(this.id)}/sessioni`,
+  );
   readonly message = signal('');
   readonly messageIsError = signal(false);
   readonly busy = signal(false);
@@ -267,10 +272,24 @@ export class BandoConfigComponent {
     return this.rdpOptions().length > 0 && !!this.model['email_referente'];
   }
 
+  returnLabel(): string {
+    if (this.returnUrl().startsWith('/referenti/bandi')) return 'Torna ai bandi referente';
+    if (this.returnUrl().includes('/detail')) return 'Torna al dettaglio bando';
+    if (this.returnUrl().includes('/bandi?')) return 'Torna alla lista concorsi';
+    return 'Torna alla pagina precedente';
+  }
+
   private extractError(err: unknown): string {
     const body = (err as { error?: { error?: { message?: string; details?: Record<string, string> } } })?.error?.error;
     if (!body) return 'Salvataggio non riuscito.';
     const details = body.details ? Object.entries(body.details).map(([field, msg]) => `${field}: ${msg}`).join('; ') : '';
     return details ? `${body.message} (${details})` : body.message || 'Salvataggio non riuscito.';
   }
+}
+
+function safeReturnUrl(value: string | null): string | null {
+  const url = (value ?? '').trim();
+  if (!url || !url.startsWith('/') || url.startsWith('//')) return null;
+  if (url.includes('\n') || url.includes('\r')) return null;
+  return url;
 }
