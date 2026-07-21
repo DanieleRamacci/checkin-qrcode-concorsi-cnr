@@ -1,6 +1,6 @@
 from http import HTTPStatus
 
-from flask import g, jsonify
+from flask import current_app, g, jsonify
 from werkzeug.exceptions import HTTPException
 
 
@@ -33,6 +33,7 @@ def register_error_handlers(blueprint):
 
     @blueprint.errorhandler(Exception)
     def handle_unexpected_error(error):
+        current_app.logger.exception("Errore non gestito API v1", exc_info=error)
         return error_response(
             "internal_error",
             HTTPStatus.INTERNAL_SERVER_ERROR.phrase,

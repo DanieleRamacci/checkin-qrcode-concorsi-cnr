@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 from utils.device_tokens import make_reg_token
 from utils.roles import has_role, role_required, ROLE_ADMIN, ROLE_ESPERTO
 from utils.authorization import session_access_required
+from utils.schema import ensure_runtime_schema
 
 
 
@@ -102,6 +103,13 @@ Session(app)
 
 setup_logging(app)
 app.logger.debug("Logging inizializzato")
+
+if os.getenv("SKIP_RUNTIME_SCHEMA_SYNC", "0") != "1":
+    try:
+        ensure_runtime_schema()
+        app.logger.info("Runtime schema verificato")
+    except Exception:
+        app.logger.exception("Runtime schema sync non riuscita")
 
 
 
