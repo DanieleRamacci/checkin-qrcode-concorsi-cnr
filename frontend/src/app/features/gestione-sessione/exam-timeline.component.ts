@@ -21,8 +21,8 @@ const STEPS: TimelineStep[] = [
 @Component({
   selector: 'app-exam-timeline',
   template: `
-    <div class="card p-4 overflow-auto" style="max-height: 400px;">
-      <h5 class="mb-4">Timeline Esame</h5>
+    <div class="card timeline-card overflow-auto">
+      <h5 class="mb-3">Timeline Esame</h5>
       <ul class="exam-timeline list-unstyled ps-0">
         @for (step of rows(); track step.stepLabel) {
           <li class="timeline-step mb-3" [class.current-step]="step.current" [attr.aria-current]="step.current ? 'step' : null">
@@ -43,6 +43,8 @@ const STEPS: TimelineStep[] = [
   `,
   styles: `
     .timeline-dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; }
+    .timeline-card { max-height: 440px; padding: 0.85rem; }
+    .timeline-step { font-size: 0.92rem; }
     .step-label { white-space: nowrap; margin-left: auto; }
     .current-step { color: var(--bs-primary); }
   `,

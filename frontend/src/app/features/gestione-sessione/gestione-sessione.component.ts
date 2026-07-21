@@ -26,8 +26,8 @@ interface OperationalConfig {
   selector: 'app-gestione-sessione',
   imports: [RouterLink, CandidatiComponent, ResetPasswordComponent, NotificheComponent, ExamTimelineComponent, AzioniComponent],
   template: `
-    <div class="container-fluid gestione-sessione">
-      <div class="row">
+    <div class="container-fluid gestione-sessione px-0">
+      <div class="row g-0 session-workspace">
         <aside class="col-md-2 p-0 sidebar-wrapper d-flex flex-column">
           @if (detail()) {
             <div class="p-3 border-bottom bg-light">
@@ -95,10 +95,10 @@ interface OperationalConfig {
               Stai usando un accesso di supporto su una sessione per cui non risulti assegnato al profilo operativo richiesto.
             </div>
           }
-          <div class="it-card-wrapper mb-3">
-            <div class="it-card rounded shadow-sm p-4">
-              <div class="row">
-                <div [class]="showTimeline ? 'col-md-8' : 'col-12'">
+          <div class="it-card-wrapper mb-2">
+            <div class="it-card rounded shadow-sm session-card">
+              <div class="row gx-2 gy-2">
+                <div [class]="showTimeline ? 'col-md-8 col-xl-9 action-column' : 'col-12 action-column'">
                   <app-azioni
                     [sessionId]="sessionId"
                     [commissionId]="detail()?.commission_id ?? ''"
@@ -118,7 +118,7 @@ interface OperationalConfig {
                   }
                 </div>
                 @if (showTimeline) {
-                  <div class="col-md-4">
+                  <div class="col-md-4 col-xl-3 timeline-column">
                     <app-exam-timeline [currentState]="workflowState()?.current_state ?? null" />
                     <app-notifiche [sessionId]="sessionId" />
                   </div>
@@ -133,11 +133,22 @@ interface OperationalConfig {
   styles: `
     .gestione-sessione { background-color: #f5f6f8; }
     .sidebar-wrapper { background-color: white; min-height: 100vh; border-right: 1px solid #e0e0e0; }
-    .content-area { background-color: #f5f6f8; min-height: 100vh; padding: 2rem; }
+    .content-area { background-color: #f5f6f8; min-height: 100vh; padding: 0.75rem; }
+    .session-card { background-color: white; padding: 0.75rem; }
+    .action-column, .timeline-column { min-width: 0; }
     .it-card { background-color: white; }
     .operational-references { font-size: 0.78rem; }
     .reference-title, .reference-label { font-size: 0.7rem; }
     .reference-title { letter-spacing: 0.05em; }
+    @media (min-width: 1200px) {
+      .content-area { padding: 1rem; }
+      .session-card { padding: 1rem; }
+    }
+    @media (max-width: 767.98px) {
+      .sidebar-wrapper { min-height: auto; }
+      .content-area { padding: 0.5rem; }
+      .session-card { padding: 0.5rem; }
+    }
   `,
 })
 export class GestioneSessioneComponent {

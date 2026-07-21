@@ -1,5 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
-import { RouterLink, RouterOutlet } from '@angular/router';
+import { Router, RouterLink, RouterOutlet } from '@angular/router';
 import { ItHeaderComponent, ItNavBarItemComponent } from 'design-angular-kit';
 import { AuthService } from '../core/auth.service';
 
@@ -14,7 +14,7 @@ import { AuthService } from '../core/auth.service';
   template: `
     <a class="skip-link" href="#main-content">Vai al contenuto principale</a>
 
-    <div class="app-shell">
+    <div class="app-shell" [class.operational-shell]="isOperationalRoute()">
       <it-header
         [slimTitle]="settings.institution_name"
         slimTitleLink="#"
@@ -151,6 +151,19 @@ import { AuthService } from '../core/auth.service';
     :host ::ng-deep .it-header-navbar-wrapper .navbar {
       min-height: 2.6rem;
     }
+    :host ::ng-deep .app-shell.operational-shell .it-header-center-wrapper,
+    :host ::ng-deep .app-shell.operational-shell .it-header-navbar-wrapper {
+      display: none;
+    }
+    :host ::ng-deep .app-shell.operational-shell .it-header-slim-wrapper {
+      min-height: 2.35rem;
+    }
+    :host ::ng-deep .app-shell.operational-shell .it-header-slim-wrapper .container,
+    :host ::ng-deep .app-shell.operational-shell .it-header-slim-wrapper .container-xxl {
+      max-width: none;
+      padding-left: 0.75rem;
+      padding-right: 0.75rem;
+    }
     .user-menu {
       position: absolute;
       right: 0;
@@ -177,6 +190,7 @@ import { AuthService } from '../core/auth.service';
 })
 export class AppLayoutComponent {
   readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
   readonly userMenuOpen = signal(false);
   readonly currentYear = new Date().getFullYear();
 
@@ -190,6 +204,10 @@ export class AppLayoutComponent {
 
   get appBuildTime(): string {
     return this.auth.user()?.app_build_time || 'n/d';
+  }
+
+  isOperationalRoute(): boolean {
+    return this.router.url.startsWith('/sessioni/');
   }
 
   toggleUserMenu(): void {

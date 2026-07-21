@@ -59,7 +59,13 @@ app.config.update(
 
 
 # === ENVIRONMENT CONFIGURATION ===
-version = os.getenv("APP_VERSION", "test")
+version_file = Path(app.root_path) / "VERSION"
+default_version = (
+    version_file.read_text(encoding="utf-8").strip()
+    if version_file.exists()
+    else "test"
+)
+version = os.getenv("APP_VERSION", default_version)
 build_time = os.getenv("APP_BUILD_TIME") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 app.config["APP_VERSION"] = version
 app.config["APP_BUILD_TIME"] = build_time
