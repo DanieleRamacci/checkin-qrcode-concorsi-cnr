@@ -184,11 +184,14 @@ def _normalize_legacy_next_url(parsed):
 
 
 def _external_app_url(path="/"):
+    redirect_base = urlsplit(OIDC_REDIRECT_URI or "")
+    if redirect_base.scheme and redirect_base.netloc:
+        clean_path = path if path.startswith("/") else f"/{path}"
+        return f"{redirect_base.scheme}://{redirect_base.netloc}{clean_path}"
     proto = request.headers.get("X-Forwarded-Proto", request.scheme)
     host = request.headers.get("X-Forwarded-Host", request.host)
-    prefix = request.headers.get("X-Forwarded-Prefix", "").rstrip("/")
     clean_path = path if path.startswith("/") else f"/{path}"
-    return f"{proto}://{host}{prefix}{clean_path}"
+    return f"{proto}://{host}{clean_path}"
 
 
 @auth_bp.route('/logout')

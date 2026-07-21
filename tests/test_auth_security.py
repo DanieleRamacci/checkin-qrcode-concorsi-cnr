@@ -54,6 +54,10 @@ def test_logout_redirects_to_public_logged_out_page_with_forwarded_proto(monkeyp
         "routes.auth.OIDC_AUTH_URL",
         "https://idp.example.test/auth/realms/cnr/protocol/openid-connect/auth",
     )
+    monkeypatch.setattr(
+        "routes.auth.OIDC_REDIRECT_URI",
+        "https://test-checkin.concorsi.cnr.it/oidc-callback",
+    )
     client = create_app().test_client()
     with client.session_transaction() as flask_session:
         flask_session["user_email"] = "user@cnr.it"
@@ -83,3 +87,22 @@ def test_logout_redirects_to_public_logged_out_page_with_forwarded_proto(monkeyp
     with client.session_transaction() as flask_session:
         assert "user_email" not in flask_session
         assert "access_token" not in flask_session
+
+
+def test_logout_uses_oidc_redirect_origin_even_without_forwarded_proto(monkeypatch):
+    monkeypatch.setattr(
+        "routes.auth.OIDC_AUTH_URL",
+        "https://idp.example.test/auth/realms/cnr/protocol/openid-connect/auth",
+    )
+    monkeypatch.setattr(
+        "routes.auth.OIDC_REDIRECT_URI",
+        "https://test-checkin.concorsi.cnr.it/oidc-callback",
+    )
+    client = create_app().test_client()
+
+    response = client.get("/logout")
+
+    params = parse_qs(urlparse(response.location).query)
+    assert params["post_logout_redirect_uri"] == [
+        "https://test-checkin.concorsi.cnr.it/logged-out"
+    ]
