@@ -65,7 +65,7 @@ def _list_remote_expert_bandi(user_email: str) -> list[dict]:
                        BOOL_OR(COALESCE(b.expert_assigned, FALSE)) AS expert_assigned,
                        BOOL_OR(COALESCE(b.required_data_complete, FALSE)) AS required_data_complete,
                        COUNT(DISTINCT s.session_id) AS session_count,
-                       MAX(COALESCE(s.data_sync, b.configured_at)) AS last_sync
+                       MAX(COALESCE(s.data_sync, b.configured_at::text)) AS last_sync
                   FROM bando_config AS b
              LEFT JOIN commissions AS c
                     ON c.commission_id = b.commission_id
@@ -97,7 +97,7 @@ def _list_sede_bandi(user_email: str) -> list[dict]:
                        BOOL_OR(COALESCE(b.expert_assigned, FALSE)) AS expert_assigned,
                        BOOL_OR(COALESCE(b.required_data_complete, FALSE)) AS required_data_complete,
                        COUNT(DISTINCT s.session_id) AS session_count,
-                       MAX(COALESCE(s.data_sync, b.configured_at)) AS last_sync
+                       MAX(COALESCE(s.data_sync, b.configured_at::text)) AS last_sync
                   FROM sessioni AS s
                   JOIN sessione_config AS sc
                     ON sc.session_id = s.session_id

@@ -229,6 +229,7 @@ def test_list_bandi_expert_mode_requires_global_role_and_assignment(monkeypatch)
         }
     ]
     assert executed[0][1] == ("expert@cnr.it",)
+    assert "COALESCE(s.data_sync, b.configured_at::text)" in executed[0][0]
 
 
 def test_list_bandi_expert_mode_without_global_role_returns_empty(monkeypatch):
@@ -242,6 +243,53 @@ def test_list_bandi_expert_mode_without_global_role_returns_empty(monkeypatch):
     )
 
     assert bandi.list_bandi("expert@cnr.it", mode="expert") == []
+
+
+def test_bandi_sync_expert_mode_uses_local_assignments_without_remote_sync(monkeypatch):
+    from routes.api_v1 import bandi
+
+    def fail_remote_sync(*args, **kwargs):
+        raise AssertionError("expert dashboard must not call Selezioni Online sync")
+
+    monkeypatch.setattr(bandi, "get_user_roles", lambda email: {bandi.ROLE_ESPERTO})
+    monkeypatch.setattr(bandi, "ensure_fresh_access_token", fail_remote_sync)
+    monkeypatch.setattr(bandi, "get_commissioni_sincronizzate_with_status", fail_remote_sync)
+    monkeypatch.setattr(
+        bandi,
+        "list_bandi",
+        lambda email, include_all=False, mode=None: [
+            {
+                "commission_id": "commission-1",
+                "title": "Concorso CNR",
+                "configured": True,
+                "referente_email": "referente@cnr.it",
+                "esperto_remoto_email": email,
+                "config_status": "esperto_assegnato",
+                "expert_assigned": True,
+                "required_data_complete": False,
+                "session_count": 1,
+                "last_sync": None,
+                "visibility_reason": "expert",
+                "source_role": None,
+                "access_active": True,
+                "capabilities": ["view"],
+            }
+        ],
+    )
+
+    client = authenticated_client(create_test_app(), "expert@cnr.it")
+    with client.session_transaction() as flask_session:
+        csrf_token = get_csrf_token(flask_session)
+
+    response = client.post(
+        "/api/v1/bandi/sync?mode=expert",
+        headers={"X-CSRF-Token": csrf_token},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["sync_source"] == "db"
+    assert payload["items"][0]["commission_id"] == "commission-1"
 
 
 def test_list_bandi_counts_sessions_by_commission_not_original_user(monkeypatch):
