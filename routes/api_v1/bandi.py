@@ -9,8 +9,12 @@ from routes.api_v1.errors import error_response
 from utils import authorization
 from utils.authorization import commission_access_required
 from utils.commissioni import get_commissioni_sincronizzate_with_status
-from utils.roles import ROLE_ADMIN, get_user_roles
-from utils.jconon_service import fetch_referente_bandi, sync_bando_metadata
+from utils.roles import ROLE_ADMIN, ROLE_ESPERTO, get_user_roles
+from utils.jconon_service import (
+    fetch_referente_bandi,
+    list_local_referente_bandi,
+    sync_bando_metadata,
+)
 from utils.oidc import ensure_fresh_access_token
 from utils.sessioni import get_bando_config
 
@@ -121,6 +125,8 @@ def list_bandi(
 ) -> list[dict]:
     normalized_mode = authorization.normalize_operational_mode(mode)
     if normalized_mode == authorization.TECHNICAL_MODE_EXPERT and not include_all:
+        if ROLE_ESPERTO not in get_user_roles(user_email):
+            return []
         return _list_remote_expert_bandi(user_email)
     if normalized_mode == authorization.TECHNICAL_MODE_SEDE and not include_all:
         return _list_sede_bandi(user_email)
@@ -362,6 +368,16 @@ def referente_bandi_sync():
         items=result["items"],
         sync_error=None,
         sync_source="remote",
+    )
+
+
+@bandi_api_bp.get("/referenti/bandi")
+@api_auth_required
+def referente_bandi_index():
+    return jsonify(
+        items=list_local_referente_bandi(session["user_email"]),
+        sync_error=None,
+        sync_source="local",
     )
 
 

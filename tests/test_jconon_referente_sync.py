@@ -90,3 +90,25 @@ def test_persist_referente_bandi_revokes_all_when_no_bandi_returned(monkeypatch)
         ("DELETE FROM bando_referenti WHERE user_email = %s", ("referente@cnr.it",))
     ]
     assert conn.committed
+
+
+def test_persist_referente_bandi_can_skip_revocation_on_partial_sync(monkeypatch):
+    from utils import jconon_service
+
+    calls = []
+    conn = RecordingConnection(calls)
+
+    @contextmanager
+    def factory():
+        yield conn
+
+    monkeypatch.setattr(jconon_service, "get_db_connection", factory)
+
+    jconon_service._persist_referente_bandi(
+        "referente@cnr.it",
+        [],
+        revoke_missing=False,
+    )
+
+    assert calls == []
+    assert conn.committed

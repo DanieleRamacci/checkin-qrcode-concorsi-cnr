@@ -13,6 +13,17 @@ import { BandiService } from './bandi.service';
       <h1 class="mb-2">Bandi come referente</h1>
       <p class="lead">Di seguito trovi i bandi per cui Selezioni Online ti indica come RDP o referente.</p>
 
+      @if (syncing()) {
+        <div class="alert alert-info py-2" role="status">
+          Aggiornamento da Selezioni Online in corso. Sono mostrati subito i bandi gia sincronizzati.
+        </div>
+      }
+      @if (syncError()) {
+        <div class="alert alert-warning py-2" role="alert">
+          {{ syncError() }}
+        </div>
+      }
+
       @if (loading()) {
         <p role="status">Caricamento bandi referente…</p>
       } @else if (error()) {
@@ -23,7 +34,11 @@ import { BandiService } from './bandi.service';
       } @else {
         @if (items().length === 0) {
           <div class="alert alert-info" role="status">
-            Non risultano bandi per cui la tua utenza e indicata come RDP o referente.
+            @if (syncing()) {
+              Cerco bandi referente su Selezioni Online.
+            } @else {
+              Non risultano bandi per cui la tua utenza e indicata come RDP o referente.
+            }
           </div>
         } @else {
           <div class="mb-3">
@@ -101,6 +116,8 @@ export class ReferenteBandiComponent {
   readonly items = signal<ReferenteBandoSummary[]>([]);
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
+  readonly syncing = signal(false);
+  readonly syncError = signal<string | null>(null);
   readonly query = signal('');
   readonly filteredItems = computed(() => {
     const q = this.query().trim().toLowerCase();
@@ -109,14 +126,31 @@ export class ReferenteBandiComponent {
   });
 
   constructor() {
-    this.service.syncReferente().subscribe({
+    this.service.listReferente().subscribe({
       next: (response) => {
         this.items.set(response.items);
         this.loading.set(false);
+        this.refreshRemote();
       },
       error: (error) => {
-        this.error.set(apiErrorText(error, 'Non e stato possibile recuperare i bandi referente da Selezioni Online.'));
+        this.error.set(apiErrorText(error, 'Non e stato possibile caricare i bandi referente locali.'));
         this.loading.set(false);
+        this.refreshRemote();
+      },
+    });
+  }
+
+  private refreshRemote(): void {
+    this.syncing.set(true);
+    this.syncError.set(null);
+    this.service.syncReferente().subscribe({
+      next: (response) => {
+        this.items.set(response.items);
+        this.syncing.set(false);
+      },
+      error: (error) => {
+        this.syncError.set(apiErrorText(error, 'Aggiornamento remoto non riuscito: restano visibili i bandi gia sincronizzati.'));
+        this.syncing.set(false);
       },
     });
   }

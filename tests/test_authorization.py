@@ -99,19 +99,19 @@ def test_unrelated_user_cannot_access_session(monkeypatch):
     assert "c.source_role" in executed[0][0]
 
 
-def test_explicit_role_can_be_allowed(monkeypatch):
+def test_admin_role_can_be_allowed_explicitly(monkeypatch):
     from utils import authorization
 
     monkeypatch.setattr(
         authorization,
         "get_user_roles",
-        lambda email: {authorization.ROLE_ESPERTO},
+        lambda email: {authorization.ROLE_ADMIN},
     )
 
     assert authorization.can_access_session(
-        "expert@cnr.it",
+        "admin@cnr.it",
         "session-1",
-        allowed_roles={authorization.ROLE_ESPERTO},
+        allowed_roles={authorization.ROLE_ADMIN},
     )
 
 
@@ -177,7 +177,11 @@ def test_global_expert_cannot_use_unassigned_expert_profile(monkeypatch):
 def test_assigned_remote_expert_can_use_expert_profile(monkeypatch):
     from utils import authorization
 
-    monkeypatch.setattr(authorization, "get_user_roles", lambda email: set())
+    monkeypatch.setattr(
+        authorization,
+        "get_user_roles",
+        lambda email: {authorization.ROLE_ESPERTO},
+    )
     monkeypatch.setattr(
         authorization,
         "get_db_connection",
@@ -185,6 +189,23 @@ def test_assigned_remote_expert_can_use_expert_profile(monkeypatch):
     )
 
     assert authorization.can_access_session(
+        "expert@cnr.it",
+        "session-1",
+        profile_mode="expert",
+    )
+
+
+def test_assigned_remote_expert_without_global_role_is_denied(monkeypatch):
+    from utils import authorization
+
+    monkeypatch.setattr(authorization, "get_user_roles", lambda email: set())
+    monkeypatch.setattr(
+        authorization,
+        "get_db_connection",
+        connection_factory((1,)),
+    )
+
+    assert not authorization.can_access_session(
         "expert@cnr.it",
         "session-1",
         profile_mode="expert",

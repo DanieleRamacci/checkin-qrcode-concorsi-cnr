@@ -26,7 +26,10 @@ def _normalized_email(value: str | None) -> str:
 
 def _has_allowed_role(user_email: str, allowed_roles: Iterable[str]) -> bool:
     roles = get_user_roles(user_email)
-    return ROLE_ADMIN in roles or bool(roles.intersection(set(allowed_roles)))
+    # `esperto_informatico` is a qualification, not a global data-access grant:
+    # remote experts must still be assigned to the specific bando/session.
+    effective_roles = set(allowed_roles) - {ROLE_ESPERTO}
+    return ROLE_ADMIN in roles or bool(roles.intersection(effective_roles))
 
 
 def _has_admin_role(user_email: str) -> bool:
@@ -124,9 +127,12 @@ def can_access_commission(
         return False
     mode = normalize_operational_mode(profile_mode)
     if mode == TECHNICAL_MODE_EXPERT:
-        return _has_admin_role(user_email) or is_assigned_remote_expert(
-            user_email,
-            commission_id,
+        roles = get_user_roles(user_email)
+        return ROLE_ADMIN in roles or (
+            ROLE_ESPERTO in roles and is_assigned_remote_expert(
+                user_email,
+                commission_id,
+            )
         )
     if mode == TECHNICAL_MODE_SEDE:
         return _has_admin_role(user_email) or has_assigned_sede_session(
@@ -191,9 +197,12 @@ def can_access_session(
         return False
     mode = normalize_operational_mode(profile_mode)
     if mode == TECHNICAL_MODE_EXPERT:
-        return _has_admin_role(user_email) or is_assigned_remote_expert_for_session(
-            user_email,
-            session_id,
+        roles = get_user_roles(user_email)
+        return ROLE_ADMIN in roles or (
+            ROLE_ESPERTO in roles and is_assigned_remote_expert_for_session(
+                user_email,
+                session_id,
+            )
         )
     if mode == TECHNICAL_MODE_SEDE:
         return _has_admin_role(user_email) or is_assigned_sede_session(

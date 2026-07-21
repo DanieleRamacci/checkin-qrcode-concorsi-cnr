@@ -23,6 +23,10 @@ export class BandiService {
     return this.api.post<ReferenteBandiResponse>('/referenti/bandi/sync');
   }
 
+  listReferente() {
+    return this.api.get<ReferenteBandiResponse>('/referenti/bandi');
+  }
+
   detail(commissionId: string, mode = 'segretario') {
     return this.api.get<BandoDetail>(
       `/bandi/${commissionId}?mode=${encodeURIComponent(mode)}`,

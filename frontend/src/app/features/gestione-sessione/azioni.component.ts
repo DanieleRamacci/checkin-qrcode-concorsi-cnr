@@ -389,9 +389,10 @@ export class AzioniComponent {
   saveSessionConfig(): void {
     this.error.set('');
     this.busy.set(true);
-    this.api.put(`/bandi/${this.commissionId()}/config`, this.bandoConfigModel).subscribe({
+    const modeParam = encodeURIComponent(this.viewMode());
+    this.api.put(`/bandi/${this.commissionId()}/config?mode=${modeParam}`, this.bandoConfigModel).subscribe({
       next: () => {
-        this.api.put(`/sessioni/${this.sessionId()}/config`, this.sessionConfigModel).subscribe({
+        this.api.put(`/sessioni/${this.sessionId()}/config?mode=${modeParam}`, this.sessionConfigModel).subscribe({
           next: () => { this.busy.set(false); this.changed.emit(); },
           error: (err) => { this.busy.set(false); this.error.set(this.extractError(err)); },
         });
@@ -407,7 +408,7 @@ export class AzioniComponent {
     }
     this.error.set('');
     this.busy.set(true);
-    this.api.post(`/sessioni/${this.sessionId()}/candidati/import`).subscribe({
+    this.api.post(`/sessioni/${this.sessionId()}/candidati/import?mode=${encodeURIComponent(this.viewMode())}`).subscribe({
       next: () => { this.busy.set(false); this.changed.emit(); },
       error: (err) => { this.busy.set(false); this.error.set(this.extractError(err)); },
     });
@@ -426,7 +427,7 @@ export class AzioniComponent {
   generaListe(): void {
     this.error.set('');
     this.busy.set(true);
-    this.api.post<ListSummary>(`/sessioni/${this.sessionId()}/lists/generate`).subscribe({
+    this.api.post<ListSummary>(`/sessioni/${this.sessionId()}/lists/generate?mode=${encodeURIComponent(this.viewMode())}`).subscribe({
       next: (item) => { this.busy.set(false); this.latestList.set(item); this.changed.emit(); },
       error: (err) => { this.busy.set(false); this.error.set(this.extractError(err)); },
     });
@@ -435,7 +436,7 @@ export class AzioniComponent {
   inviaListe(): void {
     this.error.set('');
     this.busy.set(true);
-    this.api.post(`/sessioni/${this.sessionId()}/lists/send`).subscribe({
+    this.api.post(`/sessioni/${this.sessionId()}/lists/send?mode=${encodeURIComponent(this.viewMode())}`).subscribe({
       next: () => { this.busy.set(false); this.changed.emit(); },
       error: (err) => { this.busy.set(false); this.error.set(this.extractError(err)); },
     });

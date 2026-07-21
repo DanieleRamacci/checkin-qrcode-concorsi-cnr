@@ -86,6 +86,9 @@ interface OperationalConfig {
         </aside>
 
         <main class="col-md-10 content-area">
+          @if (error()) {
+            <div class="alert alert-danger mb-3" role="alert">{{ error() }}</div>
+          }
           @if (detail()?.visibility_reason === 'admin') {
             <div class="alert alert-warning mb-3" role="alert">
               <strong>Vista amministratore.</strong>
@@ -148,14 +151,19 @@ export class GestioneSessioneComponent {
   readonly workflowState = signal<WorkflowState | null>(null);
   readonly bandoConfigured = signal(false);
   readonly mergedConfig = signal<OperationalConfig | null>(null);
+  readonly error = signal('');
 
   constructor() { this.load(); }
 
   load(): void {
+    this.error.set('');
     const modeParam = encodeURIComponent(this.viewMode);
     this.api.get<SessionSummary>(`/sessioni/${this.sessionId}?mode=${modeParam}`).subscribe((detail) => {
       this.detail.set(detail);
-      this.bandiService.detail(detail.commission_id, this.viewMode).subscribe((bando) => this.bandoConfigured.set(bando.configured));
+      this.bandiService.detail(detail.commission_id, this.viewMode).subscribe({
+        next: (bando) => this.bandoConfigured.set(bando.configured),
+        error: (error) => this.error.set(apiErrorText(error, 'Impossibile caricare il dettaglio del bando.')),
+      });
       forkJoin({
         bando: this.api.get<OperationalConfig>(`/bandi/${detail.commission_id}/config?mode=${modeParam}`),
         sessione: this.api.get<OperationalConfig>(`/sessioni/${this.sessionId}/config?mode=${modeParam}`),
@@ -164,10 +172,31 @@ export class GestioneSessioneComponent {
           Object.entries(sessione).filter(([, value]) => value !== null && value !== ''),
         );
         this.mergedConfig.set({ ...bando, ...sessionValues });
-      });
+      }, (error) => this.error.set(apiErrorText(error, 'Impossibile caricare i riferimenti operativi.')));
+    }, (error) => {
+      this.error.set(apiErrorText(error, 'Impossibile caricare la sessione.'));
     });
-    this.api.get<WorkflowState>(`/sessioni/${this.sessionId}/state?mode=${encodeURIComponent(this.viewMode)}`).subscribe((state) => this.workflowState.set(state));
+    this.api.get<WorkflowState>(`/sessioni/${this.sessionId}/state?mode=${encodeURIComponent(this.viewMode)}`).subscribe({
+      next: (state) => this.workflowState.set(state),
+      error: (error) => this.error.set(apiErrorText(error, 'Impossibile caricare lo stato del workflow.')),
+    });
   }
+}
+
+function apiErrorText(error: unknown, fallback: string): string {
+  const httpError = error as {
+    status?: number;
+    error?: string | { error?: { code?: string; message?: string; details?: Record<string, string> } };
+  };
+  const apiError = typeof httpError.error === 'object' ? httpError.error?.error : undefined;
+  const details = apiError?.details ? Object.values(apiError.details).filter(Boolean).join(' ') : '';
+  return [
+    fallback,
+    httpError.status ? `HTTP ${httpError.status}` : '',
+    apiError?.code ?? '',
+    apiError?.message ?? '',
+    details,
+  ].filter(Boolean).join(' - ');
 }
 
 export function normalizeViewMode(mode: string | null): 'segretario' | 'sede' | 'esperto' | 'admin' {

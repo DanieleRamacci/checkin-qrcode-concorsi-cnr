@@ -160,11 +160,11 @@ def test_bandi_expert_mode_for_admin_is_support_view(monkeypatch):
     assert captured["args"] == ("admin@cnr.it", True, "expert")
 
 
-def test_list_bandi_expert_mode_uses_remote_expert_assignment_without_global_role(monkeypatch):
+def test_list_bandi_expert_mode_requires_global_role_and_assignment(monkeypatch):
     from routes.api_v1 import bandi
 
     executed = []
-    monkeypatch.setattr(bandi, "get_user_roles", lambda email: set())
+    monkeypatch.setattr(bandi, "get_user_roles", lambda email: {bandi.ROLE_ESPERTO})
 
     class FakeCursor:
         def execute(self, query, params):
@@ -229,6 +229,19 @@ def test_list_bandi_expert_mode_uses_remote_expert_assignment_without_global_rol
         }
     ]
     assert executed[0][1] == ("expert@cnr.it",)
+
+
+def test_list_bandi_expert_mode_without_global_role_returns_empty(monkeypatch):
+    from routes.api_v1 import bandi
+
+    monkeypatch.setattr(bandi, "get_user_roles", lambda email: set())
+    monkeypatch.setattr(
+        bandi,
+        "_list_remote_expert_bandi",
+        lambda email: [{"commission_id": "commission-1"}],
+    )
+
+    assert bandi.list_bandi("expert@cnr.it", mode="expert") == []
 
 
 def test_list_bandi_counts_sessions_by_commission_not_original_user(monkeypatch):
@@ -374,6 +387,34 @@ def test_referente_bandi_sync_returns_remote_rdp_bandi(monkeypatch):
     payload = response.get_json()
     assert payload["items"][0]["commission_id"] == "rdp-1"
     assert payload["items"][0]["rdp_names"] == ["Rita Verdi"]
+
+
+def test_referente_bandi_index_returns_local_cache(monkeypatch):
+    from routes.api_v1 import bandi
+
+    monkeypatch.setattr(
+        bandi,
+        "list_local_referente_bandi",
+        lambda email: [
+            {
+                "commission_id": "rdp-local",
+                "title": "Bando locale RDP",
+                "configured": True,
+                "session_count": 1,
+                "capabilities": ["configure", "view"],
+                "rdp_names": ["Rita Verdi"],
+            }
+        ],
+    )
+
+    response = authenticated_client(create_test_app(), "rita.verdi@cnr.it").get(
+        "/api/v1/referenti/bandi"
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["sync_source"] == "local"
+    assert payload["items"][0]["commission_id"] == "rdp-local"
 
 
 def test_referente_bandi_sync_requires_fresh_oidc_token(monkeypatch):

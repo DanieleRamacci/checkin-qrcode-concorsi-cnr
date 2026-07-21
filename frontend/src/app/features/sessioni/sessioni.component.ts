@@ -129,7 +129,7 @@ export class SessioniComponent {
   constructor() {
     this.bandiService.detail(this.commissionId, this.mode).subscribe({
       next: (bando) => this.bando.set(bando),
-      error: () => this.error.set('Impossibile caricare il dettaglio del bando.'),
+      error: (error) => this.error.set(apiErrorText(error, 'Impossibile caricare il dettaglio del bando.')),
     });
     this.reload(false);
   }
@@ -156,12 +156,28 @@ export class SessioniComponent {
         this.items.set(items);
         this.loading.set(false);
       },
-      error: () => {
+      error: (error) => {
         if (!preserveError) {
-          this.error.set('Impossibile caricare le sessioni.');
+          this.error.set(apiErrorText(error, 'Impossibile caricare le sessioni.'));
         }
         this.loading.set(false);
       },
     });
   }
+}
+
+function apiErrorText(error: unknown, fallback: string): string {
+  const httpError = error as {
+    status?: number;
+    error?: string | { error?: { code?: string; message?: string; details?: Record<string, string> } };
+  };
+  const apiError = typeof httpError.error === 'object' ? httpError.error?.error : undefined;
+  const details = apiError?.details ? Object.values(apiError.details).filter(Boolean).join(' ') : '';
+  return [
+    fallback,
+    httpError.status ? `HTTP ${httpError.status}` : '',
+    apiError?.code ?? '',
+    apiError?.message ?? '',
+    details,
+  ].filter(Boolean).join(' - ');
 }

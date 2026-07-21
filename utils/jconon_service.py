@@ -1,4 +1,5 @@
 import os
+import json
 from datetime import datetime, timezone
 
 import requests
@@ -166,9 +167,13 @@ def sync_bando_metadata(commission_id: str, access_token: str) -> dict:
                 SELECT titolo
                   FROM commissions
                  WHERE commission_id = %s
+                 UNION ALL
+                SELECT nome
+                  FROM bando_referenti
+                 WHERE commission_id = %s
                  LIMIT 1
                 """,
-                (commission_id,),
+                (commission_id, commission_id),
             )
             row = cursor.fetchone()
     if not row:
@@ -194,6 +199,65 @@ def sync_bando_metadata(commission_id: str, access_token: str) -> dict:
     }
 
 
+def list_local_referente_bandi(user_email: str) -> list[dict]:
+    normalized_email = _normalize_email(user_email)
+    if not normalized_email:
+        return []
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT r.commission_id,
+                       MAX(r.nome) AS title,
+                       BOOL_OR(b.commission_id IS NOT NULL) AS configured,
+                       MAX(b.email_referente) AS referente_email,
+                       MAX(b.email_esperto_remoto) AS esperto_remoto_email,
+                       COALESCE(MAX(b.config_status), 'da_configurare') AS config_status,
+                       BOOL_OR(COALESCE(b.expert_assigned, FALSE)) AS expert_assigned,
+                       BOOL_OR(COALESCE(b.required_data_complete, FALSE)) AS required_data_complete,
+                       COUNT(DISTINCT s.session_id) AS session_count,
+                       MAX(COALESCE(b.configured_at, b.fetched_at, r.synced_at)) AS last_sync,
+                       MAX(b.rdp_nomi) AS rdp_nomi
+                  FROM bando_referenti AS r
+             LEFT JOIN bando_config AS b
+                    ON b.commission_id = r.commission_id
+             LEFT JOIN sessioni AS s
+                    ON s.commission_id = r.commission_id
+                 WHERE r.user_email = %s
+              GROUP BY r.commission_id
+              ORDER BY MAX(r.nome), r.commission_id
+                """,
+                (normalized_email,),
+            )
+            rows = cursor.fetchall()
+
+    items = []
+    for row in rows:
+        try:
+            rdp_names = json.loads(row[10] or "[]")
+        except (TypeError, ValueError):
+            rdp_names = []
+        items.append(
+            {
+                "commission_id": row[0],
+                "title": row[1] or row[0],
+                "configured": bool(row[2]),
+                "referente_email": row[3] or normalized_email,
+                "esperto_remoto_email": row[4],
+                "config_status": row[5] or "da_configurare",
+                "expert_assigned": bool(row[6]),
+                "required_data_complete": bool(row[7]),
+                "session_count": int(row[8] or 0),
+                "last_sync": _json_value(row[9]),
+                "capabilities": ["configure", "view"],
+                "rdps": [],
+                "commissioners": [],
+                "rdp_names": rdp_names,
+            }
+        )
+    return items
+
+
 def fetch_referente_bandi(access_token: str, user_email: str) -> dict:
     base_url = os.environ.get(
         "BASE_URL",
@@ -202,6 +266,7 @@ def fetch_referente_bandi(access_token: str, user_email: str) -> dict:
     offset = 100
     items: list[dict] = []
     page = 0
+    complete = True
 
     try:
         while page < 5:
@@ -218,7 +283,7 @@ def fetch_referente_bandi(access_token: str, user_email: str) -> dict:
                     "detailRdP": "true",
                     "detailCommission": "false",
                 },
-                timeout=(5, 30),
+                timeout=(5, 12),
             )
             response.raise_for_status()
             batch = response.json().get("items", [])
@@ -228,6 +293,8 @@ def fetch_referente_bandi(access_token: str, user_email: str) -> dict:
             if len(batch) < offset:
                 break
             page += 1
+        if page >= 5:
+            complete = False
     except (requests.RequestException, ValueError) as error:
         current_app.logger.warning(
             "[jconon] referente bandi user=%s fallita: %s",
@@ -245,23 +312,7 @@ def fetch_referente_bandi(access_token: str, user_email: str) -> dict:
         for item in items
         if (serialized := _serialize_referente_bando(item, user_email)) is not None
     ]
-    for item in referenti:
-        if item.get("commissioners"):
-            continue
-        metadata = fetch_bando_metadata(
-            item["commission_id"],
-            item["title"],
-            access_token,
-        )
-        if metadata:
-            item["rdps"] = metadata.get("rdps") or item.get("rdps", [])
-            item["commissioners"] = metadata.get("commissioners") or []
-            item["rdp_names"] = [
-                _person_name(rdp)
-                for rdp in item["rdps"]
-                if _person_name(rdp)
-            ]
-    _persist_referente_bandi(user_email, referenti)
+    _persist_referente_bandi(user_email, referenti, revoke_missing=complete)
     referenti = [_with_local_config_status(item) for item in referenti]
     return {
         "success": True,
@@ -269,7 +320,12 @@ def fetch_referente_bandi(access_token: str, user_email: str) -> dict:
     }
 
 
-def _persist_referente_bandi(user_email: str, items: list[dict]) -> None:
+def _persist_referente_bandi(
+    user_email: str,
+    items: list[dict],
+    *,
+    revoke_missing: bool = True,
+) -> None:
     """Sincronizza la relazione bando<->referente in bando_referenti.
 
     A differenza del vecchio meccanismo (che inseriva l'RDP come riga
@@ -294,7 +350,9 @@ def _persist_referente_bandi(user_email: str, items: list[dict]) -> None:
                     """,
                     (item["commission_id"], normalized_email, item["title"], synced_at),
                 )
-            if remote_ids:
+            if not revoke_missing:
+                pass
+            elif remote_ids:
                 cursor.execute(
                     """
                     DELETE FROM bando_referenti
@@ -310,8 +368,9 @@ def _persist_referente_bandi(user_email: str, items: list[dict]) -> None:
                 )
         conn.commit()
     for item in items:
-        update_bando_da_openapi(
-            item["commission_id"],
-            rdps=item.get("rdps", []),
-            commissioners=item.get("commissioners", []),
-        )
+        if item.get("commissioners"):
+            update_bando_da_openapi(
+                item["commission_id"],
+                rdps=item.get("rdps", []),
+                commissioners=item.get("commissioners", []),
+            )
