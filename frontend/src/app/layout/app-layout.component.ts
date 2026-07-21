@@ -1,13 +1,12 @@
 import { Component, inject, signal } from '@angular/core';
 import { RouterLink, RouterOutlet } from '@angular/router';
-import { ItHeaderComponent, ItIconComponent, ItNavBarItemComponent } from 'design-angular-kit';
+import { ItHeaderComponent, ItNavBarItemComponent } from 'design-angular-kit';
 import { AuthService } from '../core/auth.service';
 
 @Component({
   selector: 'app-layout',
   imports: [
     ItHeaderComponent,
-    ItIconComponent,
     ItNavBarItemComponent,
     RouterLink,
     RouterOutlet,
@@ -21,13 +20,11 @@ import { AuthService } from '../core/auth.service';
         slimTitleLink="#"
         loginStyle="none"
         [showSearch]="false"
+        [smallHeader]="true"
         [megamenu]="false"
         [expand]="true">
         <ul class="link-list" slimLinkList>
           <li><a class="dropdown-item list-item" routerLink="/">Home</a></li>
-          @if (auth.hasCapability('admin')) {
-            <li><a class="dropdown-item list-item" routerLink="/admin/impostazioni">Impostazioni</a></li>
-          }
         </ul>
 
         <ng-container slimRightZone>
@@ -63,8 +60,7 @@ import { AuthService } from '../core/auth.service';
         </ng-container>
 
         <ng-container brand>
-          <a routerLink="/">
-            <it-icon name="pa"></it-icon>
+          <a class="compact-brand" routerLink="/">
             <div class="it-brand-text">
               <div class="it-brand-title">{{ settings.institution_name }}</div>
               <div class="it-brand-tagline d-none d-md-block">{{ settings.app_title }} - {{ settings.tagline }}</div>
@@ -77,19 +73,8 @@ import { AuthService } from '../core/auth.service';
             <a class="nav-link" routerLink="/"><span>Profili</span></a>
           </it-navbar-item>
           <it-navbar-item>
-            <a class="nav-link" routerLink="/bandi"><span>Bandi</span></a>
-          </it-navbar-item>
-          <it-navbar-item>
-            <a class="nav-link" routerLink="/referenti/bandi"><span>Referenti</span></a>
-          </it-navbar-item>
-          <it-navbar-item>
             <a class="nav-link" routerLink="/scanner"><span>Scanner</span></a>
           </it-navbar-item>
-          @if (auth.hasCapability('admin')) {
-            <it-navbar-item>
-              <a class="nav-link" routerLink="/admin/impostazioni"><span>Admin</span></a>
-            </it-navbar-item>
-          }
         </ng-container>
       </it-header>
 
@@ -145,6 +130,26 @@ import { AuthService } from '../core/auth.service';
     .user-zone {
       min-width: 12rem;
       text-align: right;
+    }
+    .compact-brand {
+      min-height: 0;
+      text-decoration: none;
+    }
+    .compact-brand .it-brand-title {
+      font-size: 1.05rem;
+      line-height: 1.15;
+    }
+    .compact-brand .it-brand-tagline {
+      font-size: 0.8rem;
+      line-height: 1.2;
+    }
+    :host ::ng-deep .it-header-center-wrapper.it-small-header .it-header-center-content-wrapper {
+      min-height: 4rem;
+      padding-top: 0.35rem;
+      padding-bottom: 0.35rem;
+    }
+    :host ::ng-deep .it-header-navbar-wrapper .navbar {
+      min-height: 2.6rem;
     }
     .user-menu {
       position: absolute;

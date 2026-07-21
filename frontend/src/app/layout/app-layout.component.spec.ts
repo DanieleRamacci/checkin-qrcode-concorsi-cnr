@@ -10,7 +10,7 @@ vi.mock('design-angular-kit', async () => {
   const ItHeaderComponent = Component({
     selector: 'it-header',
     standalone: true,
-    inputs: ['slimTitle', 'slimTitleLink', 'loginStyle', 'showSearch', 'megamenu', 'expand'],
+    inputs: ['slimTitle', 'slimTitleLink', 'loginStyle', 'showSearch', 'smallHeader', 'megamenu', 'expand'],
     template: `
       <header>
         <ng-content select="[brand]"></ng-content>

@@ -46,15 +46,8 @@ export class AuthService {
   }
 
   logout(): void {
-    this.api.post<{ authenticated: false }>('/logout').subscribe({
-      next: () => this.finishLogout(),
-      error: () => this.finishLogout(),
-    });
-  }
-
-  private finishLogout(): void {
     this.user.set(null);
     this.csrf.set(null);
-    this.login('/');
+    window.location.assign('/logout');
   }
 }
