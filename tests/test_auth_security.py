@@ -47,3 +47,39 @@ def test_callback_rejects_invalid_state_before_token_exchange(monkeypatch):
     response = client.get("/oidc-callback?code=code&state=invalid")
 
     assert response.status_code == 400
+
+
+def test_logout_redirects_to_public_logged_out_page_with_forwarded_proto(monkeypatch):
+    monkeypatch.setattr(
+        "routes.auth.OIDC_AUTH_URL",
+        "https://idp.example.test/auth/realms/cnr/protocol/openid-connect/auth",
+    )
+    client = create_app().test_client()
+    with client.session_transaction() as flask_session:
+        flask_session["user_email"] = "user@cnr.it"
+        flask_session["access_token"] = "access"
+        flask_session["id_token"] = "id-token"
+
+    response = client.get(
+        "/logout",
+        headers={
+            "X-Forwarded-Host": "test-checkin.concorsi.cnr.it",
+            "X-Forwarded-Proto": "https",
+        },
+    )
+
+    assert response.status_code == 302
+    parsed = urlparse(response.location)
+    params = parse_qs(parsed.query)
+    assert parsed.geturl().startswith(
+        "https://idp.example.test/auth/realms/cnr/protocol/openid-connect/logout?"
+    )
+    assert params["post_logout_redirect_uri"] == [
+        "https://test-checkin.concorsi.cnr.it/logged-out"
+    ]
+    assert params.get("id_token_hint") == ["id-token"] or params["client_id"] == [
+        "selezioni"
+    ]
+    with client.session_transaction() as flask_session:
+        assert "user_email" not in flask_session
+        assert "access_token" not in flask_session

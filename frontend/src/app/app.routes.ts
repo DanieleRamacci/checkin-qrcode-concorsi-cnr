@@ -3,6 +3,14 @@ import { adminGuard, authGuard } from './core/auth.guard';
 
 export const routes: Routes = [
   {
+    path: 'logged-out',
+    title: 'Sessione terminata — Check-in CNR Concorsi',
+    loadComponent: () =>
+      import('./features/auth/logged-out.component').then(
+        (module) => module.LoggedOutComponent,
+      ),
+  },
+  {
     path: '',
     canActivate: [authGuard],
     loadComponent: () =>

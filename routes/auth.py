@@ -182,28 +182,31 @@ def _normalize_legacy_next_url(parsed):
 
     return parsed.geturl()
 
+
+def _external_app_url(path="/"):
+    proto = request.headers.get("X-Forwarded-Proto", request.scheme)
+    host = request.headers.get("X-Forwarded-Host", request.host)
+    prefix = request.headers.get("X-Forwarded-Prefix", "").rstrip("/")
+    clean_path = path if path.startswith("/") else f"/{path}"
+    return f"{proto}://{host}{prefix}{clean_path}"
+
+
 @auth_bp.route('/logout')
 def logout():
     id_token = session.get("id_token")  # Assicurati che venga salvato nella sessione dopo il login
     session.clear()
     session.modified = True
 
-    # Ottieni dinamicamente la URL base del realm dal valore OIDC_AUTH_URL
-    # (es: https://traefik.test.si.cnr.it/auth/realms/cnr/protocol/openid-connect/auth)
-    # Rimuoviamo /auth e costruiamo /logout
     base_logout_url = OIDC_AUTH_URL.rsplit("/auth", 1)[0] + "/logout"
-
-    logout_url = (
-        f"{base_logout_url}"
-        f"?post_logout_redirect_uri={url_for('auth.login', _external=True)}"
-        f"&scope=openid email profile"
-        f"&prompt=login"
-    )
-
+    params = {
+        "post_logout_redirect_uri": _external_app_url("/logged-out"),
+    }
     if id_token:
-        logout_url += f"&id_token_hint={id_token}"
+        params["id_token_hint"] = id_token
+    elif OIDC_CLIENT_ID:
+        params["client_id"] = OIDC_CLIENT_ID
 
-    return redirect(logout_url)
+    return redirect(f"{base_logout_url}?{urlencode(params)}")
 
 
 
