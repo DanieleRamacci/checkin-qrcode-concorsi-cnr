@@ -10,6 +10,20 @@ from db import get_db_connection
 BASE_URL = os.environ.get("BASE_URL", "https://cool-jconon.test.si.cnr.it")
 
 
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _commission_sync_timeout() -> tuple[float, float]:
+    return (
+        _env_float("COMMISSIONI_SYNC_CONNECT_TIMEOUT", 5),
+        _env_float("COMMISSIONI_SYNC_READ_TIMEOUT", 45),
+    )
+
+
 def _normalize_email(value):
     return (value or "").strip().lower()
 
@@ -66,7 +80,7 @@ def _fetch_user_commission_role(access_token, commission_id, title, user_email, 
     return "NOT_IN_COMMISSION"
 
 
-def get_commissioni_sincronizzate_with_status(access_token, user_email, timeout_s: int = 8):
+def get_commissioni_sincronizzate_with_status(access_token, user_email, timeout_s=None):
     out = {
         "commissioni": [],
         "unauthorized": False,
@@ -81,7 +95,11 @@ def get_commissioni_sincronizzate_with_status(access_token, user_email, timeout_
 
         try:
             current_app.logger.debug("[comm] GET %s", api_url)
-            response = requests.get(api_url, headers=headers, timeout=timeout_s)
+            response = requests.get(
+                api_url,
+                headers=headers,
+                timeout=timeout_s or _commission_sync_timeout(),
+            )
             current_app.logger.debug("[comm] -> %s", response.status_code)
             if response.status_code == 401:
                 current_app.logger.warning("[comm] token scaduto/401")
@@ -197,7 +215,7 @@ def get_commissioni_sincronizzate_with_status(access_token, user_email, timeout_
         return out
 
 
-def get_commissioni_sincronizzate(access_token, user_email, timeout_s: int = 8):
+def get_commissioni_sincronizzate(access_token, user_email, timeout_s=None):
     details = get_commissioni_sincronizzate_with_status(access_token, user_email, timeout_s=timeout_s)
     if details.get("unauthorized"):
         return None

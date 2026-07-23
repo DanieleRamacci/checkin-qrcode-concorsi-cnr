@@ -75,3 +75,9 @@ def test_fetch_user_commission_role_returns_not_in_commission(monkeypatch):
 
     assert role == "NOT_IN_COMMISSION"
 
+
+def test_commission_sync_timeout_is_configurable(monkeypatch):
+    monkeypatch.setenv("COMMISSIONI_SYNC_CONNECT_TIMEOUT", "4")
+    monkeypatch.setenv("COMMISSIONI_SYNC_READ_TIMEOUT", "45")
+
+    assert commissioni._commission_sync_timeout() == (4.0, 45.0)
