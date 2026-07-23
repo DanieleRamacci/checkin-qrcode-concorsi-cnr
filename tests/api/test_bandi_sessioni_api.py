@@ -245,6 +245,76 @@ def test_list_bandi_expert_mode_without_global_role_returns_empty(monkeypatch):
     assert bandi.list_bandi("expert@cnr.it", mode="expert") == []
 
 
+def test_list_bandi_admin_expert_support_marks_assignment_reason(monkeypatch):
+    from routes.api_v1 import bandi
+
+    monkeypatch.setattr(bandi, "get_user_roles", lambda email: {bandi.ROLE_ADMIN})
+
+    class FakeCursor:
+        def execute(self, query, params):
+            pass
+
+        def fetchall(self):
+            return [
+                {
+                    "commission_id": "assigned",
+                    "title": "Bando assegnato",
+                    "is_owner": False,
+                    "user_source_role": None,
+                    "user_access_active": None,
+                    "configured": True,
+                    "referente_email": None,
+                    "esperto_remoto_email": "admin@cnr.it",
+                    "config_status": "esperto_assegnato",
+                    "expert_assigned": True,
+                    "required_data_complete": False,
+                    "session_count": 1,
+                    "last_sync": None,
+                },
+                {
+                    "commission_id": "support",
+                    "title": "Bando supporto",
+                    "is_owner": False,
+                    "user_source_role": None,
+                    "user_access_active": None,
+                    "configured": True,
+                    "referente_email": None,
+                    "esperto_remoto_email": "other@cnr.it",
+                    "config_status": "esperto_assegnato",
+                    "expert_assigned": True,
+                    "required_data_complete": False,
+                    "session_count": 1,
+                    "last_sync": None,
+                },
+            ]
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+    class FakeConnection:
+        def cursor(self, *args, **kwargs):
+            return FakeCursor()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+    @contextmanager
+    def fake_connection():
+        yield FakeConnection()
+
+    monkeypatch.setattr(bandi, "get_db_connection", fake_connection)
+
+    items = bandi.list_bandi("admin@cnr.it", include_all=True, mode="expert")
+
+    assert [item["visibility_reason"] for item in items] == ["expert", "admin"]
+
+
 def test_bandi_sync_expert_mode_uses_local_assignments_without_remote_sync(monkeypatch):
     from routes.api_v1 import bandi
 
@@ -618,6 +688,44 @@ def test_sessions_for_bando_return_summary(monkeypatch):
     payload = response.get_json()
     assert payload["commission_id"] == "commission-1"
     assert payload["items"][0]["checked_in_count"] == 3
+
+
+def test_sessioni_sync_uses_fast_configurable_timeout(monkeypatch):
+    from routes.api_v1 import sessioni
+
+    captured = {}
+    monkeypatch.setenv("SESSIONI_SYNC_READ_TIMEOUT", "25")
+    monkeypatch.setattr(
+        sessioni.authorization,
+        "can_access_commission",
+        lambda email, commission_id, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        sessioni,
+        "ensure_fresh_access_token",
+        lambda **kwargs: "fresh-token",
+    )
+
+    def fake_sync(commission_id, token, user_email, timeout_s=None, retries=None):
+        captured["timeout_s"] = timeout_s
+        captured["retries"] = retries
+        return 0
+
+    monkeypatch.setattr(sessioni, "get_sessioni_internamente", fake_sync)
+
+    app = create_test_app()
+    client = authenticated_client(app)
+    with client.session_transaction() as flask_session:
+        csrf_token = get_csrf_token(flask_session)
+
+    response = client.post(
+        "/api/v1/bandi/commission-1/sessioni/sync?mode=segretario",
+        headers={"X-CSRF-Token": csrf_token},
+    )
+
+    assert response.status_code == 200
+    assert captured["timeout_s"] == (5.0, 25.0)
+    assert captured["retries"] == 0
 
 
 def test_sessions_for_bando_sede_mode_requires_profile_access(monkeypatch):

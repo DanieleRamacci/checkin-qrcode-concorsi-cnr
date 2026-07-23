@@ -1,3 +1,4 @@
+import os
 from datetime import date, datetime
 
 from flask import Blueprint, jsonify, request, session
@@ -14,6 +15,19 @@ from utils.sessioni import get_sessioni_internamente
 
 
 sessioni_api_bp = Blueprint("api_v1_sessioni", __name__)
+
+
+def _session_sync_timeout() -> tuple[float, float]:
+    def _env_float(name: str, default: float) -> float:
+        try:
+            return float(os.environ.get(name, default))
+        except (TypeError, ValueError):
+            return default
+
+    return (
+        _env_float("SESSIONI_SYNC_CONNECT_TIMEOUT", 5),
+        _env_float("SESSIONI_SYNC_READ_TIMEOUT", 25),
+    )
 
 
 def _json_value(value):
@@ -215,7 +229,7 @@ def sessioni_sync(commission_id):
         commission_id,
         token,
         session["user_email"],
-        timeout_s=(5, 90),
+        timeout_s=_session_sync_timeout(),
         retries=0,
     )
     if result == "UNAUTHORIZED":

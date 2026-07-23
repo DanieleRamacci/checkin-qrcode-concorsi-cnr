@@ -176,6 +176,19 @@ def list_bandi(
         is_owner = bool(serialized.pop("is_owner", False))
         user_source_role = serialized.pop("user_source_role", None)
         user_access_active = serialized.pop("user_access_active", None)
+        visibility_reason = "owner" if is_owner else "admin"
+        if (
+            normalized_mode == authorization.TECHNICAL_MODE_EXPERT
+            and include_all
+        ):
+            assigned_expert_email = (
+                serialized.get("esperto_remoto_email") or ""
+            ).strip().lower()
+            visibility_reason = (
+                "expert"
+                if assigned_expert_email == (user_email or "").strip().lower()
+                else "admin"
+            )
         items.append(
             {
                 **serialized,
@@ -184,7 +197,7 @@ def list_bandi(
                 "config_status": row.get("config_status") or "da_configurare",
                 "expert_assigned": bool(row.get("expert_assigned")),
                 "required_data_complete": bool(row.get("required_data_complete")),
-                "visibility_reason": "owner" if is_owner else "admin",
+                "visibility_reason": visibility_reason,
                 "source_role": user_source_role,
                 "access_active": bool(user_access_active) if user_access_active is not None else is_owner,
                 "capabilities": ["configure", "view"],

@@ -72,6 +72,13 @@ import { BandiService } from './bandi.service';
         </div>
       }
 
+      @if (isTechnicalMode() && hasAdminSupportItems()) {
+        <div class="alert alert-warning" role="note">
+          <strong>Vista admin di supporto.</strong>
+          I bandi marcati come vista admin non risultano assegnati al profilo operativo selezionato.
+        </div>
+      }
+
       @if (syncError()) {
         <div class="alert alert-warning" role="alert">
           <h2 class="alert-heading h5 mb-2">Sincronizzazione commissioni non riuscita</h2>
@@ -119,13 +126,13 @@ import { BandiService } from './bandi.service';
                   <td>
                     <div class="d-flex flex-column gap-1">
                       <span>{{ bando.title }}</span>
-                      @if (bando.visibility_reason === 'admin') {
-                        <span class="badge text-bg-warning align-self-start">Solo vista admin</span>
-                      } @else if (bando.visibility_reason === 'owner') {
-                        <span class="badge text-bg-success align-self-start">Membro operativo</span>
+                      @if (accessBadgeLabel(bando)) {
+                        <span [class]="'badge align-self-start ' + accessBadgeClass(bando)">
+                          {{ accessBadgeLabel(bando) }}
+                        </span>
                       }
                       @if (bando.source_role && bando.source_role !== 'SEGRETARIO') {
-                        <span class="badge text-bg-secondary align-self-start">Ruolo: {{ bando.source_role }}</span>
+                        <span class="badge text-bg-secondary align-self-start">Ruolo Selezioni: {{ bando.source_role }}</span>
                       }
                       @if (bando.access_active === false) {
                         <span class="badge text-bg-danger align-self-start">Accesso non confermato</span>
@@ -213,6 +220,9 @@ export class BandiComponent {
     if (!q) return this.items();
     return this.items().filter((bando) => bando.title.toLowerCase().includes(q));
   });
+  readonly hasAdminSupportItems = computed(() =>
+    this.items().some((bando) => bando.visibility_reason === 'admin'),
+  );
 
   canConfigureBando(): boolean {
     return this.mode === 'referente' || this.auth.hasCapability('admin') || !!this.auth.user()?.dev_mode;
@@ -224,6 +234,37 @@ export class BandiComponent {
 
   isAdminMode(): boolean {
     return this.mode === 'admin';
+  }
+
+  isExpertMode(): boolean {
+    return this.mode === 'expert' || this.mode === 'esperto';
+  }
+
+  isSedeMode(): boolean {
+    return this.mode === 'sede';
+  }
+
+  isTechnicalMode(): boolean {
+    return this.isExpertMode() || this.isSedeMode();
+  }
+
+  accessBadgeLabel(bando: BandoSummary): string {
+    if (bando.visibility_reason === 'admin') {
+      if (this.isExpertMode()) return 'Vista admin: non assegnato come esperto remoto';
+      if (this.isSedeMode()) return 'Vista admin: non assegnato come informatico in sede';
+      return 'Solo vista admin';
+    }
+    if (bando.visibility_reason === 'expert') return 'Esperto remoto assegnato';
+    if (bando.visibility_reason === 'sede') return 'Informatico in sede assegnato';
+    if (bando.visibility_reason === 'referente') return 'Referente/RDP';
+    if (bando.visibility_reason === 'owner') return 'Segretario operativo';
+    return '';
+  }
+
+  accessBadgeClass(bando: BandoSummary): string {
+    if (bando.visibility_reason === 'admin') return 'text-bg-warning';
+    if (bando.visibility_reason === 'referente') return 'text-bg-info';
+    return 'text-bg-success';
   }
 
   dashboardTitle(): string {
@@ -262,7 +303,7 @@ export class BandiComponent {
   }
 
   constructor() {
-    this.reload();
+    this.loadItems();
   }
 
   reload(): void {
@@ -280,6 +321,20 @@ export class BandiComponent {
             this.loading.set(false);
           },
         });
+      },
+    });
+  }
+
+  private loadItems(): void {
+    this.loading.set(true);
+    this.error.set(null);
+    this.syncError.set(null);
+    this.syncSource.set(null);
+    this.service.list(this.mode).subscribe({
+      next: (response) => this.applyResponse(response),
+      error: (error) => {
+        this.error.set(apiErrorText(error, 'Impossibile caricare i bandi.'));
+        this.loading.set(false);
       },
     });
   }
