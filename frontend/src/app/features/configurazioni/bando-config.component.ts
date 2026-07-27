@@ -28,7 +28,7 @@ interface SessionAssignment {
   selector: 'app-bando-config',
   imports: [FormsModule, RouterLink],
   template: `
-    <div class="container my-5" style="max-width: 760px;">
+    <div class="container-xxl my-5">
       <a [routerLink]="returnUrl()" class="btn btn-outline-secondary btn-sm mb-3">
         &larr; {{ returnLabel() }}
       </a>
@@ -83,135 +83,83 @@ interface SessionAssignment {
 
       <form (ngSubmit)="save()">
         <div class="card mb-3">
-          <div class="card-header bg-light py-2 d-flex align-items-center gap-2">
-            <span class="fw-bold text-uppercase small text-primary">Esperto informatico da remoto</span>
-            <span class="badge bg-warning text-dark small">Consigliato</span>
-          </div>
-          <div class="card-body py-3">
-            <label class="form-label small mb-1" for="email_esperto_remoto">Seleziona esperto</label>
-            <select class="form-select" id="email_esperto_remoto" name="email_esperto_remoto"
-                    [(ngModel)]="model['email_esperto_remoto']">
-              <option value="">— nessuno —</option>
-              @for (email of expertOptions(); track email) {
-                <option [value]="email">{{ email }}</option>
-              }
-            </select>
-          </div>
-        </div>
-
-        <div class="card mb-3">
           <div class="card-header bg-light py-2">
             <span class="fw-bold text-uppercase small text-primary">Assegnazioni tecniche per sessione</span>
           </div>
           <div class="card-body">
             @if (sessionAssignments.length) {
-              <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0">
-                  <thead>
-                    <tr>
-                      <th>Sessione</th>
-                      <th>Esperto remoto</th>
-                      <th>Informatico in sede principale</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    @for (assignment of sessionAssignments; track assignment.session_id; let i = $index) {
-                      <tr>
-                        <td>
-                          <div class="fw-semibold">{{ assignment.nome }}</div>
-                          <div class="small text-muted">{{ assignment.giorno }} {{ assignment.ora }} {{ assignment.luogo }}</div>
-                        </td>
-                        <td style="min-width: 220px;">
-                          <select class="form-select form-select-sm"
-                                  [name]="'session-expert-' + i"
-                                  [(ngModel)]="assignment.email_esperto_remoto">
-                            <option value="">Seleziona esperto</option>
-                            @for (email of expertOptions(); track email) {
-                              <option [value]="email">{{ email }}</option>
-                            }
-                          </select>
-                        </td>
-                        <td style="min-width: 320px;">
-                          @if (sedeTechnicians.length) {
-                            <select class="form-select form-select-sm mb-2"
-                                    [name]="'session-sede-pick-' + i"
-                                    [ngModel]="assignment.email_informatico_sede"
-                                    (ngModelChange)="setSessionSedeTechnician(i, $event)">
-                              <option value="">Seleziona dalla lista</option>
-                              @for (technician of sedeTechnicians; track technician.email) {
-                                <option [value]="technician.email">{{ technician.nome || technician.email }} — {{ technician.email }}</option>
-                              }
-                            </select>
-                          }
-                          <div class="row g-2">
-                            <div class="col-md-4">
-                              <input class="form-control form-control-sm" [name]="'session-sede-name-' + i"
-                                     [(ngModel)]="assignment.nome_informatico_sede" placeholder="Nome" />
-                            </div>
-                            <div class="col-md-4">
-                              <input class="form-control form-control-sm" [name]="'session-sede-email-' + i" type="email"
-                                     [(ngModel)]="assignment.email_informatico_sede" placeholder="Email" />
-                            </div>
-                            <div class="col-md-4">
-                              <input class="form-control form-control-sm" [name]="'session-sede-phone-' + i"
-                                     [(ngModel)]="assignment.telefono_informatico_sede" placeholder="Telefono" />
-                            </div>
+              @for (assignment of sessionAssignments; track assignment.session_id; let i = $index) {
+                <section class="border rounded p-3 mb-3">
+                  <div class="mb-3">
+                    <h2 class="h5 mb-1">{{ assignment.nome || 'Sessione' }}</h2>
+                    <div class="small text-muted">{{ assignment.giorno }} {{ assignment.ora }} {{ assignment.luogo }}</div>
+                  </div>
+
+                  <div class="mb-4">
+                    <label class="form-label fw-semibold" [for]="'session-expert-' + i">Esperto informatico da remoto</label>
+                    <select class="form-select"
+                            [id]="'session-expert-' + i"
+                            [name]="'session-expert-' + i"
+                            [(ngModel)]="assignment.email_esperto_remoto">
+                      <option value="">Seleziona esperto remoto</option>
+                      @for (email of expertOptions(); track email) {
+                        <option [value]="email">{{ email }}</option>
+                      }
+                    </select>
+                  </div>
+
+                  <div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                      <h3 class="h6 mb-0">Informatico in sede di riferimento</h3>
+                      <button type="button" class="btn btn-sm btn-outline-primary" (click)="addSessionSedeTechnician(i)">Aggiungi</button>
+                    </div>
+                    @for (technician of assignment.informatici_sede; track $index; let t = $index) {
+                      <div class="row g-2 align-items-end mb-2">
+                        <div class="col-lg-3 col-md-6">
+                          <label class="form-label small" [for]="'session-sede-name-' + i + '-' + t">Nome e cognome</label>
+                          <input class="form-control"
+                                 [id]="'session-sede-name-' + i + '-' + t"
+                                 [name]="'session-sede-name-' + i + '-' + t"
+                                 [(ngModel)]="technician.nome" />
+                        </div>
+                        <div class="col-lg-3 col-md-6">
+                          <label class="form-label small" [for]="'session-sede-email-' + i + '-' + t">Email</label>
+                          <input class="form-control"
+                                 [id]="'session-sede-email-' + i + '-' + t"
+                                 [name]="'session-sede-email-' + i + '-' + t"
+                                 type="email"
+                                 [(ngModel)]="technician.email" />
+                        </div>
+                        <div class="col-lg-3 col-md-6">
+                          <label class="form-label small" [for]="'session-sede-phone-' + i + '-' + t">Telefono</label>
+                          <input class="form-control"
+                                 [id]="'session-sede-phone-' + i + '-' + t"
+                                 [name]="'session-sede-phone-' + i + '-' + t"
+                                 [(ngModel)]="technician.telefono" />
+                        </div>
+                        <div class="col-lg-2 col-md-3">
+                          <div class="form-check mb-2">
+                            <input class="form-check-input"
+                                   type="radio"
+                                   [name]="'session-sede-primary-' + i"
+                                   [id]="'session-sede-primary-' + i + '-' + t"
+                                   [checked]="technician.principale"
+                                   (change)="setPrimarySessionSedeTechnician(i, t)" />
+                            <label class="form-check-label small" [for]="'session-sede-primary-' + i + '-' + t">Principale</label>
                           </div>
-                        </td>
-                      </tr>
+                        </div>
+                        <div class="col-lg-1 col-md-3">
+                          <button type="button" class="btn btn-outline-danger w-100" (click)="removeSessionSedeTechnician(i, t)">Rimuovi</button>
+                        </div>
+                      </div>
+                    } @empty {
+                      <p class="text-muted small mb-2">Nessun informatico in sede inserito per questa sessione.</p>
                     }
-                  </tbody>
-                </table>
-              </div>
+                  </div>
+                </section>
+              }
             } @else {
               <p class="text-muted small mb-0">Nessuna sessione locale disponibile per questo bando.</p>
-            }
-          </div>
-        </div>
-
-        <div class="card mb-3">
-          <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
-            <div class="d-flex align-items-center gap-2">
-              <span class="fw-bold text-uppercase small text-primary">Informatici in sede</span>
-              <span class="badge bg-warning text-dark small">Principale richiesto</span>
-            </div>
-            <button type="button" class="btn btn-sm btn-outline-primary" (click)="addSedeTechnician()">Aggiungi</button>
-          </div>
-          <div class="card-body">
-            <div class="form-text mb-3">
-              Puoi indicare piu informatici in sede; solo quello marcato come principale viene precompilato nel flusso operativo della sessione.
-            </div>
-            @for (technician of sedeTechnicians; track $index; let i = $index) {
-              <div class="row g-2 align-items-end mb-2">
-                <div class="col-md-3">
-                  <label class="form-label small" [for]="'sede-name-' + i">Nome</label>
-                  <input class="form-control" [id]="'sede-name-' + i" [name]="'sede-name-' + i"
-                         [(ngModel)]="technician.nome" placeholder="Nome e cognome" />
-                </div>
-                <div class="col-md-3">
-                  <label class="form-label small" [for]="'sede-email-' + i">Email</label>
-                  <input class="form-control" [id]="'sede-email-' + i" [name]="'sede-email-' + i" type="email"
-                         [(ngModel)]="technician.email" placeholder="nome.cognome@cnr.it" />
-                </div>
-                <div class="col-md-2">
-                  <label class="form-label small" [for]="'sede-phone-' + i">Telefono</label>
-                  <input class="form-control" [id]="'sede-phone-' + i" [name]="'sede-phone-' + i"
-                         [(ngModel)]="technician.telefono" placeholder="+39 ..." />
-                </div>
-                <div class="col-md-2">
-                  <div class="form-check mb-2">
-                    <input class="form-check-input" type="radio" name="sede-principale"
-                           [id]="'sede-primary-' + i" [checked]="technician.principale"
-                           (change)="setPrimarySedeTechnician(i)" />
-                    <label class="form-check-label small" [for]="'sede-primary-' + i">Principale</label>
-                  </div>
-                </div>
-                <div class="col-md-2">
-                  <button type="button" class="btn btn-outline-danger w-100" (click)="removeSedeTechnician(i)">Rimuovi</button>
-                </div>
-              </div>
-            } @empty {
-              <p class="text-muted small mb-0">Nessun informatico in sede inserito.</p>
             }
           </div>
         </div>
@@ -317,7 +265,6 @@ export class BandoConfigComponent {
   readonly secretaryOptions = signal<Array<{ nome: string; email: string }>>([]);
   model: Record<string, any> = {};
   commissionMembers: Array<{ nome: string; email: string }> = [];
-  sedeTechnicians: SedeTechnician[] = [];
   sessionAssignments: SessionAssignment[] = [];
 
   constructor() {
@@ -333,7 +280,6 @@ export class BandoConfigComponent {
       this.rdpOptions.set(data['rdp_options'] ?? []);
       this.secretaryOptions.set(data['secretary_options'] ?? []);
       this.commissionMembers = [...(data['commissione_members'] ?? [])];
-      this.sedeTechnicians = normalizeSedeTechnicians(data['informatici_sede'] ?? []);
       this.sessionAssignments = normalizeSessionAssignments(data['session_assignments'] ?? []);
     });
   }
@@ -358,13 +304,11 @@ export class BandoConfigComponent {
   save(): void {
     this.busy.set(true);
     const payload: Record<string, any> = {
-      email_esperto_remoto: this.model['email_esperto_remoto'] ?? '',
       email_segretario: this.model['email_segretario'] ?? '',
       telefono_segretario: this.model['telefono_segretario'] ?? '',
       durata_prova_minuti: this.model['durata_prova_minuti'] ?? '',
       data_accesso_piattaforma: this.model['data_accesso_piattaforma'] ?? '',
       commissione_members: this.commissionMembers,
-      informatici_sede: this.sedeTechniciansPayload(),
       session_assignments: this.sessionAssignmentsPayload(),
     };
     if (this.rdpOptions().length) {
@@ -411,40 +355,34 @@ export class BandoConfigComponent {
     this.commissionMembers.splice(index, 1);
   }
 
-  addSedeTechnician(): void {
-    this.sedeTechnicians.push({
+  addSessionSedeTechnician(sessionIndex: number): void {
+    const assignment = this.sessionAssignments[sessionIndex];
+    if (!assignment) return;
+    assignment.informatici_sede.push({
       nome: '',
       email: '',
       telefono: '',
-      principale: this.sedeTechnicians.length === 0,
+      principale: assignment.informatici_sede.length === 0,
     });
   }
 
-  removeSedeTechnician(index: number): void {
-    const removedPrimary = this.sedeTechnicians[index]?.principale;
-    this.sedeTechnicians.splice(index, 1);
-    if (removedPrimary && this.sedeTechnicians.length) {
-      this.sedeTechnicians[0].principale = true;
+  removeSessionSedeTechnician(sessionIndex: number, technicianIndex: number): void {
+    const assignment = this.sessionAssignments[sessionIndex];
+    if (!assignment) return;
+    const removedPrimary = assignment.informatici_sede[technicianIndex]?.principale;
+    assignment.informatici_sede.splice(technicianIndex, 1);
+    if (removedPrimary && assignment.informatici_sede.length) {
+      assignment.informatici_sede[0].principale = true;
     }
   }
 
-  setPrimarySedeTechnician(index: number): void {
-    this.sedeTechnicians = this.sedeTechnicians.map((technician, i) => ({
+  setPrimarySessionSedeTechnician(sessionIndex: number, technicianIndex: number): void {
+    const assignment = this.sessionAssignments[sessionIndex];
+    if (!assignment) return;
+    assignment.informatici_sede = assignment.informatici_sede.map((technician, index) => ({
       ...technician,
-      principale: i === index,
+      principale: index === technicianIndex,
     }));
-  }
-
-  setSessionSedeTechnician(index: number, email: string): void {
-    const technician = this.sedeTechnicians.find((item) => item.email === email);
-    if (!technician || !this.sessionAssignments[index]) return;
-    this.sessionAssignments[index] = {
-      ...this.sessionAssignments[index],
-      nome_informatico_sede: technician.nome,
-      email_informatico_sede: technician.email,
-      telefono_informatico_sede: technician.telefono,
-      informatici_sede: [{ ...technician, principale: true }],
-    };
   }
 
   canSendRequest(): boolean {
@@ -465,27 +403,20 @@ export class BandoConfigComponent {
     return details ? `${body.message} (${details})` : body.message || 'Salvataggio non riuscito.';
   }
 
-  private sedeTechniciansPayload(): SedeTechnician[] {
-    const items = normalizeSedeTechnicians(this.sedeTechnicians);
-    if (items.length && !items.some((item) => item.principale)) {
-      items[0].principale = true;
-    }
-    return items;
-  }
-
   private sessionAssignmentsPayload(): SessionAssignment[] {
-    return this.sessionAssignments.map((assignment) => ({
-      ...assignment,
-      informatici_sede: normalizeSedeTechnicians([
-        {
-          nome: assignment.nome_informatico_sede,
-          email: assignment.email_informatico_sede,
-          telefono: assignment.telefono_informatico_sede,
-          principale: true,
-        },
-        ...assignment.informatici_sede,
-      ]),
-    }));
+    return this.sessionAssignments.map((assignment) => {
+      const informatici_sede = ensureSinglePrimary(
+        normalizeSedeTechnicians(assignment.informatici_sede),
+      );
+      const primary = informatici_sede.find((item) => item.principale) ?? informatici_sede[0];
+      return {
+        ...assignment,
+        nome_informatico_sede: primary?.nome ?? '',
+        email_informatico_sede: primary?.email ?? '',
+        telefono_informatico_sede: primary?.telefono ?? '',
+        informatici_sede,
+      };
+    });
   }
 }
 
@@ -515,6 +446,15 @@ function normalizeSessionAssignments(value: unknown): SessionAssignment[] {
   if (!Array.isArray(value)) return [];
   return value.map((item) => {
     const row = item as Partial<SessionAssignment>;
+    const informatici_sede = ensureSinglePrimary(normalizeSedeTechnicians([
+      ...(row.informatici_sede ?? []),
+      {
+        nome: row.nome_informatico_sede ?? '',
+        email: row.email_informatico_sede ?? '',
+        telefono: row.telefono_informatico_sede ?? '',
+        principale: true,
+      },
+    ]));
     return {
       session_id: row.session_id ?? '',
       nome: row.nome ?? '',
@@ -525,7 +465,20 @@ function normalizeSessionAssignments(value: unknown): SessionAssignment[] {
       nome_informatico_sede: row.nome_informatico_sede ?? '',
       email_informatico_sede: row.email_informatico_sede ?? '',
       telefono_informatico_sede: row.telefono_informatico_sede ?? '',
-      informatici_sede: normalizeSedeTechnicians(row.informatici_sede ?? []),
+      informatici_sede,
     };
   }).filter((item) => item.session_id);
+}
+
+function ensureSinglePrimary(items: SedeTechnician[]): SedeTechnician[] {
+  let primarySeen = false;
+  const normalized = items.map((item) => {
+    const principale = !!item.principale && !primarySeen;
+    if (principale) primarySeen = true;
+    return { ...item, principale };
+  });
+  if (normalized.length && !primarySeen) {
+    normalized[0].principale = true;
+  }
+  return normalized;
 }
