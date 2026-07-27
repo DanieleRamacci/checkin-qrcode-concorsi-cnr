@@ -114,17 +114,17 @@ interface MergedConfig {
                   <label class="form-label" for="email_esperto_remoto">Esperto informatico da remoto</label>
                   @if (expertOptions().length) {
                     <select class="form-select" id="email_esperto_remoto" name="email_esperto_remoto"
-                            [(ngModel)]="bandoConfigModel.email_esperto_remoto">
-                      <option value="">— nessuno —</option>
+                            [(ngModel)]="bandoConfigModel.email_esperto_remoto" required>
+                      <option value="">Seleziona esperto remoto</option>
                       @for (email of expertOptions(); track email) {
                         <option [value]="email">{{ email }}</option>
                       }
                     </select>
                   } @else {
                     <input type="email" class="form-control" id="email_esperto_remoto" placeholder="es. nome.cognome@cnr.it"
-                           [(ngModel)]="bandoConfigModel.email_esperto_remoto" name="email_esperto_remoto" />
+                           [(ngModel)]="bandoConfigModel.email_esperto_remoto" name="email_esperto_remoto" required />
                   }
-                  <div class="form-text">Compila qui solo se non è già stato assegnato in Configura Bando.</div>
+                  <div class="form-text">Obbligatorio per proseguire con la configurazione della sessione.</div>
                 </div>
               </div>
               <div class="row g-2 mb-3">
@@ -134,15 +134,20 @@ interface MergedConfig {
                 </div>
                 <div class="col-md-4">
                   <label class="form-label" for="email_informatico_sede">Email</label>
-                  <input type="email" class="form-control" id="email_informatico_sede" placeholder="es. nome.cognome@cnr.it" [(ngModel)]="sessionConfigModel.email_informatico_sede" name="email_informatico_sede" />
+                  <input type="email" class="form-control" id="email_informatico_sede" placeholder="es. nome.cognome@cnr.it" [(ngModel)]="sessionConfigModel.email_informatico_sede" name="email_informatico_sede" required />
                 </div>
                 <div class="col-md-4">
                   <label class="form-label" for="telefono_informatico_sede">Telefono</label>
                   <input type="tel" class="form-control" id="telefono_informatico_sede" placeholder="es. +39 06 1234567" [(ngModel)]="sessionConfigModel.telefono_informatico_sede" name="telefono_informatico_sede" />
                 </div>
               </div>
-              <div class="d-flex justify-content-end border-top pt-3">
-                <button type="submit" class="btn btn-primary">Salva e prosegui</button>
+              <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center border-top pt-3">
+                @if (!canSaveSessionConfig()) {
+                  <div class="text-danger small">
+                    Per proseguire devi selezionare l'esperto remoto e indicare l'email dell'informatico in sede.
+                  </div>
+                }
+                <button type="submit" class="btn btn-primary ms-auto" [disabled]="busy() || !canSaveSessionConfig()">Salva e prosegui</button>
               </div>
             </form>
             @if (error()) { <div class="alert alert-danger mt-3 mb-0" role="alert">{{ error() }}</div> }
@@ -388,6 +393,11 @@ export class AzioniComponent {
 
   saveSessionConfig(): void {
     this.error.set('');
+    const validationError = this.sessionConfigValidationError();
+    if (validationError) {
+      this.error.set(validationError);
+      return;
+    }
     this.busy.set(true);
     const modeParam = encodeURIComponent(this.viewMode());
     this.api.put(`/bandi/${this.commissionId()}/config?mode=${modeParam}`, this.bandoConfigModel).subscribe({
@@ -399,6 +409,11 @@ export class AzioniComponent {
       },
       error: (err) => { this.busy.set(false); this.error.set(this.extractError(err)); },
     });
+  }
+
+  canSaveSessionConfig(): boolean {
+    return !!this.trimmed(this.bandoConfigModel.email_esperto_remoto)
+      && !!this.trimmed(this.sessionConfigModel.email_informatico_sede);
   }
 
   importCandidati(): void {
@@ -447,5 +462,22 @@ export class AzioniComponent {
     if (!body) return 'Operazione non riuscita.';
     const details = body.details ? Object.entries(body.details).map(([field, msg]) => `${field}: ${msg}`).join('; ') : '';
     return details ? `${body.message} (${details})` : body.message || 'Operazione non riuscita.';
+  }
+
+  private sessionConfigValidationError(): string {
+    const missing = [];
+    if (!this.trimmed(this.bandoConfigModel.email_esperto_remoto)) {
+      missing.push("l'esperto informatico da remoto");
+    }
+    if (!this.trimmed(this.sessionConfigModel.email_informatico_sede)) {
+      missing.push("l'email dell'informatico in sede");
+    }
+    return missing.length
+      ? `Per proseguire devi compilare ${missing.join(' e ')}.`
+      : '';
+  }
+
+  private trimmed(value: string | null | undefined): string {
+    return (value ?? '').trim();
   }
 }

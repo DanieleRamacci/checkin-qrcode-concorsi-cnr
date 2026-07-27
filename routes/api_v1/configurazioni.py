@@ -10,6 +10,7 @@ from utils import authorization
 from utils.authorization import commission_access_required, session_access_required
 from utils.sessioni import (
     get_bando_config,
+    get_sessione_by_id,
     get_sessione_config,
     save_bando_config,
     save_sessione_config,
@@ -166,6 +167,27 @@ def _secretary_selection_error(config: dict, email: str) -> str | None:
     return None
 
 
+def _session_completion_errors(session_id: str, merged_session_config: dict) -> dict[str, str]:
+    """Validazioni minime per avanzare una sessione da iniziale a configurata."""
+    errors = {}
+    if not _normalize_email(merged_session_config.get("email_informatico_sede")):
+        errors["email_informatico_sede"] = (
+            "Indicare l'email dell'informatico in sede prima di proseguire."
+        )
+
+    sessione = get_sessione_by_id(session_id)
+    if not sessione:
+        errors["session_id"] = "Sessione non trovata."
+        return errors
+
+    bando_config = get_bando_config(sessione["commission_id"]) or {}
+    if not _normalize_email(bando_config.get("email_esperto_remoto")):
+        errors["email_esperto_remoto"] = (
+            "Selezionare l'esperto informatico da remoto prima di proseguire."
+        )
+    return errors
+
+
 @configurazioni_api_bp.get("/bandi/<commission_id>/config")
 @api_auth_required
 def bando_config_get(commission_id):
@@ -316,6 +338,18 @@ def sessione_config_put(session_id):
         )
     current = get_sessione_config(session_id) or {}
     merged = {**current, **data}
+    is_initial_state = get_stato_corrente(session_id) == "iniziale"
+    if is_initial_state:
+        completion_errors = _session_completion_errors(session_id, merged)
+        if completion_errors:
+            status = 404 if "session_id" in completion_errors else 422
+            return error_response(
+                "validation_error",
+                "Configurazione sessione incompleta.",
+                status,
+                details=completion_errors,
+            )
+
     save_sessione_config(
         session_id,
         merged.get("nome_informatico_sede"),
@@ -323,7 +357,7 @@ def sessione_config_put(session_id):
         merged.get("telefono_informatico_sede"),
         merged.get("data_accesso_piattaforma"),
     )
-    if get_stato_corrente(session_id) == "iniziale":
+    if is_initial_state:
         set_stato_corrente(
             session_id,
             "configurata",

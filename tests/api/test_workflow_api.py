@@ -365,6 +365,99 @@ def test_put_session_config_rejects_invalid_email(monkeypatch):
     assert "email_informatico_sede" in response.get_json()["error"]["details"]
 
 
+def test_put_session_config_rejects_initial_completion_without_required_technicians(monkeypatch):
+    from routes.api_v1 import configurazioni
+
+    allow_resource_access(monkeypatch)
+    monkeypatch.setattr(configurazioni, "get_stato_corrente", lambda session_id: "iniziale")
+    monkeypatch.setattr(configurazioni, "get_sessione_config", lambda session_id: {})
+    monkeypatch.setattr(
+        configurazioni,
+        "get_sessione_by_id",
+        lambda session_id: {"session_id": session_id, "commission_id": "commission-1"},
+    )
+    monkeypatch.setattr(
+        configurazioni,
+        "get_bando_config",
+        lambda commission_id: {"email_esperto_remoto": ""},
+    )
+    monkeypatch.setattr(
+        configurazioni,
+        "save_sessione_config",
+        lambda *args, **kwargs: pytest.fail("session config should not be saved"),
+    )
+    monkeypatch.setattr(
+        configurazioni,
+        "set_stato_corrente",
+        lambda *args, **kwargs: pytest.fail("state should not advance"),
+    )
+
+    client, csrf_token = authenticated_client(create_test_app())
+    response = client.put(
+        "/api/v1/sessioni/session-1/config",
+        json={"email_informatico_sede": ""},
+        headers={"X-CSRF-Token": csrf_token},
+    )
+
+    assert response.status_code == 422
+    payload = response.get_json()["error"]
+    assert payload["code"] == "validation_error"
+    assert payload["message"] == "Configurazione sessione incompleta."
+    assert "email_esperto_remoto" in payload["details"]
+    assert "email_informatico_sede" in payload["details"]
+
+
+def test_put_session_config_advances_initial_session_with_required_technicians(monkeypatch):
+    from routes.api_v1 import configurazioni
+
+    allow_resource_access(monkeypatch)
+    saved = {}
+    advanced = {}
+    monkeypatch.setattr(configurazioni, "get_stato_corrente", lambda session_id: "iniziale")
+    monkeypatch.setattr(configurazioni, "get_sessione_config", lambda session_id: {})
+    monkeypatch.setattr(
+        configurazioni,
+        "get_sessione_by_id",
+        lambda session_id: {"session_id": session_id, "commission_id": "commission-1"},
+    )
+    monkeypatch.setattr(
+        configurazioni,
+        "get_bando_config",
+        lambda commission_id: {"email_esperto_remoto": "esperto@cnr.it"},
+    )
+
+    def fake_save_sessione_config(session_id, *args):
+        saved["session_id"] = session_id
+        saved["args"] = args
+
+    def fake_set_stato_corrente(session_id, state, utente=None):
+        advanced["session_id"] = session_id
+        advanced["state"] = state
+        advanced["utente"] = utente
+
+    monkeypatch.setattr(configurazioni, "save_sessione_config", fake_save_sessione_config)
+    monkeypatch.setattr(configurazioni, "set_stato_corrente", fake_set_stato_corrente)
+
+    client, csrf_token = authenticated_client(create_test_app())
+    response = client.put(
+        "/api/v1/sessioni/session-1/config",
+        json={
+            "nome_informatico_sede": "Mario Rossi",
+            "email_informatico_sede": "sede@cnr.it",
+        },
+        headers={"X-CSRF-Token": csrf_token},
+    )
+
+    assert response.status_code == 200
+    assert saved["session_id"] == "session-1"
+    assert saved["args"][1] == "sede@cnr.it"
+    assert advanced == {
+        "session_id": "session-1",
+        "state": "configurata",
+        "utente": "owner@cnr.it",
+    }
+
+
 def test_get_workflow_state(monkeypatch):
     from routes.api_v1 import workflow
 

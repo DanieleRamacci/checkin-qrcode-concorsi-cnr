@@ -42,6 +42,52 @@ describe('AzioniComponent', () => {
     expect(text).not.toContain('Data accesso piattaforma');
   });
 
+  it('does not save and proceed when remote expert or in-person technician email are missing', async () => {
+    let putCalls = 0;
+    const api = {
+      get: (url: string) => {
+        if (url.includes('/bandi/')) {
+          return of({ email_esperto_remoto: '', expert_options: ['esperto@cnr.it'] });
+        }
+        return of({
+          nome_informatico_sede: '',
+          email_informatico_sede: '',
+          telefono_informatico_sede: '',
+        });
+      },
+      post: () => of({}),
+      put: () => {
+        putCalls += 1;
+        return of({});
+      },
+    };
+    await TestBed.configureTestingModule({
+      imports: [AzioniComponent],
+      providers: [
+        provideRouter([]),
+        { provide: ApiClient, useValue: api },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(AzioniComponent);
+    fixture.componentRef.setInput('sessionId', 'session-1');
+    fixture.componentRef.setInput('commissionId', 'commission-1');
+    fixture.componentRef.setInput('currentState', 'iniziale');
+    fixture.componentRef.setInput('viewMode', 'segretario');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const button = fixture.nativeElement.querySelector('button[type="submit"]') as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+
+    fixture.componentInstance.saveSessionConfig();
+
+    expect(putCalls).toBe(0);
+    expect(fixture.componentInstance.error()).toContain('esperto informatico da remoto');
+    expect(fixture.componentInstance.error()).toContain("email dell'informatico in sede");
+  });
+
   it('shows the expert workflow instead of secretary actions', async () => {
     await TestBed.configureTestingModule({
       imports: [AzioniComponent],
