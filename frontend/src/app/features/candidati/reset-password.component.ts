@@ -47,10 +47,20 @@ export function resetFilterForApi(viewMode: ResetViewMode, filter: ResetFilter):
           </select>
         </div>
         <div class="col-4 col-md-2">
-          <button class="btn btn-outline-primary w-100" type="submit" [disabled]="loading()">Filtra</button>
+          <button class="btn btn-outline-primary w-100" type="submit" [disabled]="loading()">
+            @if (loading()) {
+              <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+            }
+            <span>Filtra</span>
+          </button>
         </div>
         <div class="col-12 col-md-2">
-          <button class="btn btn-outline-secondary w-100" type="button" [disabled]="loading()" (click)="load()">↻ Aggiorna</button>
+          <button class="btn btn-outline-secondary w-100" type="button" [disabled]="loading()" (click)="load()">
+            @if (loading()) {
+              <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+            }
+            <span>↻ Aggiorna</span>
+          </button>
         </div>
       </form>
 

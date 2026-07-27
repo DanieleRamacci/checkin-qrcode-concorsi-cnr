@@ -136,7 +136,15 @@ describe('SessioniComponent', () => {
         {
           provide: SessioniService,
           useValue: {
-            sync: () => throwError(() => ({ status: 502 })),
+            sync: () => throwError(() => ({
+              status: 409,
+              error: {
+                error: {
+                  code: 'sessions_not_returned',
+                  message: 'Verifica il flag di abilitazione del componente in Selezioni Online.',
+                },
+              },
+            })),
             list: () => of({ commission_id: 'c1', items: [] }),
           },
         },
@@ -176,6 +184,7 @@ describe('SessioniComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Sincronizzazione sessioni non riuscita');
+    expect(fixture.nativeElement.textContent).toContain('flag di abilitazione');
     expect(fixture.nativeElement.textContent).toContain('Non ci sono ancora sessioni locali');
     expect(fixture.nativeElement.textContent).toContain('Scarica sessioni da Selezioni Online');
   });

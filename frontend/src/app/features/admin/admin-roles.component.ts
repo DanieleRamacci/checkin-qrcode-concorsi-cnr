@@ -41,7 +41,12 @@ interface AdminRole {
                 placeholder="nome.cognome@cnr.it" [(ngModel)]="expertEmail" required />
             </div>
             <div class="col-md-4">
-              <button class="btn btn-primary btn-sm w-100" type="submit" [disabled]="busy()">Aggiungi esperto</button>
+              <button class="btn btn-primary btn-sm w-100" type="submit" [disabled]="busy()">
+                @if (busy()) {
+                  <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                }
+                <span>Aggiungi esperto</span>
+              </button>
             </div>
           </form>
           <ng-container *ngTemplateOutlet="roleTable; context: { $implicit: experts(), empty: 'Nessun esperto informatico registrato.' }" />
@@ -61,7 +66,12 @@ interface AdminRole {
                 placeholder="nome.cognome@cnr.it" [(ngModel)]="adminEmail" required />
             </div>
             <div class="col-md-4">
-              <button class="btn btn-primary btn-sm w-100" type="submit" [disabled]="busy()">Aggiungi amministratore</button>
+              <button class="btn btn-primary btn-sm w-100" type="submit" [disabled]="busy()">
+                @if (busy()) {
+                  <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                }
+                <span>Aggiungi amministratore</span>
+              </button>
             </div>
           </form>
           <ng-container *ngTemplateOutlet="roleTable; context: { $implicit: admins(), empty: 'Nessun amministratore registrato.' }" />
@@ -70,7 +80,10 @@ interface AdminRole {
 
       <ng-template #roleTable let-rows let-empty="empty">
         @if (loading()) {
-          <p role="status">Caricamento permessi…</p>
+          <div class="d-flex align-items-center gap-2 py-2" role="status" aria-live="polite">
+            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            <span>Caricamento permessi…</span>
+          </div>
         } @else if (rows.length === 0) {
           <p class="text-muted small mb-0">{{ empty }}</p>
         } @else {

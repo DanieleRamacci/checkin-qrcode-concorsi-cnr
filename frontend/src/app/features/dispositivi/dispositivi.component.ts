@@ -105,7 +105,12 @@ interface OperationalConfig {
 
             <div class="table-responsive mt-3">
               <div class="d-flex justify-content-end mb-2">
-                <button class="btn btn-sm btn-outline-primary" type="button" [disabled]="loading()" (click)="load()">Aggiorna</button>
+                <button class="btn btn-sm btn-outline-primary" type="button" [disabled]="loading()" (click)="load()">
+                  @if (loading()) {
+                    <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                  }
+                  <span>Aggiorna</span>
+                </button>
               </div>
               @if (error()) {
                 <div class="alert alert-danger" role="alert">{{ error() }}</div>

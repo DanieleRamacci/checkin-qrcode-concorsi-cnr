@@ -13,10 +13,15 @@ interface NotificationItem { id: number; type: string; payload: string; author_e
   imports: [FormsModule, DatePipe],
   template: `
     <div class="it-card shadow-sm p-3 bg-white mb-3 chat-card">
-      <h6 class="mb-2">Chat interna</h6>
-      <div class="d-flex justify-content-end mb-2">
+      <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+        <h6 class="mb-0">Chat interna</h6>
         <button class="btn btn-sm btn-outline-secondary" type="button" [disabled]="busy()" (click)="load()">
-          <span class="me-1">↻</span> Aggiorna
+          @if (busy()) {
+            <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+          } @else {
+            <span class="me-1">↻</span>
+          }
+          <span>Aggiorna</span>
         </button>
       </div>
       <div class="chat-messages">
@@ -25,23 +30,21 @@ interface NotificationItem { id: number; type: string; payload: string; author_e
         } @else {
           <ul class="list-unstyled mb-0">
             @for (item of items(); track item.id) {
-              <li class="mb-2">
-                <div class="d-flex align-items-center gap-2 mb-1">
-                  @if (item.type === 'state') {
-                    <span class="badge bg-primary small">Notifica</span>
-                  } @else if (item.type === 'reset') {
-                    <span class="badge bg-warning text-dark small">Reset</span>
-                  } @else {
-                    <span class="badge bg-secondary small">Msg</span>
-                  }
-                  <span class="small text-muted">{{ item.author_email }}</span>
-                  @if (item.created_at) {
-                    <time class="small text-muted ms-auto" [attr.datetime]="item.created_at">
-                      {{ item.created_at | date:'dd/MM/yyyy HH:mm' }}
-                    </time>
-                  }
-                </div>
-                <div class="small">{{ item.payload }}</div>
+              <li class="notification-row" [attr.title]="notificationTitle(item)">
+                @if (item.type === 'state') {
+                  <span class="badge bg-primary notification-badge">Notifica</span>
+                } @else if (item.type === 'reset') {
+                  <span class="badge bg-warning text-dark notification-badge">Reset</span>
+                } @else {
+                  <span class="badge bg-secondary notification-badge">Msg</span>
+                }
+                <span class="notification-author">{{ item.author_email || '-' }}</span>
+                @if (item.created_at) {
+                  <time class="notification-time" [attr.datetime]="item.created_at">
+                    {{ item.created_at | date:'dd/MM/yyyy HH:mm' }}
+                  </time>
+                }
+                <span class="notification-payload">{{ item.payload }}</span>
               </li>
             }
           </ul>
@@ -59,6 +62,54 @@ interface NotificationItem { id: number; type: string; payload: string; author_e
       </form>
     </div>
   `,
+  styles: `
+    .chat-card {
+      min-width: 0;
+    }
+
+    .chat-messages {
+      max-height: 18rem;
+      overflow: auto;
+    }
+
+    .notification-row {
+      display: grid;
+      grid-template-columns: max-content max-content max-content minmax(8rem, 1fr);
+      align-items: center;
+      gap: 0.45rem;
+      min-width: max-content;
+      padding: 0.45rem 0;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+      white-space: nowrap;
+    }
+
+    .notification-row:last-child {
+      border-bottom: 0;
+    }
+
+    .notification-badge {
+      font-size: 0.72rem;
+    }
+
+    .notification-author,
+    .notification-time,
+    .notification-payload {
+      color: #5b6f82;
+      font-size: 0.78rem;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+
+    .notification-author {
+      font-weight: 600;
+    }
+
+    .notification-payload {
+      color: #32485f;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  `,
 })
 export class NotificheComponent {
   readonly sessionId = input.required<string>();
@@ -68,6 +119,12 @@ export class NotificheComponent {
   readonly busy = signal(false);
   readonly error = signal('');
   message = '';
+
+  notificationTitle(item: NotificationItem): string {
+    const createdAt = item.created_at ?? '';
+    const author = item.author_email || '-';
+    return [author, createdAt, item.payload].filter(Boolean).join(' - ');
+  }
 
   ngOnInit(): void {
     timer(0, 10_000).pipe(

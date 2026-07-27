@@ -67,6 +67,7 @@ export interface BandoMetadata {
 export interface SessionSummary {
   session_id: string;
   commission_id: string;
+  bando_title?: string | null;
   name: string;
   date: string;
   time: string;

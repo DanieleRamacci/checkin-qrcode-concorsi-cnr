@@ -179,8 +179,11 @@ export class SessioniComponent {
     if (sync) {
       this.service.sync(this.commissionId, this.mode).subscribe({
         next: () => this.loadItems(),
-        error: () => {
-          this.syncError.set('Non e stato possibile scaricare le sessioni da Selezioni Online.');
+        error: (error) => {
+          this.syncError.set(apiErrorText(
+            error,
+            'Non e stato possibile scaricare le sessioni da Selezioni Online.',
+          ));
           this.loadItems(true);
         },
       });

@@ -32,6 +32,7 @@ describe('GestioneSessioneComponent', () => {
                 return of({
                   session_id: 'session-1',
                   commission_id: 'c1',
+                  bando_title: '367.222 FA Test - Funzionario di Amministrazione',
                   name: 'Sessione prova',
                   location: 'Roma',
                   date: '2026-07-03',
@@ -62,6 +63,8 @@ describe('GestioneSessioneComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Gestione esame');
+    expect(fixture.nativeElement.textContent).toContain('367.222 FA Test - Funzionario di Amministrazione');
+    expect(fixture.nativeElement.textContent).toContain('Codice bando: c1');
     expect(fixture.nativeElement.textContent).not.toContain('Timeline Esame');
     fixture.destroy();
   });

@@ -20,6 +20,12 @@ import { AppSettings } from '../../core/models/api.models';
 
       @if (error()) { <div class="alert alert-danger" role="alert">{{ error() }}</div> }
       @if (message()) { <div class="alert alert-success" role="status">{{ message() }}</div> }
+      @if (loading()) {
+        <div class="d-flex align-items-center gap-2 py-2" role="status" aria-live="polite">
+          <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+          <span>Caricamento impostazioni…</span>
+        </div>
+      }
 
       <form class="card" (ngSubmit)="save()">
         <div class="card-header bg-light">
@@ -46,7 +52,12 @@ import { AppSettings } from '../../core/models/api.models';
           </div>
         </div>
         <div class="card-footer bg-white text-end">
-          <button class="btn btn-primary" type="submit" [disabled]="busy()">Salva impostazioni</button>
+          <button class="btn btn-primary" type="submit" [disabled]="busy() || loading()">
+            @if (busy()) {
+              <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+            }
+            <span>Salva impostazioni</span>
+          </button>
         </div>
       </form>
     </section>
@@ -56,6 +67,7 @@ import { AppSettings } from '../../core/models/api.models';
 export class AdminSettingsComponent {
   private readonly api = inject(ApiClient);
   private readonly auth = inject(AuthService);
+  readonly loading = signal(true);
   readonly busy = signal(false);
   readonly error = signal('');
   readonly message = signal('');
@@ -66,9 +78,16 @@ export class AdminSettingsComponent {
   }
 
   load(): void {
+    this.loading.set(true);
     this.api.get<AppSettings>('/admin/settings').subscribe({
-      next: (settings) => this.model = { ...this.auth.defaultSettings, ...settings },
-      error: () => this.error.set('Caricamento impostazioni non riuscito.'),
+      next: (settings) => {
+        this.model = { ...this.auth.defaultSettings, ...settings };
+        this.loading.set(false);
+      },
+      error: () => {
+        this.loading.set(false);
+        this.error.set('Caricamento impostazioni non riuscito.');
+      },
     });
   }
 

@@ -17,7 +17,12 @@ export function candidateQrPayload(uid: string): string {
         <h5 class="mb-3">Elenco candidati</h5>
 
         <div class="d-flex justify-content-end mb-2">
-          <button class="btn btn-outline-primary btn-sm" type="button" [disabled]="loading()" (click)="load()">Aggiorna</button>
+          <button class="btn btn-outline-primary btn-sm" type="button" [disabled]="loading()" (click)="load()">
+            @if (loading()) {
+              <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+            }
+            <span>Aggiorna</span>
+          </button>
         </div>
 
         <form class="row g-2 mb-3" (submit)="$event.preventDefault()">

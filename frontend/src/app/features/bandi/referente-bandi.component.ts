@@ -14,8 +14,9 @@ import { BandiService } from './bandi.service';
       <p class="lead">Di seguito trovi i bandi per cui Selezioni Online ti indica come RDP o referente.</p>
 
       @if (syncing()) {
-        <div class="alert alert-info py-2" role="status">
-          Aggiornamento da Selezioni Online in corso. Sono mostrati subito i bandi gia sincronizzati.
+        <div class="alert alert-info py-2 d-flex align-items-center gap-2" role="status" aria-live="polite">
+          <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+          <span>Aggiornamento da Selezioni Online in corso. Sono mostrati subito i bandi gia sincronizzati.</span>
         </div>
       }
       @if (syncError()) {
@@ -25,7 +26,10 @@ import { BandiService } from './bandi.service';
       }
 
       @if (loading()) {
-        <p role="status">Caricamento bandi referente…</p>
+        <div class="d-flex align-items-center gap-2 py-3" role="status" aria-live="polite">
+          <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+          <span>Caricamento bandi referente…</span>
+        </div>
       } @else if (error()) {
         <div class="alert alert-warning" role="alert">
           <h2 class="alert-heading h5 mb-2">Bandi referente non disponibili</h2>
@@ -35,6 +39,7 @@ import { BandiService } from './bandi.service';
         @if (items().length === 0) {
           <div class="alert alert-info" role="status">
             @if (syncing()) {
+              <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
               Cerco bandi referente su Selezioni Online.
             } @else {
               Non risultano bandi per cui la tua utenza e indicata come RDP o referente.

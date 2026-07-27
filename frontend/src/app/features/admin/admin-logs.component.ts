@@ -26,13 +26,23 @@ interface LogsResponse {
         <form class="d-flex gap-2" (ngSubmit)="load()">
           <label class="visually-hidden" for="logs-limit">Numero massimo record</label>
           <input id="logs-limit" class="form-control" type="number" min="1" max="1000" name="limit" [(ngModel)]="limit" />
-          <button class="btn btn-outline-primary" type="submit" [disabled]="loading()">Aggiorna</button>
+          <button class="btn btn-outline-primary" type="submit" [disabled]="loading()">
+            @if (loading()) {
+              <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+            }
+            <span>Aggiorna</span>
+          </button>
         </form>
       </div>
       <p class="text-muted">Sono mostrati gli ultimi {{ limit }} record per tabella.</p>
 
       @if (error()) { <div class="alert alert-danger" role="alert">{{ error() }}</div> }
-      @if (loading()) { <p role="status">Caricamento log…</p> }
+      @if (loading()) {
+        <div class="d-flex align-items-center gap-2 py-2" role="status" aria-live="polite">
+          <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+          <span>Caricamento log…</span>
+        </div>
+      }
 
       @for (section of sections(); track section.title) {
         <h2 class="h5 mt-4">{{ section.title }}</h2>

@@ -708,12 +708,25 @@ def test_sessioni_sync_uses_fast_configurable_timeout(monkeypatch):
         lambda **kwargs: "fresh-token",
     )
 
-    def fake_sync(commission_id, token, user_email, timeout_s=None, retries=None):
+    def fake_sync(
+        commission_id,
+        token,
+        user_email,
+        timeout_s=None,
+        retries=None,
+        allow_referente=False,
+    ):
         captured["timeout_s"] = timeout_s
         captured["retries"] = retries
+        captured["allow_referente"] = allow_referente
         return 0
 
     monkeypatch.setattr(sessioni, "get_sessioni_internamente", fake_sync)
+    monkeypatch.setattr(
+        sessioni,
+        "list_sessioni",
+        lambda commission_id, **kwargs: [{"session_id": "existing"}],
+    )
 
     app = create_test_app()
     client = authenticated_client(app)
@@ -728,6 +741,81 @@ def test_sessioni_sync_uses_fast_configurable_timeout(monkeypatch):
     assert response.status_code == 200
     assert captured["timeout_s"] == (5.0, 25.0)
     assert captured["retries"] == 0
+    assert captured["allow_referente"] is True
+
+
+def test_sessioni_sync_allows_referente_access(monkeypatch):
+    from routes.api_v1 import sessioni
+
+    captured_access = {}
+    monkeypatch.setattr(
+        sessioni.authorization,
+        "can_access_commission",
+        lambda email, commission_id, **kwargs: captured_access.update(kwargs) or True,
+    )
+    monkeypatch.setattr(
+        sessioni,
+        "ensure_fresh_access_token",
+        lambda **kwargs: "fresh-token",
+    )
+    monkeypatch.setattr(
+        sessioni,
+        "get_sessioni_internamente",
+        lambda *args, **kwargs: 1,
+    )
+
+    app = create_test_app()
+    client = authenticated_client(app, "referente@cnr.it")
+    with client.session_transaction() as flask_session:
+        csrf_token = get_csrf_token(flask_session)
+
+    response = client.post(
+        "/api/v1/bandi/commission-1/sessioni/sync",
+        headers={"X-CSRF-Token": csrf_token},
+    )
+
+    assert response.status_code == 200
+    assert captured_access["allow_referente"] is True
+
+
+def test_sessioni_sync_explains_empty_remote_response(monkeypatch):
+    from routes.api_v1 import sessioni
+
+    monkeypatch.setattr(
+        sessioni.authorization,
+        "can_access_commission",
+        lambda email, commission_id, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        sessioni,
+        "ensure_fresh_access_token",
+        lambda **kwargs: "fresh-token",
+    )
+    monkeypatch.setattr(
+        sessioni,
+        "get_sessioni_internamente",
+        lambda *args, **kwargs: 0,
+    )
+    monkeypatch.setattr(
+        sessioni,
+        "list_sessioni",
+        lambda commission_id, **kwargs: [],
+    )
+
+    app = create_test_app()
+    client = authenticated_client(app)
+    with client.session_transaction() as flask_session:
+        csrf_token = get_csrf_token(flask_session)
+
+    response = client.post(
+        "/api/v1/bandi/commission-1/sessioni/sync?mode=segretario",
+        headers={"X-CSRF-Token": csrf_token},
+    )
+
+    assert response.status_code == 409
+    payload = response.get_json()["error"]
+    assert payload["code"] == "sessions_not_returned"
+    assert "flag di abilitazione" in payload["message"]
 
 
 def test_sessions_for_bando_sede_mode_requires_profile_access(monkeypatch):
@@ -814,6 +902,64 @@ def test_list_sessioni_expert_mode_filters_assigned_session(monkeypatch):
         "commission-1",
         "expert@cnr.it",
     )
+
+
+def test_get_sessione_includes_bando_title(monkeypatch):
+    from routes.api_v1 import sessioni
+
+    executed = []
+
+    class FakeCursor:
+        def execute(self, query, params):
+            executed.append((query, params))
+
+        def fetchone(self):
+            return {
+                "session_id": "session-1",
+                "commission_id": "commission-1",
+                "bando_title": "367.222 FA Test - Funzionario di Amministrazione",
+                "name": "Sessione prova",
+                "date": "2026-08-01",
+                "time": "09:00",
+                "location": "Aula 1",
+                "current_state": "iniziale",
+                "is_owner": True,
+                "is_sede_assigned": False,
+                "is_expert_assigned": False,
+                "candidate_count": 0,
+                "checked_in_count": 0,
+                "device_count": 0,
+            }
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+    class FakeConnection:
+        def cursor(self, *args, **kwargs):
+            return FakeCursor()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+    @contextmanager
+    def fake_connection():
+        yield FakeConnection()
+
+    monkeypatch.setattr(sessioni, "get_db_connection", fake_connection)
+
+    item = sessioni.get_sessione("session-1", user_email="owner@cnr.it", mode="segretario")
+
+    assert item["bando_title"] == "367.222 FA Test - Funzionario di Amministrazione"
+    query, params = executed[0]
+    assert "MAX(commission_title.titolo) AS bando_title" in query
+    assert "LEFT JOIN commissions AS commission_title" in query
+    assert params == ("owner@cnr.it", "owner@cnr.it", "owner@cnr.it", "session-1")
 
 
 def test_session_detail_sede_direct_link_requires_assigned_profile(monkeypatch):

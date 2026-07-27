@@ -24,7 +24,10 @@ import { BandiService } from './bandi.service';
           [disabled]="loading()"
           (click)="reload()"
         >
-          Aggiorna da Selezioni Online
+          @if (loading()) {
+            <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+          }
+          <span>Aggiorna da Selezioni Online</span>
         </button>
       </div>
 
@@ -94,7 +97,10 @@ import { BandiService } from './bandi.service';
       }
 
       @if (loading()) {
-        <p role="status">Caricamento bandi…</p>
+        <div class="d-flex align-items-center gap-2 py-3" role="status" aria-live="polite">
+          <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+          <span>Caricamento bandi…</span>
+        </div>
       } @else if (error()) {
         <div class="alert alert-danger" role="alert">{{ error() }}</div>
       } @else {

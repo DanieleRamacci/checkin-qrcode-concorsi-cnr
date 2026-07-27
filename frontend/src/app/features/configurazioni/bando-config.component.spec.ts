@@ -186,4 +186,75 @@ describe('BandoConfigComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Nessun segretario disponibile da Selezioni Online');
     expect(fixture.nativeElement.querySelector('input#email_segretario')).toBeNull();
   });
+
+  it('lets a referente sync sessions when local assignments are empty', async () => {
+    const postPaths: string[] = [];
+    let configLoads = 0;
+    await TestBed.configureTestingModule({
+      imports: [BandoConfigComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: {
+              paramMap: new Map([['commissionId', 'c1']]),
+              queryParamMap: new Map([['returnUrl', '/referenti/bandi']]),
+            },
+          },
+        },
+        {
+          provide: ApiClient,
+          useValue: {
+            get: (path: string) => {
+              if (path.endsWith('/config')) {
+                configLoads += 1;
+                return of({
+                  expert_options: ['expert@cnr.it'],
+                  rdp_options: [],
+                  secretary_options: [],
+                  session_assignments: configLoads >= 3
+                    ? [
+                        {
+                          session_id: 's1',
+                          nome: 'Prova mattina',
+                          giorno: '2026-08-01',
+                          ora: '09:00',
+                          luogo: 'Aula 1',
+                          email_esperto_remoto: '',
+                          nome_informatico_sede: '',
+                          email_informatico_sede: '',
+                          telefono_informatico_sede: '',
+                          informatici_sede: [],
+                        },
+                      ]
+                    : [],
+                });
+              }
+              return of({ title: 'Concorso prova' });
+            },
+            put: () => of({}),
+            post: (path: string) => {
+              postPaths.push(path);
+              return of({ success: true, inserted: 1 });
+            },
+          },
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(BandoConfigComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Nessuna sessione locale disponibile');
+    fixture.nativeElement.querySelector('button.btn-primary').click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(postPaths).toContain('/bandi/c1/sessioni/sync');
+    expect(fixture.nativeElement.textContent).toContain('Sessioni scaricate da Selezioni Online.');
+    expect(fixture.nativeElement.textContent).toContain('Prova mattina');
+  });
 });

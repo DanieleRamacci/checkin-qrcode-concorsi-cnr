@@ -140,6 +140,7 @@ def get_sessione(
                 """
                 SELECT s.session_id,
                        s.commission_id,
+                       MAX(commission_title.titolo) AS bando_title,
                        s.nome AS name,
                        s.giorno AS date,
                        s.ora AS time,
@@ -162,6 +163,8 @@ def get_sessione(
                    AND owner.user_email = %s
                    AND COALESCE(owner.access_active, TRUE)
                    AND UPPER(COALESCE(owner.source_role, 'SEGRETARIO')) = 'SEGRETARIO'
+             LEFT JOIN commissions AS commission_title
+                    ON commission_title.commission_id = s.commission_id
              LEFT JOIN sessione_config AS sc ON sc.session_id = s.session_id
              LEFT JOIN candidati AS c ON c.session_id = s.session_id
              LEFT JOIN dispositivi AS d ON d.session_id = s.session_id
@@ -215,7 +218,7 @@ def sessione_detail(session_id):
 
 @sessioni_api_bp.post("/bandi/<commission_id>/sessioni/sync")
 @api_auth_required
-@commission_access_required()
+@commission_access_required(allow_referente=True)
 def sessioni_sync(commission_id):
     token = ensure_fresh_access_token(skew_sec=60)
     if not token:
@@ -230,6 +233,7 @@ def sessioni_sync(commission_id):
         session["user_email"],
         timeout_s=_session_sync_timeout(),
         retries=0,
+        allow_referente=True,
     )
     if result == "UNAUTHORIZED":
         return error_response(
@@ -242,5 +246,20 @@ def sessioni_sync(commission_id):
             "external_service_unavailable",
             "Sincronizzazione sessioni fallita.",
             502,
+        )
+    if result == 0 and not list_sessioni(
+        commission_id,
+        user_email=session["user_email"],
+        mode=request.args.get("mode"),
+    ):
+        return error_response(
+            "sessions_not_returned",
+            (
+                "Selezioni Online ha risposto, ma non ha restituito sessioni "
+                "per questo bando. Verifica che il tuo utente sia abilitato "
+                "sul bando in Selezioni Online, incluso il flag di abilitazione "
+                "del componente, e che esistano sessioni disponibili."
+            ),
+            409,
         )
     return jsonify(success=True, inserted=result)

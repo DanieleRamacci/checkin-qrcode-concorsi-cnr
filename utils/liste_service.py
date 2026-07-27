@@ -7,7 +7,7 @@ from psycopg2.extras import RealDictCursor
 from db import get_db_connection
 from utils.liste import genera_liste_excel_csv, get_candidati_by_sessione_checkin
 from utils.send_mail import send_notification_email
-from utils.sessioni import get_bando_config, get_sessione_by_id
+from utils.sessioni import get_sessione_by_id, get_sessione_config
 from utils.stato import get_stato_corrente, set_stato_corrente
 
 
@@ -131,14 +131,16 @@ def send_latest_list(
     sessione = get_sessione_by_id(session_id)
     if not sessione:
         raise ListOperationError("Sessione non trovata.")
-    config = get_bando_config(sessione["commission_id"]) or {}
+    config = get_sessione_config(session_id) or {}
     to_emails = recipients or [
         email
         for email in [config.get("email_esperto_remoto")]
         if email
     ]
     if not to_emails:
-        raise ListOperationError("Destinatario non configurato.")
+        raise ListOperationError(
+            "Esperto informatico da remoto non configurato per questa sessione."
+        )
 
     attachments = [
         get_download_path(session_id, "xlsx")[0],

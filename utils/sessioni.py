@@ -9,7 +9,14 @@ from utils.bando_config_status import compute_bando_config_status
 
 BASE_URL = os.environ.get('BASE_URL', 'https://cool-jconon.test.si.cnr.it')
 
-def get_sessioni_internamente(commission_id, access_token, user_email, timeout_s=(3.05, 20), retries: int = 1):
+def get_sessioni_internamente(
+    commission_id,
+    access_token,
+    user_email,
+    timeout_s=(3.05, 20),
+    retries: int = 1,
+    allow_referente: bool = False,
+):
     """
     Sincronizza le sessioni di una commissione.
     Ritorna:
@@ -24,13 +31,32 @@ def get_sessioni_internamente(commission_id, access_token, user_email, timeout_s
         # 1) Autorizzazione utente sulla commissione
         with get_db_connection() as conn:
             with conn.cursor() as cursor:
-                cursor.execute("""
-                    SELECT 1 FROM commissions
-                    WHERE commission_id = %s
-                      AND user_email = %s
-                      AND COALESCE(access_active, TRUE)
-                      AND UPPER(COALESCE(source_role, 'SEGRETARIO')) = 'SEGRETARIO'
-                """, (commission_id, user_email))
+                if allow_referente:
+                    cursor.execute("""
+                        SELECT 1 FROM commissions
+                        WHERE commission_id = %s
+                          AND user_email = %s
+                          AND COALESCE(access_active, TRUE)
+                          AND UPPER(COALESCE(source_role, 'SEGRETARIO')) = 'SEGRETARIO'
+                        UNION ALL
+                        SELECT 1 FROM bando_referenti
+                        WHERE commission_id = %s
+                          AND user_email = %s
+                        LIMIT 1
+                    """, (
+                        commission_id,
+                        user_email,
+                        commission_id,
+                        (user_email or "").strip().lower(),
+                    ))
+                else:
+                    cursor.execute("""
+                        SELECT 1 FROM commissions
+                        WHERE commission_id = %s
+                          AND user_email = %s
+                          AND COALESCE(access_active, TRUE)
+                          AND UPPER(COALESCE(source_role, 'SEGRETARIO')) = 'SEGRETARIO'
+                    """, (commission_id, user_email))
                 if not cursor.fetchone():
                     current_app.logger.debug("[sessioni] no auth commission_id=%s user=%s", commission_id, user_email)
                     return -1  # NON successo: evita di "sporcare" data_sync

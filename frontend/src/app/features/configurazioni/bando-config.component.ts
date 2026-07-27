@@ -159,7 +159,25 @@ interface SessionAssignment {
                 </section>
               }
             } @else {
-              <p class="text-muted small mb-0">Nessuna sessione locale disponibile per questo bando.</p>
+              <div class="empty-session-assignments border rounded p-4 text-center">
+                <p class="text-muted mb-3">
+                  Nessuna sessione locale disponibile per questo bando.
+                </p>
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  [disabled]="busy() || syncingSessions()"
+                  (click)="syncSessions()"
+                >
+                  @if (syncingSessions()) {
+                    <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                  }
+                  <span>Scarica sessioni da Selezioni Online</span>
+                </button>
+                <p class="small text-muted mt-3 mb-0">
+                  Serve per assegnare l'esperto remoto e l'informatico in sede alle singole sessioni del bando.
+                </p>
+              </div>
             }
           </div>
         </div>
@@ -258,6 +276,7 @@ export class BandoConfigComponent {
   readonly messageIsError = signal(false);
   readonly busy = signal(false);
   readonly syncing = signal(false);
+  readonly syncingSessions = signal(false);
   readonly syncWarning = signal('');
   readonly title = signal('');
   readonly expertOptions = signal<string[]>([]);
@@ -297,6 +316,29 @@ export class BandoConfigComponent {
       error: () => {
         this.syncing.set(false);
         this.syncWarning.set('Aggiornamento remoto non disponibile: sono mostrati gli ultimi dati salvati.');
+      },
+    });
+  }
+
+  syncSessions(): void {
+    this.syncingSessions.set(true);
+    this.syncWarning.set('');
+    this.api.post<{ success: boolean; inserted: number }>(
+      `/bandi/${encodeURIComponent(this.id)}/sessioni/sync`,
+    ).subscribe({
+      next: () => {
+        this.syncingSessions.set(false);
+        this.messageIsError.set(false);
+        this.message.set('Sessioni scaricate da Selezioni Online.');
+        this.loadConfig();
+      },
+      error: (err) => {
+        this.syncingSessions.set(false);
+        this.messageIsError.set(true);
+        this.message.set(this.extractError(
+          err,
+          'Scarico sessioni da Selezioni Online non riuscito.',
+        ));
       },
     });
   }
@@ -396,11 +438,11 @@ export class BandoConfigComponent {
     return 'Torna alla pagina precedente';
   }
 
-  private extractError(err: unknown): string {
+  private extractError(err: unknown, fallback = 'Salvataggio non riuscito.'): string {
     const body = (err as { error?: { error?: { message?: string; details?: Record<string, string> } } })?.error?.error;
-    if (!body) return 'Salvataggio non riuscito.';
+    if (!body) return fallback;
     const details = body.details ? Object.entries(body.details).map(([field, msg]) => `${field}: ${msg}`).join('; ') : '';
-    return details ? `${body.message} (${details})` : body.message || 'Salvataggio non riuscito.';
+    return details ? `${body.message} (${details})` : body.message || fallback;
   }
 
   private sessionAssignmentsPayload(): SessionAssignment[] {

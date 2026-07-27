@@ -31,7 +31,12 @@ interface OperationalConfig {
         <aside class="col-md-2 p-0 sidebar-wrapper d-flex flex-column">
           @if (detail()) {
             <div class="p-3 border-bottom bg-light">
-              <h6 class="mb-1 text-uppercase text-primary fw-bold">{{ detail()!.name }}</h6>
+              <span class="text-muted d-block reference-label">BANDO DI CONCORSO</span>
+              <h6 class="mb-1 text-primary fw-bold session-bando-title">{{ detail()!.bando_title || detail()!.commission_id }}</h6>
+              <small class="d-block text-muted text-break">Codice bando: {{ detail()!.commission_id }}</small>
+              <hr class="my-2" />
+              <span class="text-muted d-block reference-label">SESSIONE</span>
+              <strong class="d-block session-name">{{ detail()!.name }}</strong>
               <small class="d-block">{{ detail()!.location }}</small>
               <small class="text-muted">{{ detail()!.date }} alle {{ detail()!.time }}</small>
             </div>
@@ -140,6 +145,8 @@ interface OperationalConfig {
     .operational-references { font-size: 0.78rem; }
     .reference-title, .reference-label { font-size: 0.7rem; }
     .reference-title { letter-spacing: 0.05em; }
+    .session-bando-title { font-size: 0.92rem; line-height: 1.25; }
+    .session-name { font-size: 0.86rem; line-height: 1.25; }
     @media (min-width: 1200px) {
       .content-area { padding: 1rem; }
       .session-card { padding: 1rem; }
