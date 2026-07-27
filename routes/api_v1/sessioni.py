@@ -10,7 +10,6 @@ from routes.api_v1.errors import error_response
 from utils import authorization
 from utils.authorization import commission_access_required, session_access_required
 from utils.oidc import ensure_fresh_access_token
-from utils.roles import ROLE_ADMIN, get_user_roles
 from utils.sessioni import get_sessioni_internamente
 
 
@@ -54,13 +53,6 @@ def _session_dto(row, mode: str | None = None) -> dict:
     return result
 
 
-def _admin_mode(user_email: str, mode: str | None) -> bool:
-    return (
-        authorization.normalize_operational_mode(mode) is not None
-        and ROLE_ADMIN in get_user_roles(user_email)
-    )
-
-
 def list_sessioni(
     commission_id: str,
     *,
@@ -73,10 +65,7 @@ def list_sessioni(
     sede_where = ""
     expert_join = ""
     expert_where = ""
-    if normalized_mode == authorization.TECHNICAL_MODE_SEDE and not _admin_mode(
-        user_email or "",
-        mode,
-    ):
+    if normalized_mode == authorization.TECHNICAL_MODE_SEDE:
         sede_join = """
              JOIN sessione_config AS assigned_sc
                ON assigned_sc.session_id = s.session_id
@@ -84,10 +73,7 @@ def list_sessioni(
         sede_where = (
             " AND LOWER(TRIM(COALESCE(assigned_sc.email_informatico_sede, ''))) = %s"
         )
-    if normalized_mode == authorization.TECHNICAL_MODE_EXPERT and not _admin_mode(
-        user_email or "",
-        mode,
-    ):
+    if normalized_mode == authorization.TECHNICAL_MODE_EXPERT:
         expert_join = """
              JOIN sessione_config AS assigned_expert_sc
                ON assigned_expert_sc.session_id = s.session_id

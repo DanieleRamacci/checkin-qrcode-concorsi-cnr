@@ -128,14 +128,12 @@ def can_access_commission(
     mode = normalize_operational_mode(profile_mode)
     if mode == TECHNICAL_MODE_EXPERT:
         roles = get_user_roles(user_email)
-        return ROLE_ADMIN in roles or (
-            ROLE_ESPERTO in roles and is_assigned_remote_expert(
-                user_email,
-                commission_id,
-            )
+        return ROLE_ESPERTO in roles and is_assigned_remote_expert(
+            user_email,
+            commission_id,
         )
     if mode == TECHNICAL_MODE_SEDE:
-        return _has_admin_role(user_email) or has_assigned_sede_session(
+        return has_assigned_sede_session(
             user_email,
             commission_id,
         )
@@ -198,14 +196,12 @@ def can_access_session(
     mode = normalize_operational_mode(profile_mode)
     if mode == TECHNICAL_MODE_EXPERT:
         roles = get_user_roles(user_email)
-        return ROLE_ADMIN in roles or (
-            ROLE_ESPERTO in roles and is_assigned_remote_expert_for_session(
-                user_email,
-                session_id,
-            )
+        return ROLE_ESPERTO in roles and is_assigned_remote_expert_for_session(
+            user_email,
+            session_id,
         )
     if mode == TECHNICAL_MODE_SEDE:
-        return _has_admin_role(user_email) or is_assigned_sede_session(
+        return is_assigned_sede_session(
             user_email,
             session_id,
         )

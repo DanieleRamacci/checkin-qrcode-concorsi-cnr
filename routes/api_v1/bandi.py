@@ -307,7 +307,7 @@ def _include_admin_view(user_email: str) -> bool:
 def _include_all_for_mode(user_email: str, mode: str | None) -> bool:
     if ROLE_ADMIN not in get_user_roles(user_email):
         return False
-    return mode in ("admin", "sede", "expert", "esperto")
+    return mode == "admin"
 
 
 @bandi_api_bp.get("/bandi")

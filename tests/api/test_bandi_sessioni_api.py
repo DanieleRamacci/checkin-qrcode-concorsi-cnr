@@ -138,7 +138,7 @@ def test_bandi_sede_mode_passes_mode_to_filtered_list(monkeypatch):
     assert captured["args"] == ("tech@cnr.it", False, "sede")
 
 
-def test_bandi_expert_mode_for_admin_is_support_view(monkeypatch):
+def test_bandi_expert_mode_for_admin_uses_operational_scope(monkeypatch):
     from routes.api_v1 import bandi
 
     captured = {}
@@ -157,7 +157,7 @@ def test_bandi_expert_mode_for_admin_is_support_view(monkeypatch):
     )
 
     assert response.status_code == 200
-    assert captured["args"] == ("admin@cnr.it", True, "expert")
+    assert captured["args"] == ("admin@cnr.it", False, "expert")
 
 
 def test_list_bandi_expert_mode_requires_global_role_and_assignment(monkeypatch):
@@ -746,6 +746,74 @@ def test_sessions_for_bando_sede_mode_requires_profile_access(monkeypatch):
 
     assert response.status_code == 403
     assert captured["profile_mode"] == "sede"
+
+
+def test_list_sessioni_expert_mode_filters_assigned_session(monkeypatch):
+    from routes.api_v1 import sessioni
+
+    executed = []
+
+    class FakeCursor:
+        def execute(self, query, params):
+            executed.append((query, params))
+
+        def fetchall(self):
+            return [
+                {
+                    "session_id": "session-assigned",
+                    "commission_id": "commission-1",
+                    "name": "Sessione assegnata",
+                    "date": "2026-08-01",
+                    "time": "09:00",
+                    "location": "Aula 1",
+                    "current_state": "iniziale",
+                    "is_sede_assigned": False,
+                    "is_expert_assigned": True,
+                    "candidate_count": 0,
+                    "checked_in_count": 0,
+                    "device_count": 0,
+                }
+            ]
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+    class FakeConnection:
+        def cursor(self, *args, **kwargs):
+            return FakeCursor()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+    @contextmanager
+    def fake_connection():
+        yield FakeConnection()
+
+    monkeypatch.setattr(sessioni, "get_db_connection", fake_connection)
+
+    items = sessioni.list_sessioni(
+        "commission-1",
+        user_email="Expert@CNR.it",
+        mode="expert",
+    )
+
+    assert [item["session_id"] for item in items] == ["session-assigned"]
+    assert items[0]["visibility_reason"] == "expert"
+    query, params = executed[0]
+    assert "JOIN sessione_config AS assigned_expert_sc" in query
+    assert "assigned_expert_sc.email_esperto_remoto" in query
+    assert params == (
+        "expert@cnr.it",
+        "expert@cnr.it",
+        "commission-1",
+        "expert@cnr.it",
+    )
 
 
 def test_session_detail_sede_direct_link_requires_assigned_profile(monkeypatch):

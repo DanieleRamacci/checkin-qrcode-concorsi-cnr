@@ -151,6 +151,29 @@ def test_sede_assignee_can_use_sede_profile(monkeypatch):
     )
 
 
+def test_admin_cannot_use_unassigned_sede_profile(monkeypatch):
+    from utils import authorization
+
+    executed = []
+    monkeypatch.setattr(
+        authorization,
+        "get_user_roles",
+        lambda email: {authorization.ROLE_ADMIN},
+    )
+    monkeypatch.setattr(
+        authorization,
+        "get_db_connection",
+        tracking_connection_factory(None, executed),
+    )
+
+    assert not authorization.can_access_session(
+        "admin@cnr.it",
+        "session-1",
+        profile_mode="sede",
+    )
+    assert "email_informatico_sede" in executed[0][0]
+
+
 def test_global_expert_cannot_use_unassigned_expert_profile(monkeypatch):
     from utils import authorization
 
@@ -172,6 +195,29 @@ def test_global_expert_cannot_use_unassigned_expert_profile(monkeypatch):
         profile_mode="expert",
     )
     assert "email_esperto_remoto" in executed[0][0]
+
+
+def test_admin_cannot_use_unassigned_expert_profile(monkeypatch):
+    from utils import authorization
+
+    executed = []
+    monkeypatch.setattr(
+        authorization,
+        "get_user_roles",
+        lambda email: {authorization.ROLE_ADMIN},
+    )
+    monkeypatch.setattr(
+        authorization,
+        "get_db_connection",
+        tracking_connection_factory(None, executed),
+    )
+
+    assert not authorization.can_access_session(
+        "admin@cnr.it",
+        "session-1",
+        profile_mode="expert",
+    )
+    assert executed == []
 
 
 def test_assigned_remote_expert_can_use_expert_profile(monkeypatch):
