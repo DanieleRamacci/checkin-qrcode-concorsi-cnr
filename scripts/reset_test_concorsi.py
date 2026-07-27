@@ -116,11 +116,19 @@ def env_summary() -> dict[str, str]:
 
 
 def looks_like_test_environment(values: dict[str, str]) -> bool:
-    joined = " ".join(str(value).lower() for value in values.values())
-    production_markers = ("produzione", "production", "checkin.concorsi.cnr.it")
+    normalized_values = [str(value).strip().lower() for value in values.values()]
+    joined = " ".join(normalized_values)
+    test_markers = ("test-checkin.concorsi.cnr.it", "test", "collaudo")
+    if any(marker in joined for marker in test_markers):
+        return True
+
+    production_hosts = {"checkin.concorsi.cnr.it", "https://checkin.concorsi.cnr.it"}
+    if any(value in production_hosts for value in normalized_values):
+        return False
+    production_markers = ("produzione", "production")
     if any(marker in joined for marker in production_markers):
         return False
-    return "test" in joined or "collaudo" in joined
+    return False
 
 
 def table_exists(cursor, table: str) -> bool:

@@ -84,7 +84,11 @@ import { BandiService } from './bandi.service';
           <h2 class="alert-heading h5 mb-2">Sincronizzazione commissioni non riuscita</h2>
           <div><strong>Motivo:</strong> {{ syncError() }}</div>
           @if (syncSource() === 'db_cache' || syncSource() === 'db_fallback') {
-            <div class="mt-1">Stai visualizzando i dati locali in cache (se presenti).</div>
+            @if (hasLocalItems()) {
+              <div class="mt-1">Stai visualizzando i dati locali in cache.</div>
+            } @else {
+              <div class="mt-1">Non ci sono ancora dati locali da mostrare. Riprova la sincronizzazione quando Selezioni Online risponde.</div>
+            }
           }
         </div>
       }
@@ -95,85 +99,96 @@ import { BandiService } from './bandi.service';
         <div class="alert alert-danger" role="alert">{{ error() }}</div>
       } @else {
         @if (items().length === 0) {
-          <div class="alert alert-info" role="status">{{ emptyMessage() }}</div>
-        }
+          <div class="empty-state border rounded p-4 p-md-5 text-center" role="status">
+            <h2 class="h4 mb-2">{{ emptyTitle() }}</h2>
+            <p class="text-muted mb-4">{{ emptyMessage() }}</p>
+            <button type="button" class="btn btn-primary" [disabled]="loading()" (click)="reload()">
+              {{ emptyActionLabel() }}
+            </button>
+            @if (isSecretaryMode() || isAdminMode()) {
+              <p class="small text-muted mt-3 mb-0">
+                La prima sincronizzazione puo richiedere fino al timeout configurato per Selezioni Online.
+              </p>
+            }
+          </div>
+        } @else {
+          <div class="mb-3">
+            <label for="filtro-concorso-dashboard" class="form-label">Cerca concorso</label>
+            <input
+              id="filtro-concorso-dashboard"
+              type="search"
+              class="form-control"
+              placeholder="Scrivi il nome del concorso..."
+              [ngModel]="query()"
+              (ngModelChange)="query.set($event)"
+            />
+          </div>
 
-        <div class="mb-3">
-          <label for="filtro-concorso-dashboard" class="form-label">Cerca concorso</label>
-          <input
-            id="filtro-concorso-dashboard"
-            type="search"
-            class="form-control"
-            placeholder="Scrivi il nome del concorso..."
-            [ngModel]="query()"
-            (ngModelChange)="query.set($event)"
-          />
-        </div>
-
-        <div class="table-responsive">
-          <table class="table table-striped table-hover">
-            <thead class="table-light">
-              <tr>
-                <th>#</th>
-                <th>Nome Concorso</th>
-                <th>Azioni</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (bando of filteredItems(); track bando.commission_id; let i = $index) {
+          <div class="table-responsive">
+            <table class="table table-striped table-hover">
+              <thead class="table-light">
                 <tr>
-                  <th scope="row">{{ i + 1 }}</th>
-                  <td>
-                    <div class="d-flex flex-column gap-1">
-                      <span>{{ bando.title }}</span>
-                      @if (accessBadgeLabel(bando)) {
-                        <span [class]="'badge align-self-start ' + accessBadgeClass(bando)">
-                          {{ accessBadgeLabel(bando) }}
-                        </span>
-                      }
-                      @if (bando.source_role && bando.source_role !== 'SEGRETARIO') {
-                        <span class="badge text-bg-secondary align-self-start">Ruolo Selezioni: {{ bando.source_role }}</span>
-                      }
-                      @if (bando.access_active === false) {
-                        <span class="badge text-bg-danger align-self-start">Accesso non confermato</span>
-                      }
-                    </div>
-                  </td>
-                  <td>
-                    <a
-                      class="btn btn-sm btn-primary"
-                      [routerLink]="['/bandi', bando.commission_id, 'sessioni']"
-                      [queryParams]="{ mode: mode }"
-                    >
-                      Visualizza Sessioni
-                    </a>
-                    @if (canConfigureBando()) {
-	                      <a
-	                        class="btn btn-sm btn-outline-primary ms-2"
-	                        [routerLink]="['/bandi', bando.commission_id, 'config']"
-	                        [queryParams]="{ returnUrl: currentUrl() }"
-	                      >
-                        Configura
-                      </a>
-                    } @else {
+                  <th>#</th>
+                  <th>Nome Concorso</th>
+                  <th>Azioni</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (bando of filteredItems(); track bando.commission_id; let i = $index) {
+                  <tr>
+                    <th scope="row">{{ i + 1 }}</th>
+                    <td>
+                      <div class="d-flex flex-column gap-1">
+                        <span>{{ bando.title }}</span>
+                        @if (accessBadgeLabel(bando)) {
+                          <span [class]="'badge align-self-start ' + accessBadgeClass(bando)">
+                            {{ accessBadgeLabel(bando) }}
+                          </span>
+                        }
+                        @if (bando.source_role && bando.source_role !== 'SEGRETARIO') {
+                          <span class="badge text-bg-secondary align-self-start">Ruolo Selezioni: {{ bando.source_role }}</span>
+                        }
+                        @if (bando.access_active === false) {
+                          <span class="badge text-bg-danger align-self-start">Accesso non confermato</span>
+                        }
+                      </div>
+                    </td>
+                    <td>
                       <a
-                        class="btn btn-sm btn-outline-secondary ms-2"
-                        [routerLink]="['/bandi', bando.commission_id, 'detail']"
+                        class="btn btn-sm btn-primary"
+                        [routerLink]="['/bandi', bando.commission_id, 'sessioni']"
                         [queryParams]="{ mode: mode }"
                       >
-                        Dettagli bando
+                        Visualizza Sessioni
                       </a>
-                    }
-                  </td>
-                </tr>
-              } @empty {
-                <tr>
-                  <td colspan="3">Nessuna commissione disponibile.</td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
+                      @if (canConfigureBando()) {
+                        <a
+                          class="btn btn-sm btn-outline-primary ms-2"
+                          [routerLink]="['/bandi', bando.commission_id, 'config']"
+                          [queryParams]="{ returnUrl: currentUrl() }"
+                        >
+                          Configura
+                        </a>
+                      } @else {
+                        <a
+                          class="btn btn-sm btn-outline-secondary ms-2"
+                          [routerLink]="['/bandi', bando.commission_id, 'detail']"
+                          [queryParams]="{ mode: mode }"
+                        >
+                          Dettagli bando
+                        </a>
+                      }
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="3">Nessuna commissione disponibile.</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
       }
     </div>
 
@@ -199,6 +214,11 @@ import { BandiService } from './bandi.service';
       display: block;
       background: rgba(0, 0, 0, 0.45);
     }
+    .empty-state {
+      max-width: 760px;
+      margin: 2rem auto;
+      background: #fff;
+    }
   `,
 })
 export class BandiComponent {
@@ -223,6 +243,7 @@ export class BandiComponent {
   readonly hasAdminSupportItems = computed(() =>
     this.items().some((bando) => bando.visibility_reason === 'admin'),
   );
+  readonly hasLocalItems = computed(() => this.items().length > 0);
 
   canConfigureBando(): boolean {
     return this.mode === 'referente' || this.auth.hasCapability('admin') || !!this.auth.user()?.dev_mode;
@@ -293,9 +314,32 @@ export class BandiComponent {
 
   emptyMessage(): string {
     if (this.mode === 'segretario') {
-      return 'Non risultano bandi collegati al tuo utente su Selezioni Online.';
+      return 'Non ci sono ancora bandi locali per il tuo utente. Per iniziare, sincronizza i bandi da Selezioni Online.';
+    }
+    if (this.mode === 'admin') {
+      return 'Non ci sono bandi nel database locale. Sincronizza da Selezioni Online o verifica che un utente operativo abbia gia importato i propri bandi.';
+    }
+    if (this.isExpertMode()) {
+      return 'Non risultano bandi assegnati al tuo profilo esperto remoto.';
+    }
+    if (this.isSedeMode()) {
+      return 'Non risultano bandi con sessioni assegnate al tuo profilo informatico in sede.';
     }
     return 'Nessuna commissione disponibile.';
+  }
+
+  emptyTitle(): string {
+    if (this.mode === 'segretario') return 'Nessun bando sincronizzato';
+    if (this.mode === 'admin') return 'Nessun bando locale';
+    if (this.isExpertMode()) return 'Nessun bando assegnato';
+    if (this.isSedeMode()) return 'Nessuna sessione assegnata';
+    return 'Nessuna commissione disponibile';
+  }
+
+  emptyActionLabel(): string {
+    if (this.mode === 'segretario') return 'Sincronizza bandi da Selezioni Online';
+    if (this.mode === 'admin') return 'Aggiorna bandi da Selezioni Online';
+    return 'Ricarica elenco';
   }
 
   currentUrl(): string {

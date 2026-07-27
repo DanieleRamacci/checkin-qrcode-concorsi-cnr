@@ -234,6 +234,15 @@ describe('BandiComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Bando sincronizzato');
   });
 
+  it('shows a guided sync action when no local secretary bandi exist', async () => {
+    const fixture = await createComponent('segretario', false, []);
+
+    expect(fixture.nativeElement.textContent).toContain('Nessun bando sincronizzato');
+    expect(fixture.nativeElement.textContent).toContain('Sincronizza bandi da Selezioni Online');
+    expect(fixture.nativeElement.textContent).toContain('prima sincronizzazione');
+    expect(fixture.nativeElement.textContent).not.toContain('Nessuna commissione disponibile.');
+  });
+
   it('shows API diagnostic details when expert bandi cannot be loaded', async () => {
     await TestBed.configureTestingModule({
       imports: [BandiComponent],

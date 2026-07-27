@@ -32,7 +32,7 @@ import { SessioniService } from './sessioni.service';
         @if (loading()) {
           <div class="d-flex align-items-center">
             <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
-            <span class="small">Caricamento…</span>
+            <span class="small">{{ syncing() ? 'Sincronizzazione da Selezioni Online…' : 'Caricamento…' }}</span>
           </div>
         }
       </div>
@@ -70,10 +70,33 @@ import { SessioniService } from './sessioni.service';
         </div>
       }
 
+      @if (syncError()) {
+        <div class="alert alert-warning" role="alert">
+          <h2 class="alert-heading h5 mb-2">Sincronizzazione sessioni non riuscita</h2>
+          <div>{{ syncError() }}</div>
+          @if (items().length > 0) {
+            <div class="mt-1">Stai visualizzando le sessioni gia presenti in archivio locale.</div>
+          } @else {
+            <div class="mt-1">Non ci sono ancora sessioni locali da mostrare per questo bando.</div>
+          }
+        </div>
+      }
+
       @if (error()) {
         <div class="alert alert-danger" role="alert">{{ error() }}</div>
       } @else if (!loading() && items().length === 0) {
-        <div class="alert alert-warning mb-2">Nessuna sessione in archivio locale.</div>
+        <div class="empty-state border rounded p-4 p-md-5 text-center" role="status">
+          <h2 class="h4 mb-2">Nessuna sessione sincronizzata</h2>
+          <p class="text-muted mb-4">
+            Per iniziare scarica le sessioni di questo bando da Selezioni Online.
+          </p>
+          <button type="button" class="btn btn-primary" [disabled]="loading()" (click)="reload(true)">
+            Scarica sessioni da Selezioni Online
+          </button>
+          <p class="small text-muted mt-3 mb-0">
+            La prima sincronizzazione puo richiedere fino al timeout configurato per Selezioni Online.
+          </p>
+        </div>
       } @else if (!loading()) {
         <div class="table-responsive">
           <table class="table table-striped table-hover">
@@ -109,6 +132,13 @@ import { SessioniService } from './sessioni.service';
       }
     </div>
   `,
+  styles: `
+    .empty-state {
+      max-width: 760px;
+      margin: 2rem auto;
+      background: #fff;
+    }
+  `,
 })
 export class SessioniComponent {
   private readonly route = inject(ActivatedRoute);
@@ -121,7 +151,9 @@ export class SessioniComponent {
   readonly items = signal<SessionSummary[]>([]);
   readonly bando = signal<BandoDetail | null>(null);
   readonly loading = signal(true);
+  readonly syncing = signal(false);
   readonly error = signal<string | null>(null);
+  readonly syncError = signal<string | null>(null);
 
   canConfigureBando(): boolean {
     return this.mode === 'referente' || this.auth.hasCapability('admin') || !!this.auth.user()?.dev_mode;
@@ -141,12 +173,14 @@ export class SessioniComponent {
 
   reload(sync = false): void {
     this.loading.set(true);
+    this.syncing.set(sync);
     this.error.set(null);
+    this.syncError.set(null);
     if (sync) {
       this.service.sync(this.commissionId, this.mode).subscribe({
         next: () => this.loadItems(),
         error: () => {
-          this.error.set('Sincronizzazione sessioni non riuscita; sono mostrati i dati locali.');
+          this.syncError.set('Non e stato possibile scaricare le sessioni da Selezioni Online.');
           this.loadItems(true);
         },
       });
@@ -160,12 +194,14 @@ export class SessioniComponent {
       next: ({ items }) => {
         this.items.set(items);
         this.loading.set(false);
+        this.syncing.set(false);
       },
       error: (error) => {
         if (!preserveError) {
           this.error.set(apiErrorText(error, 'Impossibile caricare le sessioni.'));
         }
         this.loading.set(false);
+        this.syncing.set(false);
       },
     });
   }
