@@ -706,6 +706,7 @@ def configura_bando(commission_id):
             commissione_members=commissione_members,
             configured_by=user_email,
             data_accesso_piattaforma=data_accesso_piattaforma,
+            informatici_sede=bando_cfg.get("informatici_sede") if bando_cfg else None,
         )
         if email_referente or email_esperto_remoto:
             _avanza_sessioni_bando(commission_id, user_email)
@@ -778,6 +779,7 @@ def richiedi_configurazione_bando(commission_id):
             email_esperto_remoto=cfg.get("email_esperto_remoto") if cfg else None,
             email_segretario=cfg.get("email_segretario") if cfg else None,
             configured_by=user_email,
+            informatici_sede=cfg.get("informatici_sede") if cfg else None,
         )
 
     messaggio = "Email inviata al referente." if ok else f"Errore invio email: {err}"

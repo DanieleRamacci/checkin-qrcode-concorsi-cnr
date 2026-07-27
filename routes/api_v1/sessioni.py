@@ -71,6 +71,8 @@ def list_sessioni(
     email = (user_email or "").strip().lower()
     sede_join = ""
     sede_where = ""
+    expert_join = ""
+    expert_where = ""
     if normalized_mode == authorization.TECHNICAL_MODE_SEDE and not _admin_mode(
         user_email or "",
         mode,
@@ -81,6 +83,17 @@ def list_sessioni(
         """
         sede_where = (
             " AND LOWER(TRIM(COALESCE(assigned_sc.email_informatico_sede, ''))) = %s"
+        )
+    if normalized_mode == authorization.TECHNICAL_MODE_EXPERT and not _admin_mode(
+        user_email or "",
+        mode,
+    ):
+        expert_join = """
+             JOIN sessione_config AS assigned_expert_sc
+               ON assigned_expert_sc.session_id = s.session_id
+        """
+        expert_where = (
+            " AND LOWER(TRIM(COALESCE(assigned_expert_sc.email_esperto_remoto, ''))) = %s"
         )
 
     with get_db_connection() as conn:
@@ -98,7 +111,7 @@ def list_sessioni(
                            LOWER(TRIM(COALESCE(sc.email_informatico_sede, ''))) = %s
                        ) AS is_sede_assigned,
                        BOOL_OR(
-                           LOWER(TRIM(COALESCE(b.email_esperto_remoto, ''))) = %s
+                           LOWER(TRIM(COALESCE(sc.email_esperto_remoto, ''))) = %s
                        ) AS is_expert_assigned,
                        COUNT(DISTINCT c.uid) AS candidate_count,
                        COUNT(DISTINCT c.uid)
@@ -106,14 +119,14 @@ def list_sessioni(
                        COUNT(DISTINCT d.id) AS device_count
                   FROM sessioni AS s
              {sede_join}
+             {expert_join}
              LEFT JOIN sessione_config AS sc
                     ON sc.session_id = s.session_id
-             LEFT JOIN bando_config AS b
-                    ON b.commission_id = s.commission_id
              LEFT JOIN candidati AS c ON c.session_id = s.session_id
              LEFT JOIN dispositivi AS d ON d.session_id = s.session_id
                  WHERE s.commission_id = %s
                  {sede_where}
+                 {expert_where}
               GROUP BY s.session_id, s.commission_id, s.nome, s.giorno,
                        s.ora, s.luogo, s.stato_corrente, s.data_esame
               ORDER BY s.data_esame NULLS LAST, s.ora, s.nome
@@ -123,6 +136,7 @@ def list_sessioni(
                     email,
                     commission_id,
                     *((email,) if sede_where else ()),
+                    *((email,) if expert_where else ()),
                 ),
             )
             return [_session_dto(row, mode) for row in cursor.fetchall()]
@@ -150,7 +164,7 @@ def get_sessione(
                            LOWER(TRIM(COALESCE(sc.email_informatico_sede, ''))) = %s
                        ) AS is_sede_assigned,
                        BOOL_OR(
-                           LOWER(TRIM(COALESCE(b.email_esperto_remoto, ''))) = %s
+                           LOWER(TRIM(COALESCE(sc.email_esperto_remoto, ''))) = %s
                        ) AS is_expert_assigned,
                        COUNT(DISTINCT c.uid) AS candidate_count,
                        COUNT(DISTINCT c.uid)
@@ -163,7 +177,6 @@ def get_sessione(
                    AND COALESCE(owner.access_active, TRUE)
                    AND UPPER(COALESCE(owner.source_role, 'SEGRETARIO')) = 'SEGRETARIO'
              LEFT JOIN sessione_config AS sc ON sc.session_id = s.session_id
-             LEFT JOIN bando_config AS b ON b.commission_id = s.commission_id
              LEFT JOIN candidati AS c ON c.session_id = s.session_id
              LEFT JOIN dispositivi AS d ON d.session_id = s.session_id
                  WHERE s.session_id = %s

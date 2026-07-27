@@ -4,6 +4,26 @@ import { FormsModule } from '@angular/forms';
 import { ApiClient } from '../../core/api-client';
 import { BandiService } from '../bandi/bandi.service';
 
+interface SedeTechnician {
+  nome: string;
+  email: string;
+  telefono: string;
+  principale: boolean;
+}
+
+interface SessionAssignment {
+  session_id: string;
+  nome: string;
+  giorno: string;
+  ora: string;
+  luogo: string;
+  email_esperto_remoto: string;
+  nome_informatico_sede: string;
+  email_informatico_sede: string;
+  telefono_informatico_sede: string;
+  informatici_sede: SedeTechnician[];
+}
+
 @Component({
   selector: 'app-bando-config',
   imports: [FormsModule, RouterLink],
@@ -76,6 +96,123 @@ import { BandiService } from '../bandi/bandi.service';
                 <option [value]="email">{{ email }}</option>
               }
             </select>
+          </div>
+        </div>
+
+        <div class="card mb-3">
+          <div class="card-header bg-light py-2">
+            <span class="fw-bold text-uppercase small text-primary">Assegnazioni tecniche per sessione</span>
+          </div>
+          <div class="card-body">
+            @if (sessionAssignments.length) {
+              <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th>Sessione</th>
+                      <th>Esperto remoto</th>
+                      <th>Informatico in sede principale</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (assignment of sessionAssignments; track assignment.session_id; let i = $index) {
+                      <tr>
+                        <td>
+                          <div class="fw-semibold">{{ assignment.nome }}</div>
+                          <div class="small text-muted">{{ assignment.giorno }} {{ assignment.ora }} {{ assignment.luogo }}</div>
+                        </td>
+                        <td style="min-width: 220px;">
+                          <select class="form-select form-select-sm"
+                                  [name]="'session-expert-' + i"
+                                  [(ngModel)]="assignment.email_esperto_remoto">
+                            <option value="">Seleziona esperto</option>
+                            @for (email of expertOptions(); track email) {
+                              <option [value]="email">{{ email }}</option>
+                            }
+                          </select>
+                        </td>
+                        <td style="min-width: 320px;">
+                          @if (sedeTechnicians.length) {
+                            <select class="form-select form-select-sm mb-2"
+                                    [name]="'session-sede-pick-' + i"
+                                    [ngModel]="assignment.email_informatico_sede"
+                                    (ngModelChange)="setSessionSedeTechnician(i, $event)">
+                              <option value="">Seleziona dalla lista</option>
+                              @for (technician of sedeTechnicians; track technician.email) {
+                                <option [value]="technician.email">{{ technician.nome || technician.email }} — {{ technician.email }}</option>
+                              }
+                            </select>
+                          }
+                          <div class="row g-2">
+                            <div class="col-md-4">
+                              <input class="form-control form-control-sm" [name]="'session-sede-name-' + i"
+                                     [(ngModel)]="assignment.nome_informatico_sede" placeholder="Nome" />
+                            </div>
+                            <div class="col-md-4">
+                              <input class="form-control form-control-sm" [name]="'session-sede-email-' + i" type="email"
+                                     [(ngModel)]="assignment.email_informatico_sede" placeholder="Email" />
+                            </div>
+                            <div class="col-md-4">
+                              <input class="form-control form-control-sm" [name]="'session-sede-phone-' + i"
+                                     [(ngModel)]="assignment.telefono_informatico_sede" placeholder="Telefono" />
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            } @else {
+              <p class="text-muted small mb-0">Nessuna sessione locale disponibile per questo bando.</p>
+            }
+          </div>
+        </div>
+
+        <div class="card mb-3">
+          <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-2">
+              <span class="fw-bold text-uppercase small text-primary">Informatici in sede</span>
+              <span class="badge bg-warning text-dark small">Principale richiesto</span>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-primary" (click)="addSedeTechnician()">Aggiungi</button>
+          </div>
+          <div class="card-body">
+            <div class="form-text mb-3">
+              Puoi indicare piu informatici in sede; solo quello marcato come principale viene precompilato nel flusso operativo della sessione.
+            </div>
+            @for (technician of sedeTechnicians; track $index; let i = $index) {
+              <div class="row g-2 align-items-end mb-2">
+                <div class="col-md-3">
+                  <label class="form-label small" [for]="'sede-name-' + i">Nome</label>
+                  <input class="form-control" [id]="'sede-name-' + i" [name]="'sede-name-' + i"
+                         [(ngModel)]="technician.nome" placeholder="Nome e cognome" />
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label small" [for]="'sede-email-' + i">Email</label>
+                  <input class="form-control" [id]="'sede-email-' + i" [name]="'sede-email-' + i" type="email"
+                         [(ngModel)]="technician.email" placeholder="nome.cognome@cnr.it" />
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label small" [for]="'sede-phone-' + i">Telefono</label>
+                  <input class="form-control" [id]="'sede-phone-' + i" [name]="'sede-phone-' + i"
+                         [(ngModel)]="technician.telefono" placeholder="+39 ..." />
+                </div>
+                <div class="col-md-2">
+                  <div class="form-check mb-2">
+                    <input class="form-check-input" type="radio" name="sede-principale"
+                           [id]="'sede-primary-' + i" [checked]="technician.principale"
+                           (change)="setPrimarySedeTechnician(i)" />
+                    <label class="form-check-label small" [for]="'sede-primary-' + i">Principale</label>
+                  </div>
+                </div>
+                <div class="col-md-2">
+                  <button type="button" class="btn btn-outline-danger w-100" (click)="removeSedeTechnician(i)">Rimuovi</button>
+                </div>
+              </div>
+            } @empty {
+              <p class="text-muted small mb-0">Nessun informatico in sede inserito.</p>
+            }
           </div>
         </div>
 
@@ -180,6 +317,8 @@ export class BandoConfigComponent {
   readonly secretaryOptions = signal<Array<{ nome: string; email: string }>>([]);
   model: Record<string, any> = {};
   commissionMembers: Array<{ nome: string; email: string }> = [];
+  sedeTechnicians: SedeTechnician[] = [];
+  sessionAssignments: SessionAssignment[] = [];
 
   constructor() {
     this.loadConfig();
@@ -194,6 +333,8 @@ export class BandoConfigComponent {
       this.rdpOptions.set(data['rdp_options'] ?? []);
       this.secretaryOptions.set(data['secretary_options'] ?? []);
       this.commissionMembers = [...(data['commissione_members'] ?? [])];
+      this.sedeTechnicians = normalizeSedeTechnicians(data['informatici_sede'] ?? []);
+      this.sessionAssignments = normalizeSessionAssignments(data['session_assignments'] ?? []);
     });
   }
 
@@ -223,6 +364,8 @@ export class BandoConfigComponent {
       durata_prova_minuti: this.model['durata_prova_minuti'] ?? '',
       data_accesso_piattaforma: this.model['data_accesso_piattaforma'] ?? '',
       commissione_members: this.commissionMembers,
+      informatici_sede: this.sedeTechniciansPayload(),
+      session_assignments: this.sessionAssignmentsPayload(),
     };
     if (this.rdpOptions().length) {
       payload['email_referente'] = this.model['email_referente'] ?? '';
@@ -268,6 +411,42 @@ export class BandoConfigComponent {
     this.commissionMembers.splice(index, 1);
   }
 
+  addSedeTechnician(): void {
+    this.sedeTechnicians.push({
+      nome: '',
+      email: '',
+      telefono: '',
+      principale: this.sedeTechnicians.length === 0,
+    });
+  }
+
+  removeSedeTechnician(index: number): void {
+    const removedPrimary = this.sedeTechnicians[index]?.principale;
+    this.sedeTechnicians.splice(index, 1);
+    if (removedPrimary && this.sedeTechnicians.length) {
+      this.sedeTechnicians[0].principale = true;
+    }
+  }
+
+  setPrimarySedeTechnician(index: number): void {
+    this.sedeTechnicians = this.sedeTechnicians.map((technician, i) => ({
+      ...technician,
+      principale: i === index,
+    }));
+  }
+
+  setSessionSedeTechnician(index: number, email: string): void {
+    const technician = this.sedeTechnicians.find((item) => item.email === email);
+    if (!technician || !this.sessionAssignments[index]) return;
+    this.sessionAssignments[index] = {
+      ...this.sessionAssignments[index],
+      nome_informatico_sede: technician.nome,
+      email_informatico_sede: technician.email,
+      telefono_informatico_sede: technician.telefono,
+      informatici_sede: [{ ...technician, principale: true }],
+    };
+  }
+
   canSendRequest(): boolean {
     return this.rdpOptions().length > 0 && !!this.model['email_referente'];
   }
@@ -285,6 +464,29 @@ export class BandoConfigComponent {
     const details = body.details ? Object.entries(body.details).map(([field, msg]) => `${field}: ${msg}`).join('; ') : '';
     return details ? `${body.message} (${details})` : body.message || 'Salvataggio non riuscito.';
   }
+
+  private sedeTechniciansPayload(): SedeTechnician[] {
+    const items = normalizeSedeTechnicians(this.sedeTechnicians);
+    if (items.length && !items.some((item) => item.principale)) {
+      items[0].principale = true;
+    }
+    return items;
+  }
+
+  private sessionAssignmentsPayload(): SessionAssignment[] {
+    return this.sessionAssignments.map((assignment) => ({
+      ...assignment,
+      informatici_sede: normalizeSedeTechnicians([
+        {
+          nome: assignment.nome_informatico_sede,
+          email: assignment.email_informatico_sede,
+          telefono: assignment.telefono_informatico_sede,
+          principale: true,
+        },
+        ...assignment.informatici_sede,
+      ]),
+    }));
+  }
 }
 
 function safeReturnUrl(value: string | null): string | null {
@@ -292,4 +494,38 @@ function safeReturnUrl(value: string | null): string | null {
   if (!url || !url.startsWith('/') || url.startsWith('//')) return null;
   if (url.includes('\n') || url.includes('\r')) return null;
   return url;
+}
+
+function normalizeSedeTechnicians(value: unknown): SedeTechnician[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      const row = item as Partial<SedeTechnician>;
+      return {
+        nome: (row.nome ?? '').trim(),
+        email: (row.email ?? '').trim(),
+        telefono: (row.telefono ?? '').trim(),
+        principale: !!row.principale,
+      };
+    })
+    .filter((item) => item.nome || item.email || item.telefono);
+}
+
+function normalizeSessionAssignments(value: unknown): SessionAssignment[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => {
+    const row = item as Partial<SessionAssignment>;
+    return {
+      session_id: row.session_id ?? '',
+      nome: row.nome ?? '',
+      giorno: row.giorno ?? '',
+      ora: row.ora ?? '',
+      luogo: row.luogo ?? '',
+      email_esperto_remoto: row.email_esperto_remoto ?? '',
+      nome_informatico_sede: row.nome_informatico_sede ?? '',
+      email_informatico_sede: row.email_informatico_sede ?? '',
+      telefono_informatico_sede: row.telefono_informatico_sede ?? '',
+      informatici_sede: normalizeSedeTechnicians(row.informatici_sede ?? []),
+    };
+  }).filter((item) => item.session_id);
 }

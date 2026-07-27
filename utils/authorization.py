@@ -44,9 +44,11 @@ def is_assigned_remote_expert(user_email: str | None, commission_id: str) -> boo
             cursor.execute(
                 """
                 SELECT 1
-                  FROM bando_config
-                 WHERE commission_id = %s
-                   AND LOWER(TRIM(COALESCE(email_esperto_remoto, ''))) = %s
+                  FROM sessioni AS s
+                  JOIN sessione_config AS sc
+                    ON sc.session_id = s.session_id
+                 WHERE s.commission_id = %s
+                   AND LOWER(TRIM(COALESCE(sc.email_esperto_remoto, ''))) = %s
                  LIMIT 1
                 """,
                 (commission_id, _normalized_email(user_email)),
@@ -103,11 +105,9 @@ def is_assigned_remote_expert_for_session(
             cursor.execute(
                 """
                 SELECT 1
-                  FROM sessioni AS s
-                  JOIN bando_config AS b
-                    ON b.commission_id = s.commission_id
-                 WHERE s.session_id = %s
-                   AND LOWER(TRIM(COALESCE(b.email_esperto_remoto, ''))) = %s
+                  FROM sessione_config AS sc
+                 WHERE sc.session_id = %s
+                   AND LOWER(TRIM(COALESCE(sc.email_esperto_remoto, ''))) = %s
                  LIMIT 1
                 """,
                 (session_id, _normalized_email(user_email)),

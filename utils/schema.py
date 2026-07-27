@@ -12,6 +12,7 @@ BANDO_CONFIG_COLUMNS = (
     ("rdp_members", "TEXT"),
     ("rdp_nomi", "TEXT"),
     ("commissione_nomi", "TEXT"),
+    ("informatici_sede", "TEXT"),
     ("config_status", "TEXT"),
     ("expert_assigned", "BOOLEAN NOT NULL DEFAULT FALSE"),
     ("required_data_complete", "BOOLEAN NOT NULL DEFAULT FALSE"),
@@ -24,6 +25,8 @@ SESSIONE_CONFIG_COLUMNS = (
     ("nome_informatico_sede", "TEXT"),
     ("email_informatico_sede", "TEXT"),
     ("telefono_informatico_sede", "TEXT"),
+    ("email_esperto_remoto", "TEXT"),
+    ("informatici_sede", "TEXT"),
     ("data_accesso_piattaforma", "TEXT"),
 )
 
@@ -64,6 +67,9 @@ def ensure_runtime_schema() -> None:
                 "UPDATE bando_config SET commissione_nomi = '[]' WHERE commissione_nomi IS NULL;"
             )
             cursor.execute(
+                "UPDATE bando_config SET informatici_sede = '[]' WHERE informatici_sede IS NULL;"
+            )
+            cursor.execute(
                 "UPDATE bando_config SET config_status = 'da_configurare' WHERE config_status IS NULL;"
             )
             cursor.execute(
@@ -77,6 +83,9 @@ def ensure_runtime_schema() -> None:
                 cursor.execute(
                     f"ALTER TABLE sessione_config ADD COLUMN IF NOT EXISTS {column} {data_type};"
                 )
+            cursor.execute(
+                "UPDATE sessione_config SET informatici_sede = '[]' WHERE informatici_sede IS NULL;"
+            )
             for column, data_type in SESSIONI_COLUMNS:
                 cursor.execute(
                     f"ALTER TABLE sessioni ADD COLUMN IF NOT EXISTS {column} {data_type};"

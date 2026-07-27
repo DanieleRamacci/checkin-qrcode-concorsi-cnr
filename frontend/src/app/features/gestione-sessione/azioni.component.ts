@@ -12,6 +12,14 @@ interface MergedConfig {
   nome_informatico_sede?: string;
   email_informatico_sede?: string;
   telefono_informatico_sede?: string;
+  informatici_sede?: SedeTechnician[];
+}
+
+interface SedeTechnician {
+  nome?: string;
+  email?: string;
+  telefono?: string;
+  principale?: boolean;
 }
 
 /**
@@ -114,7 +122,7 @@ interface MergedConfig {
                   <label class="form-label" for="email_esperto_remoto">Esperto informatico da remoto</label>
                   @if (expertOptions().length) {
                     <select class="form-select" id="email_esperto_remoto" name="email_esperto_remoto"
-                            [(ngModel)]="bandoConfigModel.email_esperto_remoto" required>
+                            [(ngModel)]="sessionConfigModel.email_esperto_remoto" required>
                       <option value="">Seleziona esperto remoto</option>
                       @for (email of expertOptions(); track email) {
                         <option [value]="email">{{ email }}</option>
@@ -122,9 +130,9 @@ interface MergedConfig {
                     </select>
                   } @else {
                     <input type="email" class="form-control" id="email_esperto_remoto" placeholder="es. nome.cognome@cnr.it"
-                           [(ngModel)]="bandoConfigModel.email_esperto_remoto" name="email_esperto_remoto" required />
+                           [(ngModel)]="sessionConfigModel.email_esperto_remoto" name="email_esperto_remoto" required />
                   }
-                  <div class="form-text">Obbligatorio per proseguire con la configurazione della sessione.</div>
+                  <div class="form-text">Assegnato a questa sessione. Può essere diverso da altre sessioni dello stesso bando.</div>
                 </div>
               </div>
               <div class="row g-2 mb-3">
@@ -336,13 +344,13 @@ export class AzioniComponent {
   readonly expertOptions = signal<string[]>([]);
 
   sessionConfigModel = {
+    email_esperto_remoto: '',
     nome_informatico_sede: '',
     email_informatico_sede: '',
     telefono_informatico_sede: '',
+    informatici_sede: [] as SedeTechnician[],
   };
-  bandoConfigModel = {
-    email_esperto_remoto: '',
-  };
+  private primarySedeTechnician: SedeTechnician | null = null;
 
   ngOnInit(): void {
     this.loadContextData();
@@ -355,18 +363,23 @@ export class AzioniComponent {
   private loadContextData(): void {
     const modeParam = encodeURIComponent(this.viewMode());
     if (this.currentState() === 'iniziale') {
-      this.api.get<Record<string, string>>(`/sessioni/${this.sessionId()}/config?mode=${modeParam}`).subscribe((data) => {
+      this.api.get<Record<string, any>>(`/sessioni/${this.sessionId()}/config?mode=${modeParam}`).subscribe((data) => {
         this.sessionConfigModel = {
+          email_esperto_remoto: data['email_esperto_remoto'] ?? '',
           nome_informatico_sede: data['nome_informatico_sede'] ?? '',
           email_informatico_sede: data['email_informatico_sede'] ?? '',
           telefono_informatico_sede: data['telefono_informatico_sede'] ?? '',
+          informatici_sede: (data['informatici_sede'] as unknown as SedeTechnician[]) ?? [],
         };
+        this.applyPrimarySedeTechnician();
       });
       this.api.get<Record<string, any>>(`/bandi/${this.commissionId()}/config?mode=${modeParam}`).subscribe((data) => {
-        this.bandoConfigModel = {
-          email_esperto_remoto: data['email_esperto_remoto'] ?? '',
-        };
+        if (!this.trimmed(this.sessionConfigModel.email_esperto_remoto)) {
+          this.sessionConfigModel.email_esperto_remoto = data['email_esperto_remoto'] ?? '';
+        }
         this.expertOptions.set(data['expert_options'] ?? []);
+        this.primarySedeTechnician = primarySedeTechnician(data['informatici_sede'] ?? []);
+        this.applyPrimarySedeTechnician();
       });
     }
     if (this.currentState() === 'configurata') {
@@ -400,19 +413,14 @@ export class AzioniComponent {
     }
     this.busy.set(true);
     const modeParam = encodeURIComponent(this.viewMode());
-    this.api.put(`/bandi/${this.commissionId()}/config?mode=${modeParam}`, this.bandoConfigModel).subscribe({
-      next: () => {
-        this.api.put(`/sessioni/${this.sessionId()}/config?mode=${modeParam}`, this.sessionConfigModel).subscribe({
-          next: () => { this.busy.set(false); this.changed.emit(); },
-          error: (err) => { this.busy.set(false); this.error.set(this.extractError(err)); },
-        });
-      },
+    this.api.put(`/sessioni/${this.sessionId()}/config?mode=${modeParam}`, this.sessionConfigPayload()).subscribe({
+      next: () => { this.busy.set(false); this.changed.emit(); },
       error: (err) => { this.busy.set(false); this.error.set(this.extractError(err)); },
     });
   }
 
   canSaveSessionConfig(): boolean {
-    return !!this.trimmed(this.bandoConfigModel.email_esperto_remoto)
+    return !!this.trimmed(this.sessionConfigModel.email_esperto_remoto)
       && !!this.trimmed(this.sessionConfigModel.email_informatico_sede);
   }
 
@@ -464,9 +472,23 @@ export class AzioniComponent {
     return details ? `${body.message} (${details})` : body.message || 'Operazione non riuscita.';
   }
 
+  private applyPrimarySedeTechnician(): void {
+    const primary = this.primarySedeTechnician;
+    if (!primary || this.trimmed(this.sessionConfigModel.email_informatico_sede)) return;
+    this.sessionConfigModel = {
+      ...this.sessionConfigModel,
+      nome_informatico_sede: this.sessionConfigModel.nome_informatico_sede || primary.nome || '',
+      email_informatico_sede: primary.email || '',
+      telefono_informatico_sede: this.sessionConfigModel.telefono_informatico_sede || primary.telefono || '',
+      informatici_sede: this.sessionConfigModel.informatici_sede.length
+        ? this.sessionConfigModel.informatici_sede
+        : [{ ...primary, principale: true }],
+    };
+  }
+
   private sessionConfigValidationError(): string {
     const missing = [];
-    if (!this.trimmed(this.bandoConfigModel.email_esperto_remoto)) {
+    if (!this.trimmed(this.sessionConfigModel.email_esperto_remoto)) {
       missing.push("l'esperto informatico da remoto");
     }
     if (!this.trimmed(this.sessionConfigModel.email_informatico_sede)) {
@@ -480,4 +502,31 @@ export class AzioniComponent {
   private trimmed(value: string | null | undefined): string {
     return (value ?? '').trim();
   }
+
+  private sessionConfigPayload(): Record<string, unknown> {
+    const primarySede = {
+      nome: this.sessionConfigModel.nome_informatico_sede,
+      email: this.sessionConfigModel.email_informatico_sede,
+      telefono: this.sessionConfigModel.telefono_informatico_sede,
+      principale: true,
+    };
+    const informaticiSede = [
+      primarySede,
+      ...this.sessionConfigModel.informatici_sede.filter((item) =>
+        this.trimmed(item.email) !== this.trimmed(primarySede.email)
+      ),
+    ].filter((item) => this.trimmed(item.nome) || this.trimmed(item.email) || this.trimmed(item.telefono));
+    return {
+      ...this.sessionConfigModel,
+      informatici_sede: informaticiSede,
+    };
+  }
+}
+
+function primarySedeTechnician(value: unknown): SedeTechnician | null {
+  if (!Array.isArray(value)) return null;
+  const items = value
+    .filter((item): item is SedeTechnician => !!item && typeof item === 'object')
+    .filter((item) => !!(item.email ?? '').trim());
+  return items.find((item) => item.principale) ?? items[0] ?? null;
 }

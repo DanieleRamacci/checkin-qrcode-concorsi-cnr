@@ -26,6 +26,7 @@ def authenticated_client(app, email="owner@cnr.it"):
 
 def allow_resource_access(monkeypatch):
     from utils import authorization
+    from routes.api_v1 import configurazioni
 
     monkeypatch.setattr(
         authorization,
@@ -36,6 +37,16 @@ def allow_resource_access(monkeypatch):
         authorization,
         "can_access_session",
         lambda email, resource_id, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        configurazioni,
+        "_list_session_assignments",
+        lambda commission_id: [],
+    )
+    monkeypatch.setattr(
+        configurazioni,
+        "_append_bando_sede_technicians",
+        lambda commission_id, technicians: None,
     )
 
 
@@ -335,6 +346,14 @@ def test_put_bando_config_ignores_readonly_response_fields(monkeypatch):
             "email_segretario": "segretario@cnr.it",
             "data_accesso_piattaforma": "2026-07-20",
             "commissione_members": [],
+            "informatici_sede": [
+                {
+                    "nome": "Tecnico Sede",
+                    "email": "sede@cnr.it",
+                    "telefono": "061234",
+                    "principale": True,
+                }
+            ],
             "rdp_options": [{"nome": "Referente CNR", "email": "referente@cnr.it"}],
             "secretary_options": [{"nome": "Segretaria Uno", "email": "segretaria1@cnr.it"}],
             "rdp_members": [{"nome": "Referente CNR", "email": "referente@cnr.it"}],
@@ -348,6 +367,43 @@ def test_put_bando_config_ignores_readonly_response_fields(monkeypatch):
     assert response.status_code == 200
     assert saved["commission_id"] == "commission-1"
     assert saved["kwargs"]["data_accesso_piattaforma"] == "2026-07-20"
+    assert saved["kwargs"]["informatici_sede"] == [
+        {
+            "nome": "Tecnico Sede",
+            "email": "sede@cnr.it",
+            "telefono": "061234",
+            "principale": True,
+        }
+    ]
+
+
+def test_put_bando_config_rejects_multiple_primary_sede_technicians(monkeypatch):
+    from routes.api_v1 import configurazioni
+
+    allow_resource_access(monkeypatch)
+    monkeypatch.setattr(
+        configurazioni,
+        "get_bando_config",
+        lambda commission_id: {
+            "rdp_members": [],
+            "commissione_members": [],
+        },
+    )
+
+    client, csrf_token = authenticated_client(create_test_app())
+    response = client.put(
+        "/api/v1/bandi/commission-1/config",
+        json={
+            "informatici_sede": [
+                {"email": "sede1@cnr.it", "principale": True},
+                {"email": "sede2@cnr.it", "principale": True},
+            ],
+        },
+        headers={"X-CSRF-Token": csrf_token},
+    )
+
+    assert response.status_code == 422
+    assert "informatici_sede" in response.get_json()["error"]["details"]
 
 
 def test_put_session_config_rejects_invalid_email(monkeypatch):
@@ -426,9 +482,10 @@ def test_put_session_config_advances_initial_session_with_required_technicians(m
         lambda commission_id: {"email_esperto_remoto": "esperto@cnr.it"},
     )
 
-    def fake_save_sessione_config(session_id, *args):
+    def fake_save_sessione_config(session_id, *args, **kwargs):
         saved["session_id"] = session_id
         saved["args"] = args
+        saved["kwargs"] = kwargs
 
     def fake_set_stato_corrente(session_id, state, utente=None):
         advanced["session_id"] = session_id
@@ -456,6 +513,51 @@ def test_put_session_config_advances_initial_session_with_required_technicians(m
         "state": "configurata",
         "utente": "owner@cnr.it",
     }
+
+
+def test_put_session_config_uses_primary_sede_technician_from_bando(monkeypatch):
+    from routes.api_v1 import configurazioni
+
+    allow_resource_access(monkeypatch)
+    saved = {}
+    monkeypatch.setattr(configurazioni, "get_stato_corrente", lambda session_id: "iniziale")
+    monkeypatch.setattr(configurazioni, "get_sessione_config", lambda session_id: {})
+    monkeypatch.setattr(
+        configurazioni,
+        "get_sessione_by_id",
+        lambda session_id: {"session_id": session_id, "commission_id": "commission-1"},
+    )
+    monkeypatch.setattr(
+        configurazioni,
+        "get_bando_config",
+        lambda commission_id: {
+            "email_esperto_remoto": "esperto@cnr.it",
+            "informatici_sede": [
+                {"nome": "Supporto Sede", "email": "supporto@cnr.it", "principale": False},
+                {"nome": "Tecnico Principale", "email": "principale@cnr.it", "telefono": "061234", "principale": True},
+            ],
+        },
+    )
+
+    def fake_save_sessione_config(session_id, *args, **kwargs):
+        saved["session_id"] = session_id
+        saved["args"] = args
+        saved["kwargs"] = kwargs
+
+    monkeypatch.setattr(configurazioni, "save_sessione_config", fake_save_sessione_config)
+    monkeypatch.setattr(configurazioni, "set_stato_corrente", lambda *args, **kwargs: None)
+
+    client, csrf_token = authenticated_client(create_test_app())
+    response = client.put(
+        "/api/v1/sessioni/session-1/config",
+        json={},
+        headers={"X-CSRF-Token": csrf_token},
+    )
+
+    assert response.status_code == 200
+    assert saved["args"][0] == "Tecnico Principale"
+    assert saved["args"][1] == "principale@cnr.it"
+    assert saved["args"][2] == "061234"
 
 
 def test_get_workflow_state(monkeypatch):

@@ -56,24 +56,26 @@ def _list_remote_expert_bandi(user_email: str) -> list[dict]:
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
             cursor.execute(
                 """
-                SELECT b.commission_id,
+                SELECT s.commission_id,
                        MAX(c.titolo) AS title,
                        TRUE AS configured,
                        MAX(b.email_referente) AS referente_email,
-                       MAX(b.email_esperto_remoto) AS esperto_remoto_email,
+                       MAX(sc.email_esperto_remoto) AS esperto_remoto_email,
                        COALESCE(MAX(b.config_status), 'da_configurare') AS config_status,
-                       BOOL_OR(COALESCE(b.expert_assigned, FALSE)) AS expert_assigned,
+                       TRUE AS expert_assigned,
                        BOOL_OR(COALESCE(b.required_data_complete, FALSE)) AS required_data_complete,
                        COUNT(DISTINCT s.session_id) AS session_count,
                        MAX(COALESCE(s.data_sync, b.configured_at::text)) AS last_sync
-                  FROM bando_config AS b
+                  FROM sessioni AS s
+                  JOIN sessione_config AS sc
+                    ON sc.session_id = s.session_id
              LEFT JOIN commissions AS c
-                    ON c.commission_id = b.commission_id
-             LEFT JOIN sessioni AS s
-                    ON s.commission_id = b.commission_id
-                 WHERE LOWER(TRIM(COALESCE(b.email_esperto_remoto, ''))) = %s
-              GROUP BY b.commission_id
-              ORDER BY MAX(c.titolo), b.commission_id
+                    ON c.commission_id = s.commission_id
+             LEFT JOIN bando_config AS b
+                    ON b.commission_id = s.commission_id
+                 WHERE LOWER(TRIM(COALESCE(sc.email_esperto_remoto, ''))) = %s
+              GROUP BY s.commission_id
+              ORDER BY MAX(c.titolo), s.commission_id
                 """,
                 (user_email.strip().lower(),),
             )
@@ -92,9 +94,12 @@ def _list_sede_bandi(user_email: str) -> list[dict]:
                        MAX(c.titolo) AS title,
                        BOOL_OR(b.commission_id IS NOT NULL) AS configured,
                        MAX(b.email_referente) AS referente_email,
-                       MAX(b.email_esperto_remoto) AS esperto_remoto_email,
+                       MAX(sc.email_esperto_remoto) AS esperto_remoto_email,
                        COALESCE(MAX(b.config_status), 'da_configurare') AS config_status,
-                       BOOL_OR(COALESCE(b.expert_assigned, FALSE)) AS expert_assigned,
+                       (
+                           BOOL_OR(COALESCE(b.expert_assigned, FALSE))
+                           OR BOOL_OR(TRIM(COALESCE(sc.email_esperto_remoto, '')) <> '')
+                       ) AS expert_assigned,
                        BOOL_OR(COALESCE(b.required_data_complete, FALSE)) AS required_data_complete,
                        COUNT(DISTINCT s.session_id) AS session_count,
                        MAX(COALESCE(s.data_sync, b.configured_at::text)) AS last_sync
@@ -151,9 +156,15 @@ def list_bandi(
                        BOOL_OR(COALESCE(c.access_active, TRUE)) FILTER (WHERE c.user_email = %s) AS user_access_active,
                        BOOL_OR(b.commission_id IS NOT NULL) AS configured,
                        MAX(b.email_referente) AS referente_email,
-                       MAX(b.email_esperto_remoto) AS esperto_remoto_email,
+                       MAX(COALESCE(sc.email_esperto_remoto, b.email_esperto_remoto)) AS esperto_remoto_email,
                        COALESCE(MAX(b.config_status), 'da_configurare') AS config_status,
-                       BOOL_OR(COALESCE(b.expert_assigned, FALSE)) AS expert_assigned,
+                       BOOL_OR(
+                           LOWER(TRIM(COALESCE(sc.email_esperto_remoto, ''))) = %s
+                       ) AS is_expert_assigned,
+                       (
+                           BOOL_OR(COALESCE(b.expert_assigned, FALSE))
+                           OR BOOL_OR(TRIM(COALESCE(sc.email_esperto_remoto, '')) <> '')
+                       ) AS expert_assigned,
                        BOOL_OR(COALESCE(b.required_data_complete, FALSE)) AS required_data_complete,
                        COUNT(DISTINCT s.session_id) AS session_count,
                        MAX(COALESCE(s.data_sync, c.data_sync)) AS last_sync
@@ -162,11 +173,13 @@ def list_bandi(
                     ON b.commission_id = c.commission_id
              LEFT JOIN sessioni AS s
                     ON s.commission_id = c.commission_id
+             LEFT JOIN sessione_config AS sc
+                    ON sc.session_id = s.session_id
                        {ownership_filter}
               GROUP BY c.commission_id
               ORDER BY MAX(c.titolo), c.commission_id
                 """,
-                (user_email, user_email, user_email, *(() if include_all else (user_email,))),
+                (user_email, user_email, user_email, user_email.strip().lower(), *(() if include_all else (user_email,))),
             )
             rows = cursor.fetchall()
 
@@ -174,6 +187,7 @@ def list_bandi(
     for row in rows:
         serialized = _serialize(row)
         is_owner = bool(serialized.pop("is_owner", False))
+        is_expert_assigned = bool(serialized.pop("is_expert_assigned", False))
         user_source_role = serialized.pop("user_source_role", None)
         user_access_active = serialized.pop("user_access_active", None)
         visibility_reason = "owner" if is_owner else "admin"
@@ -181,12 +195,9 @@ def list_bandi(
             normalized_mode == authorization.TECHNICAL_MODE_EXPERT
             and include_all
         ):
-            assigned_expert_email = (
-                serialized.get("esperto_remoto_email") or ""
-            ).strip().lower()
             visibility_reason = (
                 "expert"
-                if assigned_expert_email == (user_email or "").strip().lower()
+                if is_expert_assigned
                 else "admin"
             )
         items.append(

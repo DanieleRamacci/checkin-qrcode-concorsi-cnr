@@ -33,10 +33,13 @@ def test_runtime_schema_adds_remote_expert_status_columns(monkeypatch):
 
     statements = "\n".join(executed)
     assert "ALTER TABLE bando_config ADD COLUMN IF NOT EXISTS email_esperto_remoto TEXT" in statements
+    assert "ALTER TABLE bando_config ADD COLUMN IF NOT EXISTS informatici_sede TEXT" in statements
     assert "ALTER TABLE bando_config ADD COLUMN IF NOT EXISTS config_status TEXT" in statements
     assert "ALTER TABLE bando_config ADD COLUMN IF NOT EXISTS expert_assigned BOOLEAN NOT NULL DEFAULT FALSE" in statements
     assert "ALTER TABLE bando_config ADD COLUMN IF NOT EXISTS required_data_complete BOOLEAN NOT NULL DEFAULT FALSE" in statements
     assert "ALTER TABLE sessioni ADD COLUMN IF NOT EXISTS stato_corrente TEXT DEFAULT 'iniziale'" in statements
+    assert "ALTER TABLE sessione_config ADD COLUMN IF NOT EXISTS email_esperto_remoto TEXT" in statements
+    assert "ALTER TABLE sessione_config ADD COLUMN IF NOT EXISTS informatici_sede TEXT" in statements
     assert "ALTER TABLE sessioni ADD COLUMN IF NOT EXISTS data_esame TEXT" in statements
     assert "ALTER TABLE candidati ADD COLUMN IF NOT EXISTS reset_password_richiesto BOOLEAN DEFAULT FALSE" in statements
     assert "ALTER TABLE candidati ADD COLUMN IF NOT EXISTS reset_password_effettuato BOOLEAN DEFAULT FALSE" in statements

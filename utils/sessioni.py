@@ -220,7 +220,8 @@ def get_bando_config(commission_id):
                 SELECT email_referente, email_esperto_remoto, email_segretario,
                        telefono_segretario, durata_prova_minuti,
                        data_accesso_piattaforma, commissione_members,
-                       rdp_members, rdp_nomi, commissione_nomi, config_status,
+                       rdp_members, rdp_nomi, commissione_nomi, informatici_sede,
+                       config_status,
                        expert_assigned, required_data_complete, fetched_at,
                        configured_at, configured_by
                 FROM bando_config
@@ -240,23 +241,24 @@ def get_bando_config(commission_id):
         "rdp_members":           _json.loads(row[7] or "[]"),
         "rdp_nomi":              _json.loads(row[8] or "[]"),
         "commissione_nomi":      _json.loads(row[9] or "[]"),
-        "config_status":         row[10],
-        "expert_assigned":       bool(row[11]),
-        "required_data_complete": bool(row[12]),
-        "fetched_at":            row[13],
-        "configured_at":         row[14],
-        "configured_by":         row[15],
+        "informatici_sede":      _json.loads(row[10] or "[]"),
+        "config_status":         row[11],
+        "expert_assigned":       bool(row[12]),
+        "required_data_complete": bool(row[13]),
+        "fetched_at":            row[14],
+        "configured_at":         row[15],
+        "configured_by":         row[16],
     }
     computed = compute_bando_config_status(config)
-    if not config["config_status"]:
-        config.update(computed)
+    config.update(computed)
     return config
 
 
 def save_bando_config(commission_id, email_referente, email_esperto_remoto,
                       email_segretario, telefono_segretario=None,
                       durata_prova_minuti=None, commissione_members=None,
-                      configured_by=None, data_accesso_piattaforma=None):
+                      configured_by=None, data_accesso_piattaforma=None,
+                      informatici_sede=None):
     """Inserisce o aggiorna la configurazione del bando."""
     import json as _json
     from datetime import datetime as _dt
@@ -267,6 +269,7 @@ def save_bando_config(commission_id, email_referente, email_esperto_remoto,
             "email_segretario": email_segretario,
             "durata_prova_minuti": durata_prova_minuti,
             "commissione_members": commissione_members,
+            "informatici_sede": informatici_sede,
         }
     )
     with get_db_connection() as conn:
@@ -275,9 +278,10 @@ def save_bando_config(commission_id, email_referente, email_esperto_remoto,
                 INSERT INTO bando_config (
                     commission_id, email_referente, email_esperto_remoto,
                     email_segretario, telefono_segretario, durata_prova_minuti,
-                    data_accesso_piattaforma, commissione_members, config_status, expert_assigned,
+                    data_accesso_piattaforma, commissione_members, informatici_sede,
+                    config_status, expert_assigned,
                     required_data_complete, configured_at, configured_by
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (commission_id) DO UPDATE SET
                     email_referente      = EXCLUDED.email_referente,
                     email_esperto_remoto = EXCLUDED.email_esperto_remoto,
@@ -286,6 +290,7 @@ def save_bando_config(commission_id, email_referente, email_esperto_remoto,
                     durata_prova_minuti  = EXCLUDED.durata_prova_minuti,
                     data_accesso_piattaforma = EXCLUDED.data_accesso_piattaforma,
                     commissione_members  = EXCLUDED.commissione_members,
+                    informatici_sede     = EXCLUDED.informatici_sede,
                     config_status        = EXCLUDED.config_status,
                     expert_assigned      = EXCLUDED.expert_assigned,
                     required_data_complete = EXCLUDED.required_data_complete,
@@ -300,6 +305,7 @@ def save_bando_config(commission_id, email_referente, email_esperto_remoto,
                 int(durata_prova_minuti) if durata_prova_minuti else None,
                 data_accesso_piattaforma or None,
                 _json.dumps(commissione_members or [], ensure_ascii=False),
+                _json.dumps(informatici_sede or [], ensure_ascii=False),
                 status["config_status"],
                 status["expert_assigned"],
                 status["required_data_complete"],
@@ -451,11 +457,13 @@ def update_bando_da_openapi(commission_id: str, rdps: list, commissioners: list)
 
 def get_sessione_config(session_id):
     """Restituisce la configurazione per-sessione (informatico in sede + data accesso piattaforma)."""
+    import json as _json
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
             cursor.execute("""
                 SELECT nome_informatico_sede, email_informatico_sede,
-                       telefono_informatico_sede, data_accesso_piattaforma
+                       telefono_informatico_sede, email_esperto_remoto,
+                       informatici_sede, data_accesso_piattaforma
                 FROM sessione_config
                 WHERE session_id = %s
             """, (session_id,))
@@ -466,30 +474,39 @@ def get_sessione_config(session_id):
         "nome_informatico_sede":     row[0],
         "email_informatico_sede":    row[1],
         "telefono_informatico_sede": row[2],
-        "data_accesso_piattaforma":  row[3],
+        "email_esperto_remoto":      row[3],
+        "informatici_sede":          _json.loads(row[4] or "[]"),
+        "data_accesso_piattaforma":  row[5],
     }
 
 
 def save_sessione_config(session_id, nome_informatico_sede, email_informatico_sede,
-                         telefono_informatico_sede, data_accesso_piattaforma=None):
+                         telefono_informatico_sede, data_accesso_piattaforma=None,
+                         email_esperto_remoto=None, informatici_sede=None):
     """Inserisce o aggiorna la configurazione per-sessione."""
+    import json as _json
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
             cursor.execute("""
                 INSERT INTO sessione_config (
                     session_id, nome_informatico_sede, email_informatico_sede,
-                    telefono_informatico_sede, data_accesso_piattaforma
-                ) VALUES (%s, %s, %s, %s, %s)
+                    telefono_informatico_sede, email_esperto_remoto,
+                    informatici_sede, data_accesso_piattaforma
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (session_id) DO UPDATE SET
                     nome_informatico_sede     = EXCLUDED.nome_informatico_sede,
                     email_informatico_sede    = EXCLUDED.email_informatico_sede,
                     telefono_informatico_sede = EXCLUDED.telefono_informatico_sede,
+                    email_esperto_remoto      = EXCLUDED.email_esperto_remoto,
+                    informatici_sede          = EXCLUDED.informatici_sede,
                     data_accesso_piattaforma  = EXCLUDED.data_accesso_piattaforma
             """, (
                 session_id,
                 nome_informatico_sede or None,
                 email_informatico_sede or None,
                 telefono_informatico_sede or None,
+                email_esperto_remoto or None,
+                _json.dumps(informatici_sede or [], ensure_ascii=False),
                 data_accesso_piattaforma or None,
             ))
         conn.commit()

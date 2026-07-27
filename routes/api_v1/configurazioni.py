@@ -3,6 +3,7 @@ from datetime import date, datetime
 
 from flask import Blueprint, jsonify, request, session
 
+from db import get_db_connection
 from routes.api_v1.auth import api_auth_required
 from routes.api_v1.errors import error_response
 from utils.bando_service import list_expert_emails, request_bando_configuration
@@ -29,6 +30,8 @@ BANDO_FIELDS = {
     "durata_prova_minuti",
     "data_accesso_piattaforma",
     "commissione_members",
+    "informatici_sede",
+    "session_assignments",
 }
 BANDO_READONLY_FIELDS = {
     "commission_id",
@@ -49,6 +52,8 @@ SESSION_FIELDS = {
     "nome_informatico_sede",
     "email_informatico_sede",
     "telefono_informatico_sede",
+    "email_esperto_remoto",
+    "informatici_sede",
     "data_accesso_piattaforma",
 }
 
@@ -167,6 +172,227 @@ def _secretary_selection_error(config: dict, email: str) -> str | None:
     return None
 
 
+def _normalize_sede_technicians(value) -> tuple[list[dict], dict[str, str]]:
+    if value in (None, ""):
+        return [], {}
+    if not isinstance(value, list):
+        return [], {"informatici_sede": "È richiesto un elenco di informatici in sede."}
+
+    errors = {}
+    technicians = []
+    primary_count = 0
+    for index, item in enumerate(value):
+        field = f"informatici_sede[{index}]"
+        if not isinstance(item, dict):
+            errors[field] = "Riga non valida."
+            continue
+        nome = str(item.get("nome") or "").strip()
+        email = str(item.get("email") or "").strip()
+        telefono = str(item.get("telefono") or "").strip()
+        principale = bool(item.get("principale"))
+        if not (nome or email or telefono):
+            continue
+        if not email:
+            errors[f"{field}.email"] = "Indicare l'email dell'informatico in sede."
+        elif len(email) > 254 or not EMAIL_PATTERN.fullmatch(email):
+            errors[f"{field}.email"] = "Indirizzo email non valido."
+        if principale:
+            primary_count += 1
+        technicians.append(
+            {
+                "nome": nome,
+                "email": email,
+                "telefono": telefono,
+                "principale": principale,
+            }
+        )
+
+    if primary_count > 1:
+        errors["informatici_sede"] = "Selezionare un solo informatico in sede principale."
+    elif technicians and primary_count == 0:
+        technicians[0]["principale"] = True
+    return technicians, errors
+
+
+def _primary_sede_technician(config: dict) -> dict:
+    technicians = [
+        item for item in (config.get("informatici_sede") or [])
+        if isinstance(item, dict) and _normalize_email(item.get("email"))
+    ]
+    if not technicians:
+        return {}
+    return next((item for item in technicians if item.get("principale")), technicians[0])
+
+
+def _list_session_assignments(commission_id: str) -> list[dict]:
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT s.session_id, s.nome, s.giorno, s.ora, s.luogo,
+                       sc.nome_informatico_sede,
+                       sc.email_informatico_sede,
+                       sc.telefono_informatico_sede,
+                       sc.email_esperto_remoto,
+                       sc.informatici_sede
+                  FROM sessioni AS s
+             LEFT JOIN sessione_config AS sc
+                    ON sc.session_id = s.session_id
+                 WHERE s.commission_id = %s
+              ORDER BY s.data_esame NULLS LAST, s.ora, s.nome
+                """,
+                (commission_id,),
+            )
+            rows = cursor.fetchall()
+    import json as _json
+
+    result = []
+    for row in rows:
+        try:
+            informatici_sede = _json.loads(row[9] or "[]")
+        except (TypeError, ValueError):
+            informatici_sede = []
+        result.append(
+            {
+                "session_id": row[0],
+                "nome": row[1],
+                "giorno": row[2],
+                "ora": row[3],
+                "luogo": row[4],
+                "nome_informatico_sede": row[5] or "",
+                "email_informatico_sede": row[6] or "",
+                "telefono_informatico_sede": row[7] or "",
+                "email_esperto_remoto": row[8] or "",
+                "informatici_sede": informatici_sede,
+            }
+        )
+    return result
+
+
+def _session_ids_for_commission(commission_id: str) -> set[str]:
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                "SELECT session_id FROM sessioni WHERE commission_id = %s",
+                (commission_id,),
+            )
+            return {row[0] for row in cursor.fetchall()}
+
+
+def _append_bando_sede_technicians(commission_id: str, technicians: list[dict]) -> None:
+    valid_new_items = [
+        item for item in technicians
+        if isinstance(item, dict) and _normalize_email(item.get("email"))
+    ]
+    if not valid_new_items:
+        return
+    config = get_bando_config(commission_id) or {}
+    merged_by_email = {
+        _normalize_email(item.get("email")): {
+            "nome": item.get("nome") or "",
+            "email": item.get("email") or "",
+            "telefono": item.get("telefono") or "",
+            "principale": bool(item.get("principale")),
+        }
+        for item in config.get("informatici_sede") or []
+        if isinstance(item, dict) and _normalize_email(item.get("email"))
+    }
+    for item in valid_new_items:
+        email = _normalize_email(item.get("email"))
+        existing = merged_by_email.get(email, {})
+        merged_by_email[email] = {
+            "nome": item.get("nome") or existing.get("nome") or "",
+            "email": item.get("email") or existing.get("email") or "",
+            "telefono": item.get("telefono") or existing.get("telefono") or "",
+            "principale": bool(existing.get("principale")),
+        }
+    save_bando_config(
+        commission_id,
+        config.get("email_referente"),
+        config.get("email_esperto_remoto"),
+        config.get("email_segretario"),
+        config.get("telefono_segretario"),
+        config.get("durata_prova_minuti"),
+        config.get("commissione_members"),
+        configured_by=session["user_email"],
+        data_accesso_piattaforma=config.get("data_accesso_piattaforma"),
+        informatici_sede=list(merged_by_email.values()),
+    )
+
+
+def _normalize_session_assignments(value, commission_id: str) -> tuple[list[dict], dict[str, str]]:
+    if value in (None, ""):
+        return [], {}
+    if not isinstance(value, list):
+        return [], {"session_assignments": "È richiesto un elenco di assegnazioni sessione."}
+
+    allowed_session_ids = _session_ids_for_commission(commission_id)
+    assignments = []
+    errors = {}
+    for index, item in enumerate(value):
+        field = f"session_assignments[{index}]"
+        if not isinstance(item, dict):
+            errors[field] = "Riga non valida."
+            continue
+        session_id = str(item.get("session_id") or "").strip()
+        if session_id not in allowed_session_ids:
+            errors[f"{field}.session_id"] = "Sessione non valida per questo bando."
+            continue
+
+        email_esperto = str(item.get("email_esperto_remoto") or "").strip()
+        if email_esperto and (
+            len(email_esperto) > 254 or not EMAIL_PATTERN.fullmatch(email_esperto)
+        ):
+            errors[f"{field}.email_esperto_remoto"] = "Indirizzo email non valido."
+
+        informatici_sede, sede_errors = _normalize_sede_technicians(
+            item.get("informatici_sede")
+        )
+        errors.update({f"{field}.{key}": message for key, message in sede_errors.items()})
+        primary = _primary_sede_technician({"informatici_sede": informatici_sede})
+        assignments.append(
+            {
+                "session_id": session_id,
+                "email_esperto_remoto": email_esperto,
+                "nome_informatico_sede": str(
+                    item.get("nome_informatico_sede") or primary.get("nome") or ""
+                ).strip(),
+                "email_informatico_sede": str(
+                    item.get("email_informatico_sede") or primary.get("email") or ""
+                ).strip(),
+                "telefono_informatico_sede": str(
+                    item.get("telefono_informatico_sede") or primary.get("telefono") or ""
+                ).strip(),
+                "informatici_sede": informatici_sede,
+            }
+        )
+    return assignments, errors
+
+
+def _apply_bando_defaults(session_id: str, merged_session_config: dict) -> dict:
+    sessione = get_sessione_by_id(session_id)
+    if not sessione:
+        return merged_session_config
+    bando_config = get_bando_config(sessione["commission_id"]) or {}
+    result = {**merged_session_config}
+    if not _normalize_email(result.get("email_esperto_remoto")):
+        result["email_esperto_remoto"] = bando_config.get("email_esperto_remoto")
+    if _normalize_email(result.get("email_informatico_sede")):
+        return result
+    primary = _primary_sede_technician(bando_config)
+    if not primary:
+        return result
+    return {
+        **result,
+        "nome_informatico_sede": result.get("nome_informatico_sede") or primary.get("nome"),
+        "email_informatico_sede": primary.get("email"),
+        "telefono_informatico_sede": (
+            result.get("telefono_informatico_sede") or primary.get("telefono")
+        ),
+        "informatici_sede": result.get("informatici_sede") or [primary],
+    }
+
+
 def _session_completion_errors(session_id: str, merged_session_config: dict) -> dict[str, str]:
     """Validazioni minime per avanzare una sessione da iniziale a configurata."""
     errors = {}
@@ -180,8 +406,7 @@ def _session_completion_errors(session_id: str, merged_session_config: dict) -> 
         errors["session_id"] = "Sessione non trovata."
         return errors
 
-    bando_config = get_bando_config(sessione["commission_id"]) or {}
-    if not _normalize_email(bando_config.get("email_esperto_remoto")):
+    if not _normalize_email(merged_session_config.get("email_esperto_remoto")):
         errors["email_esperto_remoto"] = (
             "Selezionare l'esperto informatico da remoto prima di proseguire."
         )
@@ -204,6 +429,7 @@ def bando_config_get(commission_id):
         expert_options=list_expert_emails(),
         rdp_options=_rdp_options(config),
         secretary_options=_secretary_options(config),
+        session_assignments=_list_session_assignments(commission_id),
         **_serialize(config),
     )
 
@@ -213,6 +439,18 @@ def bando_config_get(commission_id):
 @commission_access_required(allow_referente=True)
 def bando_config_put(commission_id):
     data, errors = _payload(BANDO_FIELDS, BANDO_READONLY_FIELDS)
+    if data is not None and "informatici_sede" in data:
+        data["informatici_sede"], sede_errors = _normalize_sede_technicians(
+            data.get("informatici_sede")
+        )
+        errors.update(sede_errors)
+    session_assignments = []
+    if data is not None and "session_assignments" in data:
+        session_assignments, assignment_errors = _normalize_session_assignments(
+            data.pop("session_assignments"),
+            commission_id,
+        )
+        errors.update(assignment_errors)
     if errors:
         return error_response(
             "validation_error",
@@ -250,9 +488,27 @@ def bando_config_put(commission_id):
         merged.get("commissione_members"),
         configured_by=session["user_email"],
         data_accesso_piattaforma=merged.get("data_accesso_piattaforma"),
+        informatici_sede=merged.get("informatici_sede"),
     )
+    for assignment in session_assignments:
+        current_session_config = get_sessione_config(assignment["session_id"]) or {}
+        merged_session_config = {**current_session_config, **assignment}
+        save_sessione_config(
+            assignment["session_id"],
+            merged_session_config.get("nome_informatico_sede"),
+            merged_session_config.get("email_informatico_sede"),
+            merged_session_config.get("telefono_informatico_sede"),
+            merged_session_config.get("data_accesso_piattaforma"),
+            email_esperto_remoto=merged_session_config.get("email_esperto_remoto"),
+            informatici_sede=merged_session_config.get("informatici_sede"),
+        )
+        _append_bando_sede_technicians(
+            commission_id,
+            merged_session_config.get("informatici_sede") or [],
+        )
     return jsonify(
         commission_id=commission_id,
+        session_assignments=_list_session_assignments(commission_id),
         **_serialize(get_bando_config(commission_id) or merged),
     )
 
@@ -329,6 +585,11 @@ def sessione_config_get(session_id):
 @session_access_required()
 def sessione_config_put(session_id):
     data, errors = _payload(SESSION_FIELDS)
+    if data is not None and "informatici_sede" in data:
+        data["informatici_sede"], sede_errors = _normalize_sede_technicians(
+            data.get("informatici_sede")
+        )
+        errors.update(sede_errors)
     if errors:
         return error_response(
             "validation_error",
@@ -340,6 +601,7 @@ def sessione_config_put(session_id):
     merged = {**current, **data}
     is_initial_state = get_stato_corrente(session_id) == "iniziale"
     if is_initial_state:
+        merged = _apply_bando_defaults(session_id, merged)
         completion_errors = _session_completion_errors(session_id, merged)
         if completion_errors:
             status = 404 if "session_id" in completion_errors else 422
@@ -356,7 +618,22 @@ def sessione_config_put(session_id):
         merged.get("email_informatico_sede"),
         merged.get("telefono_informatico_sede"),
         merged.get("data_accesso_piattaforma"),
+        email_esperto_remoto=merged.get("email_esperto_remoto"),
+        informatici_sede=merged.get("informatici_sede"),
     )
+    sessione = get_sessione_by_id(session_id)
+    if sessione:
+        _append_bando_sede_technicians(
+            sessione["commission_id"],
+            merged.get("informatici_sede") or [
+                {
+                    "nome": merged.get("nome_informatico_sede"),
+                    "email": merged.get("email_informatico_sede"),
+                    "telefono": merged.get("telefono_informatico_sede"),
+                    "principale": True,
+                }
+            ],
+        )
     if is_initial_state:
         set_stato_corrente(
             session_id,

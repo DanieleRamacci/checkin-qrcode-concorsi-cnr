@@ -88,6 +88,58 @@ describe('AzioniComponent', () => {
     expect(fixture.componentInstance.error()).toContain("email dell'informatico in sede");
   });
 
+  it('prefills the in-person technician from the bando primary technician', async () => {
+    await TestBed.configureTestingModule({
+      imports: [AzioniComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: ApiClient,
+          useValue: {
+            get: (url: string) => {
+              if (url.includes('/bandi/')) {
+                return of({
+                  email_esperto_remoto: 'esperto@cnr.it',
+                  expert_options: ['esperto@cnr.it'],
+                  informatici_sede: [
+                    { nome: 'Supporto Sede', email: 'supporto@cnr.it', principale: false },
+                    { nome: 'Tecnico Principale', email: 'principale@cnr.it', telefono: '061234', principale: true },
+                  ],
+                });
+              }
+              return of({
+                nome_informatico_sede: '',
+                email_informatico_sede: '',
+                telefono_informatico_sede: '',
+              });
+            },
+            post: () => of({}),
+            put: () => of({}),
+          },
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(AzioniComponent);
+    fixture.componentRef.setInput('sessionId', 'session-1');
+    fixture.componentRef.setInput('commissionId', 'commission-1');
+    fixture.componentRef.setInput('currentState', 'iniziale');
+    fixture.componentRef.setInput('viewMode', 'segretario');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.sessionConfigModel.email_esperto_remoto).toBe('esperto@cnr.it');
+    expect(fixture.componentInstance.sessionConfigModel.nome_informatico_sede).toBe('Tecnico Principale');
+    expect(fixture.componentInstance.sessionConfigModel.email_informatico_sede).toBe('principale@cnr.it');
+    expect(fixture.componentInstance.sessionConfigModel.telefono_informatico_sede).toBe('061234');
+    expect(fixture.componentInstance.sessionConfigModel.informatici_sede).toEqual([
+      { nome: 'Tecnico Principale', email: 'principale@cnr.it', telefono: '061234', principale: true },
+    ]);
+    const button = fixture.nativeElement.querySelector('button[type="submit"]') as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+  });
+
   it('shows the expert workflow instead of secretary actions', async () => {
     await TestBed.configureTestingModule({
       imports: [AzioniComponent],

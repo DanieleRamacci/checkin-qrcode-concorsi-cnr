@@ -57,6 +57,7 @@ def request_bando_configuration(
         commissione_members=config.get("commissione_members"),
         configured_by=actor_email,
         data_accesso_piattaforma=config.get("data_accesso_piattaforma"),
+        informatici_sede=config.get("informatici_sede"),
     )
 
     title = _get_bando_title(commission_id)

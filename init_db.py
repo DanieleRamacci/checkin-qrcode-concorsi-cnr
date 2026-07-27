@@ -156,6 +156,8 @@ try:
         nome_informatico_sede TEXT,
         email_informatico_sede TEXT,
         telefono_informatico_sede TEXT,
+        email_esperto_remoto TEXT,
+        informatici_sede TEXT DEFAULT '[]',
         data_accesso_piattaforma TEXT,
         FOREIGN KEY (session_id) REFERENCES sessioni(session_id)
     );
@@ -436,8 +438,11 @@ try:
         ("nome_informatico_sede", "TEXT"),
         ("email_informatico_sede", "TEXT"),
         ("telefono_informatico_sede", "TEXT"),
+        ("email_esperto_remoto", "TEXT"),
+        ("informatici_sede", "TEXT"),
     ]:
         cursor.execute(f"ALTER TABLE sessione_config ADD COLUMN IF NOT EXISTS {col} {tipo};")
+    cursor.execute("UPDATE sessione_config SET informatici_sede = '[]' WHERE informatici_sede IS NULL;")
 
     # bando_config: migrazioni additive
     for col, tipo in [
@@ -451,6 +456,7 @@ try:
         ("rdp_members", "TEXT"),
         ("rdp_nomi", "TEXT"),
         ("commissione_nomi", "TEXT"),
+        ("informatici_sede", "TEXT"),
         ("config_status", "TEXT"),
         ("expert_assigned", "BOOLEAN NOT NULL DEFAULT FALSE"),
         ("required_data_complete", "BOOLEAN NOT NULL DEFAULT FALSE"),
@@ -460,6 +466,7 @@ try:
     cursor.execute("UPDATE bando_config SET rdp_members = '[]' WHERE rdp_members IS NULL;")
     cursor.execute("UPDATE bando_config SET rdp_nomi = '[]' WHERE rdp_nomi IS NULL;")
     cursor.execute("UPDATE bando_config SET commissione_nomi = '[]' WHERE commissione_nomi IS NULL;")
+    cursor.execute("UPDATE bando_config SET informatici_sede = '[]' WHERE informatici_sede IS NULL;")
     cursor.execute("UPDATE bando_config SET config_status = 'da_configurare' WHERE config_status IS NULL;")
     cursor.execute("UPDATE bando_config SET expert_assigned = FALSE WHERE expert_assigned IS NULL;")
     cursor.execute("UPDATE bando_config SET required_data_complete = FALSE WHERE required_data_complete IS NULL;")
