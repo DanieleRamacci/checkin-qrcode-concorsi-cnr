@@ -1,7 +1,7 @@
 from utils.bando_config_status import compute_bando_config_status
 
 
-def test_bando_config_status_requires_remote_expert():
+def test_bando_config_status_is_complete_without_bando_level_remote_expert():
     status = compute_bando_config_status(
         {
             "email_referente": "referente@cnr.it",
@@ -12,13 +12,13 @@ def test_bando_config_status_requires_remote_expert():
     )
 
     assert status == {
-        "config_status": "da_configurare",
+        "config_status": "dati_compilati",
         "expert_assigned": False,
-        "required_data_complete": False,
+        "required_data_complete": True,
     }
 
 
-def test_bando_config_status_marks_expert_assigned_before_completion():
+def test_bando_config_status_ignores_legacy_bando_level_remote_expert():
     status = compute_bando_config_status(
         {
             "email_esperto_remoto": "esperto@cnr.it",
@@ -26,8 +26,8 @@ def test_bando_config_status_marks_expert_assigned_before_completion():
     )
 
     assert status == {
-        "config_status": "esperto_assegnato",
-        "expert_assigned": True,
+        "config_status": "da_configurare",
+        "expert_assigned": False,
         "required_data_complete": False,
     }
 
@@ -45,6 +45,6 @@ def test_bando_config_status_marks_required_data_complete():
 
     assert status == {
         "config_status": "dati_compilati",
-        "expert_assigned": True,
+        "expert_assigned": False,
         "required_data_complete": True,
     }

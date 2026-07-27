@@ -8,11 +8,10 @@ def _has_commission_member(members) -> bool:
 
 def compute_bando_config_status(config: dict) -> dict:
     """Calcola lo stato operativo sintetico della configurazione bando."""
-    expert_assigned = bool((config.get("email_esperto_remoto") or "").strip())
+    expert_assigned = False
     required_data_complete = all(
         [
             bool((config.get("email_referente") or "").strip()),
-            expert_assigned,
             bool((config.get("email_segretario") or "").strip()),
             bool(config.get("durata_prova_minuti")),
             _has_commission_member(config.get("commissione_members")),
@@ -20,8 +19,6 @@ def compute_bando_config_status(config: dict) -> dict:
     )
     if required_data_complete:
         status = "dati_compilati"
-    elif expert_assigned:
-        status = "esperto_assegnato"
     else:
         status = "da_configurare"
     return {

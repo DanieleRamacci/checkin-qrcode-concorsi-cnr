@@ -88,7 +88,7 @@ describe('AzioniComponent', () => {
     expect(fixture.componentInstance.error()).toContain("email dell'informatico in sede");
   });
 
-  it('prefills the in-person technician from the bando primary technician', async () => {
+  it('does not prefill technical assignments from bando-level defaults', async () => {
     await TestBed.configureTestingModule({
       imports: [AzioniComponent],
       providers: [
@@ -129,15 +129,13 @@ describe('AzioniComponent', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    expect(fixture.componentInstance.sessionConfigModel.email_esperto_remoto).toBe('esperto@cnr.it');
-    expect(fixture.componentInstance.sessionConfigModel.nome_informatico_sede).toBe('Tecnico Principale');
-    expect(fixture.componentInstance.sessionConfigModel.email_informatico_sede).toBe('principale@cnr.it');
-    expect(fixture.componentInstance.sessionConfigModel.telefono_informatico_sede).toBe('061234');
-    expect(fixture.componentInstance.sessionConfigModel.informatici_sede).toEqual([
-      { nome: 'Tecnico Principale', email: 'principale@cnr.it', telefono: '061234', principale: true },
-    ]);
+    expect(fixture.componentInstance.sessionConfigModel.email_esperto_remoto).toBe('');
+    expect(fixture.componentInstance.sessionConfigModel.nome_informatico_sede).toBe('');
+    expect(fixture.componentInstance.sessionConfigModel.email_informatico_sede).toBe('');
+    expect(fixture.componentInstance.sessionConfigModel.telefono_informatico_sede).toBe('');
+    expect(fixture.componentInstance.sessionConfigModel.informatici_sede).toEqual([]);
     const button = fixture.nativeElement.querySelector('button[type="submit"]') as HTMLButtonElement;
-    expect(button.disabled).toBe(false);
+    expect(button.disabled).toBe(true);
   });
 
   it('shows the expert workflow instead of secretary actions', async () => {

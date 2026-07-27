@@ -28,8 +28,21 @@ describe('BandoConfigComponent', () => {
                   rdp_options: [{ nome: 'Rita Verdi', email: 'rita.verdi@cnr.it' }],
                   secretary_options: [{ nome: 'Segretaria Uno', email: 'segretaria1@cnr.it' }],
                   email_segretario: 'segretaria1@cnr.it',
-                  informatici_sede: [
-                    { nome: 'Tecnico Sede', email: 'sede@cnr.it', telefono: '061234', principale: true },
+                  session_assignments: [
+                    {
+                      session_id: 's1',
+                      nome: 'Prova mattina',
+                      giorno: '2026-08-01',
+                      ora: '09:00',
+                      luogo: 'Aula 1',
+                      email_esperto_remoto: 'expert@cnr.it',
+                      nome_informatico_sede: 'Tecnico Sede',
+                      email_informatico_sede: 'sede@cnr.it',
+                      telefono_informatico_sede: '061234',
+                      informatici_sede: [
+                        { nome: 'Tecnico Sede', email: 'sede@cnr.it', telefono: '061234', principale: true },
+                      ],
+                    },
                   ],
                 }
               : { title: 'Concorso prova' }),
@@ -51,12 +64,14 @@ describe('BandoConfigComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('rita.verdi@cnr.it');
     expect(fixture.nativeElement.textContent).toContain('Segretaria Uno');
     expect(fixture.nativeElement.textContent).toContain('segretaria1@cnr.it');
-    expect(fixture.nativeElement.textContent).toContain('Informatici in sede');
-    expect((fixture.nativeElement.querySelector('#sede-name-0') as HTMLInputElement).value).toBe('Tecnico Sede');
-    expect((fixture.nativeElement.querySelector('#sede-email-0') as HTMLInputElement).value).toBe('sede@cnr.it');
+    expect(fixture.nativeElement.textContent).toContain('Assegnazioni tecniche per sessione');
+    expect(fixture.nativeElement.textContent).toContain('Prova mattina');
+    expect(fixture.nativeElement.textContent).not.toContain('Principale richiesto');
+    expect((fixture.nativeElement.querySelector('#session-sede-name-0-0') as HTMLInputElement).value).toBe('Tecnico Sede');
+    expect((fixture.nativeElement.querySelector('#session-sede-email-0-0') as HTMLInputElement).value).toBe('sede@cnr.it');
   });
 
-  it('saves in-person technicians with a single primary technician', async () => {
+  it('saves technical assignments only at session level', async () => {
     let payload: Record<string, any> | null = null;
     await TestBed.configureTestingModule({
       imports: [BandoConfigComponent],
@@ -79,7 +94,7 @@ describe('BandoConfigComponent', () => {
                   expert_options: [],
                   rdp_options: [],
                   secretary_options: [],
-                  informatici_sede: [],
+                  session_assignments: [],
                 }
               : { title: 'Concorso prova' }),
             put: (_path: string, body: Record<string, any>) => {
@@ -94,17 +109,43 @@ describe('BandoConfigComponent', () => {
 
     const fixture = TestBed.createComponent(BandoConfigComponent);
     fixture.detectChanges();
-    fixture.componentInstance.sedeTechnicians = [
-      { nome: 'Supporto Sede', email: 'supporto@cnr.it', telefono: '', principale: false },
-      { nome: 'Tecnico Principale', email: 'principale@cnr.it', telefono: '061234', principale: true },
+    fixture.componentInstance.sessionAssignments = [
+      {
+        session_id: 's1',
+        nome: 'Prova mattina',
+        giorno: '',
+        ora: '',
+        luogo: '',
+        email_esperto_remoto: 'expert@cnr.it',
+        nome_informatico_sede: '',
+        email_informatico_sede: '',
+        telefono_informatico_sede: '',
+        informatici_sede: [
+          { nome: 'Supporto Sede', email: 'supporto@cnr.it', telefono: '', principale: false },
+          { nome: 'Tecnico Principale', email: 'principale@cnr.it', telefono: '061234', principale: true },
+        ],
+      },
     ];
 
     fixture.componentInstance.save();
 
-    expect(payload?.['informatici_sede']).toEqual([
-      { nome: 'Supporto Sede', email: 'supporto@cnr.it', telefono: '', principale: false },
-      { nome: 'Tecnico Principale', email: 'principale@cnr.it', telefono: '061234', principale: true },
-    ]);
+    expect(payload?.['email_esperto_remoto']).toBeUndefined();
+    expect(payload?.['informatici_sede']).toBeUndefined();
+    expect(payload?.['session_assignments'][0]).toEqual({
+      session_id: 's1',
+      nome: 'Prova mattina',
+      giorno: '',
+      ora: '',
+      luogo: '',
+      email_esperto_remoto: 'expert@cnr.it',
+      nome_informatico_sede: 'Tecnico Principale',
+      email_informatico_sede: 'principale@cnr.it',
+      telefono_informatico_sede: '061234',
+      informatici_sede: [
+        { nome: 'Supporto Sede', email: 'supporto@cnr.it', telefono: '', principale: false },
+        { nome: 'Tecnico Principale', email: 'principale@cnr.it', telefono: '061234', principale: true },
+      ],
+    });
   });
 
   it('does not render a free secretary email input when source options are missing', async () => {

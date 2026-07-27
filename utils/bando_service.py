@@ -50,14 +50,14 @@ def request_bando_configuration(
     save_bando_config(
         commission_id,
         email_referente=referente_email,
-        email_esperto_remoto=config.get("email_esperto_remoto"),
+        email_esperto_remoto=None,
         email_segretario=config.get("email_segretario"),
         telefono_segretario=config.get("telefono_segretario"),
         durata_prova_minuti=config.get("durata_prova_minuti"),
         commissione_members=config.get("commissione_members"),
         configured_by=actor_email,
         data_accesso_piattaforma=config.get("data_accesso_piattaforma"),
-        informatici_sede=config.get("informatici_sede"),
+        informatici_sede=[],
     )
 
     title = _get_bando_title(commission_id)

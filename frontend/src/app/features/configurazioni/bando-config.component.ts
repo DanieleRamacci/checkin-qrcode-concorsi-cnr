@@ -471,8 +471,22 @@ function normalizeSessionAssignments(value: unknown): SessionAssignment[] {
 }
 
 function ensureSinglePrimary(items: SedeTechnician[]): SedeTechnician[] {
+  const merged = new Map<string, SedeTechnician>();
+  items.forEach((item, index) => {
+    const emailKey = item.email.trim().toLowerCase();
+    const key = emailKey || `__row_${index}`;
+    const existing = merged.get(key);
+    merged.set(key, existing
+      ? {
+          nome: item.nome || existing.nome,
+          email: item.email || existing.email,
+          telefono: item.telefono || existing.telefono,
+          principale: existing.principale || item.principale,
+        }
+      : item);
+  });
   let primarySeen = false;
-  const normalized = items.map((item) => {
+  const normalized = [...merged.values()].map((item) => {
     const principale = !!item.principale && !primarySeen;
     if (principale) primarySeen = true;
     return { ...item, principale };

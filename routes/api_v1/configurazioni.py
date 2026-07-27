@@ -24,13 +24,11 @@ configurazioni_api_bp = Blueprint("api_v1_configurazioni", __name__)
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 BANDO_FIELDS = {
     "email_referente",
-    "email_esperto_remoto",
     "email_segretario",
     "telefono_segretario",
     "durata_prova_minuti",
     "data_accesso_piattaforma",
     "commissione_members",
-    "informatici_sede",
     "session_assignments",
 }
 BANDO_READONLY_FIELDS = {
@@ -47,6 +45,8 @@ BANDO_READONLY_FIELDS = {
     "rdp_options",
     "required_data_complete",
     "secretary_options",
+    "email_esperto_remoto",
+    "informatici_sede",
 }
 SESSION_FIELDS = {
     "nome_informatico_sede",
@@ -279,47 +279,6 @@ def _session_ids_for_commission(commission_id: str) -> set[str]:
             return {row[0] for row in cursor.fetchall()}
 
 
-def _append_bando_sede_technicians(commission_id: str, technicians: list[dict]) -> None:
-    valid_new_items = [
-        item for item in technicians
-        if isinstance(item, dict) and _normalize_email(item.get("email"))
-    ]
-    if not valid_new_items:
-        return
-    config = get_bando_config(commission_id) or {}
-    merged_by_email = {
-        _normalize_email(item.get("email")): {
-            "nome": item.get("nome") or "",
-            "email": item.get("email") or "",
-            "telefono": item.get("telefono") or "",
-            "principale": bool(item.get("principale")),
-        }
-        for item in config.get("informatici_sede") or []
-        if isinstance(item, dict) and _normalize_email(item.get("email"))
-    }
-    for item in valid_new_items:
-        email = _normalize_email(item.get("email"))
-        existing = merged_by_email.get(email, {})
-        merged_by_email[email] = {
-            "nome": item.get("nome") or existing.get("nome") or "",
-            "email": item.get("email") or existing.get("email") or "",
-            "telefono": item.get("telefono") or existing.get("telefono") or "",
-            "principale": bool(existing.get("principale")),
-        }
-    save_bando_config(
-        commission_id,
-        config.get("email_referente"),
-        config.get("email_esperto_remoto"),
-        config.get("email_segretario"),
-        config.get("telefono_segretario"),
-        config.get("durata_prova_minuti"),
-        config.get("commissione_members"),
-        configured_by=session["user_email"],
-        data_accesso_piattaforma=config.get("data_accesso_piattaforma"),
-        informatici_sede=list(merged_by_email.values()),
-    )
-
-
 def _normalize_session_assignments(value, commission_id: str) -> tuple[list[dict], dict[str, str]]:
     if value in (None, ""):
         return [], {}
@@ -369,30 +328,6 @@ def _normalize_session_assignments(value, commission_id: str) -> tuple[list[dict
     return assignments, errors
 
 
-def _apply_bando_defaults(session_id: str, merged_session_config: dict) -> dict:
-    sessione = get_sessione_by_id(session_id)
-    if not sessione:
-        return merged_session_config
-    bando_config = get_bando_config(sessione["commission_id"]) or {}
-    result = {**merged_session_config}
-    if not _normalize_email(result.get("email_esperto_remoto")):
-        result["email_esperto_remoto"] = bando_config.get("email_esperto_remoto")
-    if _normalize_email(result.get("email_informatico_sede")):
-        return result
-    primary = _primary_sede_technician(bando_config)
-    if not primary:
-        return result
-    return {
-        **result,
-        "nome_informatico_sede": result.get("nome_informatico_sede") or primary.get("nome"),
-        "email_informatico_sede": primary.get("email"),
-        "telefono_informatico_sede": (
-            result.get("telefono_informatico_sede") or primary.get("telefono")
-        ),
-        "informatici_sede": result.get("informatici_sede") or [primary],
-    }
-
-
 def _session_completion_errors(session_id: str, merged_session_config: dict) -> dict[str, str]:
     """Validazioni minime per avanzare una sessione da iniziale a configurata."""
     errors = {}
@@ -439,11 +374,6 @@ def bando_config_get(commission_id):
 @commission_access_required(allow_referente=True)
 def bando_config_put(commission_id):
     data, errors = _payload(BANDO_FIELDS, BANDO_READONLY_FIELDS)
-    if data is not None and "informatici_sede" in data:
-        data["informatici_sede"], sede_errors = _normalize_sede_technicians(
-            data.get("informatici_sede")
-        )
-        errors.update(sede_errors)
     session_assignments = []
     if data is not None and "session_assignments" in data:
         session_assignments, assignment_errors = _normalize_session_assignments(
@@ -481,14 +411,14 @@ def bando_config_put(commission_id):
     save_bando_config(
         commission_id,
         merged.get("email_referente"),
-        merged.get("email_esperto_remoto"),
+        None,
         merged.get("email_segretario"),
         merged.get("telefono_segretario"),
         merged.get("durata_prova_minuti"),
         merged.get("commissione_members"),
         configured_by=session["user_email"],
         data_accesso_piattaforma=merged.get("data_accesso_piattaforma"),
-        informatici_sede=merged.get("informatici_sede"),
+        informatici_sede=[],
     )
     for assignment in session_assignments:
         current_session_config = get_sessione_config(assignment["session_id"]) or {}
@@ -501,10 +431,6 @@ def bando_config_put(commission_id):
             merged_session_config.get("data_accesso_piattaforma"),
             email_esperto_remoto=merged_session_config.get("email_esperto_remoto"),
             informatici_sede=merged_session_config.get("informatici_sede"),
-        )
-        _append_bando_sede_technicians(
-            commission_id,
-            merged_session_config.get("informatici_sede") or [],
         )
     return jsonify(
         commission_id=commission_id,
@@ -601,7 +527,6 @@ def sessione_config_put(session_id):
     merged = {**current, **data}
     is_initial_state = get_stato_corrente(session_id) == "iniziale"
     if is_initial_state:
-        merged = _apply_bando_defaults(session_id, merged)
         completion_errors = _session_completion_errors(session_id, merged)
         if completion_errors:
             status = 404 if "session_id" in completion_errors else 422
@@ -621,19 +546,6 @@ def sessione_config_put(session_id):
         email_esperto_remoto=merged.get("email_esperto_remoto"),
         informatici_sede=merged.get("informatici_sede"),
     )
-    sessione = get_sessione_by_id(session_id)
-    if sessione:
-        _append_bando_sede_technicians(
-            sessione["commission_id"],
-            merged.get("informatici_sede") or [
-                {
-                    "nome": merged.get("nome_informatico_sede"),
-                    "email": merged.get("email_informatico_sede"),
-                    "telefono": merged.get("telefono_informatico_sede"),
-                    "principale": True,
-                }
-            ],
-        )
     if is_initial_state:
         set_stato_corrente(
             session_id,
