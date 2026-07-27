@@ -6,7 +6,11 @@ import requests
 from flask import current_app
 
 from db import get_db_connection
-from utils.sessioni import get_bando_config, update_bando_da_openapi
+from utils.sessioni import (
+    get_bando_config,
+    update_bando_da_openapi,
+    update_bando_rdp_da_openapi,
+)
 
 
 def _normalize_email(value: str | None) -> str:
@@ -354,4 +358,9 @@ def _persist_referente_bandi(
                 item["commission_id"],
                 rdps=item.get("rdps", []),
                 commissioners=item.get("commissioners", []),
+            )
+        elif item.get("rdps"):
+            update_bando_rdp_da_openapi(
+                item["commission_id"],
+                rdps=item.get("rdps", []),
             )

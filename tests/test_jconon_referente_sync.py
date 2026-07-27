@@ -72,6 +72,51 @@ def test_persist_referente_bandi_upserts_and_revokes_stale(monkeypatch):
     assert conn.committed
 
 
+def test_persist_referente_bandi_updates_rdp_metadata_without_commissioners(monkeypatch):
+    from utils import jconon_service
+
+    calls = []
+    conn = RecordingConnection(calls)
+    full_updates = []
+    rdp_updates = []
+
+    @contextmanager
+    def factory():
+        yield conn
+
+    monkeypatch.setattr(jconon_service, "get_db_connection", factory)
+    monkeypatch.setattr(
+        jconon_service,
+        "update_bando_da_openapi",
+        lambda *args, **kwargs: full_updates.append((args, kwargs)),
+    )
+    monkeypatch.setattr(
+        jconon_service,
+        "update_bando_rdp_da_openapi",
+        lambda *args, **kwargs: rdp_updates.append((args, kwargs)),
+    )
+
+    jconon_service._persist_referente_bandi(
+        "rita.verdi@cnr.it",
+        [
+            {
+                "commission_id": "bando-1",
+                "title": "Concorso 1",
+                "rdps": [{"firstName": "Rita", "lastName": "Verdi", "email": "rita.verdi@cnr.it"}],
+                "commissioners": [],
+            }
+        ],
+    )
+
+    assert full_updates == []
+    assert rdp_updates == [
+        (
+            ("bando-1",),
+            {"rdps": [{"firstName": "Rita", "lastName": "Verdi", "email": "rita.verdi@cnr.it"}]},
+        )
+    ]
+
+
 def test_persist_referente_bandi_revokes_all_when_no_bandi_returned(monkeypatch):
     from utils import jconon_service
 

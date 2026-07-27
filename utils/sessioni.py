@@ -348,6 +348,55 @@ def update_commissione_members(commission_id: str, members: list):
     refresh_bando_config_status(commission_id)
 
 
+def _openapi_rdp_members(rdps: list) -> list[dict]:
+    members = []
+    for rdp in rdps or []:
+        email = (
+            rdp.get("email")
+            or rdp.get("emailcertificatoperpuk")
+            or rdp.get("emailAddress")
+            or ""
+        )
+        nome = (
+            rdp.get("name")
+            or rdp.get("nome")
+            or f"{rdp.get('firstName', '')} {rdp.get('lastName', '')}".strip()
+            or email
+        )
+        if email or nome:
+            members.append({"nome": nome, "email": email})
+    return members
+
+
+def update_bando_rdp_da_openapi(commission_id: str, rdps: list):
+    """Aggiorna solo RDP in bando_config senza toccare commissione/segretario."""
+    import json as _json
+
+    rdp_members = _openapi_rdp_members(rdps)
+    rdp_nomi = [rdp["nome"] for rdp in rdp_members if rdp.get("nome")]
+    first_rdp_email = next((rdp["email"] for rdp in rdp_members if rdp.get("email")), "")
+
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO bando_config (commission_id, rdp_members, rdp_nomi, email_referente)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (commission_id) DO UPDATE SET
+                    rdp_members = EXCLUDED.rdp_members,
+                    rdp_nomi    = EXCLUDED.rdp_nomi,
+                    email_referente = CASE
+                        WHEN bando_config.email_referente IS NULL OR bando_config.email_referente = ''
+                        THEN EXCLUDED.email_referente ELSE bando_config.email_referente END
+            """, (
+                commission_id,
+                _json.dumps(rdp_members, ensure_ascii=False),
+                _json.dumps(rdp_nomi, ensure_ascii=False),
+                first_rdp_email or None,
+            ))
+        conn.commit()
+    refresh_bando_config_status(commission_id)
+
+
 def update_bando_da_openapi(commission_id: str, rdps: list, commissioners: list):
     """
     Aggiorna bando_config con i dati freschi dall'API /openapi/v1/call.
@@ -366,31 +415,8 @@ def update_bando_da_openapi(commission_id: str, rdps: list, commissioners: list)
         }
         for c in commissioners if c.get("email")
     ]
-    rdp_members = [
-        {
-            "nome": (
-                r.get("name")
-                or r.get("nome")
-                or f"{r.get('firstName', '')} {r.get('lastName', '')}".strip()
-            ),
-            "email": (
-                r.get("email")
-                or r.get("emailcertificatoperpuk")
-                or r.get("emailAddress")
-                or ""
-            ),
-        }
-        for r in rdps
-        if (
-            r.get("email")
-            or r.get("emailcertificatoperpuk")
-            or r.get("emailAddress")
-        )
-    ]
-    rdp_nomi = [
-        f"{r.get('firstName', '')} {r.get('lastName', '')}".strip()
-        for r in rdps if r.get("firstName") or r.get("lastName")
-    ]
+    rdp_members = _openapi_rdp_members(rdps)
+    rdp_nomi = [rdp["nome"] for rdp in rdp_members if rdp.get("nome")]
     first_rdp_email = rdp_members[0].get("email", "") if rdp_members else ""
 
     segretari = [c for c in commissioners if (c.get("ruolo") or "").upper() == "SEGRETARIO"]
