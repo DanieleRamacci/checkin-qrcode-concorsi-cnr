@@ -5,12 +5,13 @@ import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { routes } from './app.routes';
 import { provideDesignAngularKit } from 'design-angular-kit';
 import { csrfInterceptor } from './core/csrf.interceptor';
+import { reauthInterceptor } from './core/reauth.interceptor';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
-    provideHttpClient(withInterceptors([csrfInterceptor])),
+    provideHttpClient(withInterceptors([csrfInterceptor, reauthInterceptor])),
     provideDesignAngularKit(),
   ],
 };

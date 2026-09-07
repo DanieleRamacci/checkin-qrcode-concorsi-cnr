@@ -10,6 +10,7 @@ from routes.api_v1.errors import error_response
 from utils import authorization
 from utils.authorization import commission_access_required, session_access_required
 from utils.oidc import ensure_fresh_access_token
+from utils.roles import ROLE_ADMIN, get_user_roles
 from utils.sessioni import get_sessioni_internamente
 
 
@@ -58,6 +59,7 @@ def list_sessioni(
     *,
     user_email: str | None = None,
     mode: str | None = None,
+    include_all: bool = False,
 ) -> list[dict]:
     normalized_mode = authorization.normalize_operational_mode(mode)
     email = (user_email or "").strip().lower()
@@ -65,7 +67,7 @@ def list_sessioni(
     sede_where = ""
     expert_join = ""
     expert_where = ""
-    if normalized_mode == authorization.TECHNICAL_MODE_SEDE:
+    if normalized_mode == authorization.TECHNICAL_MODE_SEDE and not include_all:
         sede_join = """
              JOIN sessione_config AS assigned_sc
                ON assigned_sc.session_id = s.session_id
@@ -73,7 +75,7 @@ def list_sessioni(
         sede_where = (
             " AND LOWER(TRIM(COALESCE(assigned_sc.email_informatico_sede, ''))) = %s"
         )
-    if normalized_mode == authorization.TECHNICAL_MODE_EXPERT:
+    if normalized_mode == authorization.TECHNICAL_MODE_EXPERT and not include_all:
         expert_join = """
              JOIN sessione_config AS assigned_expert_sc
                ON assigned_expert_sc.session_id = s.session_id
@@ -126,6 +128,18 @@ def list_sessioni(
                 ),
             )
             return [_session_dto(row, mode) for row in cursor.fetchall()]
+
+
+def _include_all_for_mode(user_email: str, mode: str | None) -> bool:
+    normalized_mode = authorization.normalize_operational_mode(mode)
+    if normalized_mode not in (
+        authorization.TECHNICAL_MODE_EXPERT,
+        authorization.TECHNICAL_MODE_SEDE,
+    ):
+        return False
+    if ROLE_ADMIN not in get_user_roles(user_email):
+        return False
+    return True
 
 
 def get_sessione(
@@ -194,6 +208,7 @@ def sessioni_index(commission_id):
             commission_id,
             user_email=session["user_email"],
             mode=mode,
+            include_all=_include_all_for_mode(session["user_email"], mode),
         ),
     )
 

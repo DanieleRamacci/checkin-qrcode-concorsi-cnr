@@ -4,10 +4,11 @@ from flask import Blueprint, current_app, jsonify, session
 
 from routes.api_v1.csrf import get_csrf_token
 from routes.api_v1.errors import error_response
+from utils.authorization import has_any_assigned_sede_session
 from utils.oidc import ensure_fresh_access_token
 from utils.app_settings import get_app_settings
-from utils.permissions import capabilities_for_roles
-from utils.roles import get_user_roles
+from utils.permissions import CAPABILITY_SEDE_WORKFLOW, capabilities_for_roles
+from utils.roles import ROLE_ADMIN, get_user_roles
 
 
 auth_api_bp = Blueprint("api_v1_auth", __name__)
@@ -36,9 +37,18 @@ def me():
             "Autenticazione richiesta.",
             401,
         )
+    if not ensure_fresh_access_token(skew_sec=60):
+        return error_response(
+            "reauthentication_required",
+            "La sessione OIDC non può essere aggiornata. Effettuare nuovamente l'accesso.",
+            401,
+        )
 
     user_info = session.get("user_info") or {}
     roles = get_user_roles(email)
+    capabilities = set(capabilities_for_roles(roles))
+    if ROLE_ADMIN in roles or has_any_assigned_sede_session(email):
+        capabilities.add(CAPABILITY_SEDE_WORKFLOW)
     display_name = (
         user_info.get("name")
         or user_info.get("preferred_username")
@@ -50,7 +60,7 @@ def me():
         email=email,
         display_name=display_name,
         roles=sorted(roles),
-        capabilities=capabilities_for_roles(roles),
+        capabilities=sorted(capabilities),
         csrf_token=get_csrf_token(),
         dev_mode=bool(current_app.config.get("DEV_MODE")),
         app_version=current_app.config.get("APP_VERSION", "n/d"),

@@ -3,6 +3,7 @@ from utils.roles import ROLE_ADMIN, ROLE_ESPERTO
 
 CAPABILITY_MANAGE_OWNED = "manage_owned_commissions"
 CAPABILITY_EXPERT_WORKFLOW = "expert_workflow"
+CAPABILITY_SEDE_WORKFLOW = "sede_workflow"
 CAPABILITY_ADMIN = "admin"
 
 

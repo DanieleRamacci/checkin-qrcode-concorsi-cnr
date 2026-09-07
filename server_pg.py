@@ -7,6 +7,7 @@ import os
 from flask import send_file
 import qrcode
 import io
+import tempfile
 from psycopg2.extras import RealDictCursor
 from routes import register_blueprints  # importa la funzione dal __init__.py
 from routes.auth import login_required
@@ -135,24 +136,25 @@ from fpdf import FPDF
 @login_required
 @session_access_required()
 def genera_qr_pdf(session_id):
-    url = url_for("scanner.device_link", session_id=session_id, _external=True)
+    token = request.args.get("token")
+    if not token:
+        token = make_reg_token(session_id, app.secret_key)
+    url = url_for("scanner.device_link", session_id=session_id, token=token, _external=True)
     img = qrcode.make(url)
-    img_io = io.BytesIO()
-    img.save(img_io, format='PNG')
-    img_io.seek(0)
+    with tempfile.NamedTemporaryFile(suffix=".png") as qr_file:
+        img.save(qr_file, format="PNG")
+        qr_file.flush()
 
-    # Salva temporaneamente l'immagine (oppure usa PIL)
-    with open("temp_qr.png", "wb") as f:
-        f.write(img_io.read())
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", size=16)
+        pdf.cell(0, 10, f"Connetti il dispositivo alla sessione {session_id}", ln=True)
+        pdf.image(qr_file.name, x=50, y=30, w=100)
 
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=16)
-    pdf.cell(0, 10, f"Connetti il dispositivo alla sessione {session_id}", ln=True)
-    pdf.image("temp_qr.png", x=50, y=30, w=100)
-
-    pdf_output = io.BytesIO()
-    pdf.output(pdf_output)
+        pdf_bytes = pdf.output(dest="S")
+    if isinstance(pdf_bytes, str):
+        pdf_bytes = pdf_bytes.encode("latin-1")
+    pdf_output = io.BytesIO(bytes(pdf_bytes))
     pdf_output.seek(0)
 
     return send_file(pdf_output, mimetype='application/pdf', download_name=f"qr_sessione_{session_id}.pdf")

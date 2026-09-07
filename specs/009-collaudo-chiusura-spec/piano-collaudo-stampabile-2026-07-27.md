@@ -45,6 +45,30 @@ risultato atteso, screenshot/log se disponibili.
 Prima di iniziare, chiudere tab vecchie del browser o aprire finestra anonima.
 Ogni test deve partire da login nuovo, salvo dove indicato diversamente.
 
+## Checklist post-deploy bugfix 010
+
+Eseguire questa sezione subito dopo push/pull/deploy sul server test, prima di
+passare a utenti reali.
+
+| ID | Utente | URL/Azione | Risultato atteso | Esito | Note |
+|----|--------|------------|------------------|-------|------|
+| 010.1 | Tecnico | Verificare versione/footer o commit deployato | Il server test espone la versione appena pubblicata | ____ | ____ |
+| 010.2 | Tecnico | Verificare container/proxy frontend | Nginx carica configurazione senza errori | ____ | ____ |
+| 010.3 | U6 | Aprire Home | Non vede "Informatico in sede" ne' "Esperto informatico" se non assegnato/abilitato | ____ | ____ |
+| 010.4 | U5 | Aprire Home | Vede "Informatico in sede" e puo entrare in `/bandi?mode=sede` | ____ | ____ |
+| 010.5 | U0 | Aprire `/bandi?mode=sede` | Vista supporto admin visibile; bandi/sessioni non assegnati marcati come admin | ____ | ____ |
+| 010.6 | U0 | Aprire `/bandi?mode=expert` | Vista supporto admin visibile; bandi non assegnati marcati come admin | ____ | ____ |
+| 010.7 | U1/U5 | Aprire `/sessioni?commission_id=<BANDO_A>&mode=sede` | Redirect a `/bandi/<BANDO_A>/sessioni?mode=sede` | ____ | ____ |
+| 010.8 | U3 | Aprire `/sessioni?commission_id=<BANDO_A>&mode=expert` | Redirect a `/bandi/<BANDO_A>/sessioni?mode=expert` | ____ | ____ |
+| 010.9 | U1 | Lasciare scadere sessione/token poi premere azione protetta | Richiede login, non mostra errore SOL generico | ____ | ____ |
+| 010.10 | U1 | Con sessione valida simulare/ottenere timeout SOL | Mostra cache locale o errore servizio esterno, non login | ____ | ____ |
+| 010.11 | U0/U1 | Generare QR PDF tecnico per sessione test | QR/link completo e utilizzabile; nessun errore server | ____ | ____ |
+| 010.12 | Tecnico | Controllare log dopo 010.3-010.11 | Nessun traceback o errore 500 non gestito | ____ | ____ |
+
+Decisione post-deploy 010: `PRONTA SOLO TEST CONTROLLATO` / `PRONTA PRODUZIONE`
+/ `APRIRE FIX`
+Motivo: ________________________________________________________________
+
 ## Test preliminari ambiente - Spec 003
 
 | ID | Utente | URL/Azione | Risultato atteso | Esito | Note |
@@ -175,6 +199,7 @@ Motivo: ________________________________________________________________
 |----|--------|-------------|------------------|-------|------|
 | 006.L1 | U1 | `/dashboard/segretario` | Redirect a `/bandi` o nuova route | ____ | ____ |
 | 006.L2 | U1 | `/sessioni?commission_id=<BANDO_A>` | Redirect a `/bandi/<BANDO_A>/sessioni` | ____ | ____ |
+| 006.L2a | U1/U3/U5 | `/sessioni?commission_id=<BANDO_A>&mode=sede` e `mode=expert` | Redirect conserva `mode` nella nuova route Angular | ____ | Fix 010 |
 | 006.L3 | U1 | `/gestione-concorso/<SESSIONE_A1>` | Redirect a `/sessioni/<SESSIONE_A1>` | ____ | ____ |
 | 006.L4 | U1 | `/dispositivi/<SESSIONE_A1>` | Redirect a nuova route dispositivi/sessione | ____ | ____ |
 | 006.L5 | U1 | Pagina HTML legacy ancora raggiungibile, se presente | Deve mostrare badge `LEGACY HTML` | ____ | ____ |
@@ -191,6 +216,7 @@ Motivo: ________________________________________________________________
 | 006.O6 | Postazione scanner | Camera legge QR sessione e QR candidato | Check-in completato | ____ | ____ |
 | 006.O7 | Postazione scanner | Disassociare dispositivo | Disassociazione completata | ____ | ____ |
 | 006.O8 | U0 | Log/notifiche principali | Eventi principali visibili dove previsto | ____ | ____ |
+| 006.O9 | U0/U1 | Generare QR PDF tecnico | PDF contiene QR/link completo e valido | ____ | Fix 010 |
 
 Decisione 006: `CHIUDERE` / `TENERE APERTA` / `APRIRE FIX`  
 Motivo: ________________________________________________________________
@@ -207,6 +233,25 @@ Motivo: ________________________________________________________________
 | 008.6 | U0/U1 | Più richieste falliscono per sessione scaduta | Un solo comportamento coerente di login, non raffica errori | ____ | ____ |
 
 Decisione 008: `CHIUDERE` / `TENERE APERTA` / `APRIRE FIX`  
+Motivo: ________________________________________________________________
+
+## Gate produzione
+
+Non promuovere in produzione finche' non sono vere tutte le condizioni seguenti:
+
+- Checklist post-deploy 010 completata con esito `PASS` oppure rischio residuo
+  accettato esplicitamente.
+- Spec 003: dominio test, login OIDC, health, versione e separazione
+  test/produzione verificati.
+- Spec 006: flusso Angular principale, QR/scanner, liste e assenza legacy nei
+  percorsi ordinari verificati.
+- Spec 007: profili U0-U6 verificati, inclusi casi negativi e admin support.
+- Spec 008: sessione scaduta verificata con redirect login e senza errori SOL
+  fuorvianti.
+- Backup/rollback deploy disponibili prima della prima sessione reale.
+
+Esito gate produzione: `NON PRONTA` / `PRONTA TEST CONTROLLATO` /
+`PRONTA PRODUZIONE`
 Motivo: ________________________________________________________________
 
 ## Test Selezioni Online e sincronizzazioni

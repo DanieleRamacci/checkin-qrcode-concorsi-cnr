@@ -138,7 +138,7 @@ def test_bandi_sede_mode_passes_mode_to_filtered_list(monkeypatch):
     assert captured["args"] == ("tech@cnr.it", False, "sede")
 
 
-def test_bandi_expert_mode_for_admin_uses_operational_scope(monkeypatch):
+def test_bandi_expert_mode_for_admin_uses_support_scope(monkeypatch):
     from routes.api_v1 import bandi
 
     captured = {}
@@ -157,7 +157,7 @@ def test_bandi_expert_mode_for_admin_uses_operational_scope(monkeypatch):
     )
 
     assert response.status_code == 200
-    assert captured["args"] == ("admin@cnr.it", False, "expert")
+    assert captured["args"] == ("admin@cnr.it", True, "expert")
 
 
 def test_list_bandi_expert_mode_requires_global_role_and_assignment(monkeypatch):
@@ -834,6 +834,35 @@ def test_sessions_for_bando_sede_mode_requires_profile_access(monkeypatch):
 
     assert response.status_code == 403
     assert captured["profile_mode"] == "sede"
+
+
+def test_sessions_for_bando_sede_mode_admin_uses_support_scope(monkeypatch):
+    from routes.api_v1 import sessioni
+
+    captured = {}
+    monkeypatch.setattr(
+        sessioni.authorization,
+        "can_access_commission",
+        lambda email, commission_id, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        sessioni,
+        "get_user_roles",
+        lambda email: {sessioni.ROLE_ADMIN},
+    )
+    monkeypatch.setattr(
+        sessioni,
+        "list_sessioni",
+        lambda commission_id, **kwargs: captured.update(kwargs) or [],
+    )
+
+    response = authenticated_client(create_test_app(), "admin@cnr.it").get(
+        "/api/v1/bandi/commission-1/sessioni?mode=sede"
+    )
+
+    assert response.status_code == 200
+    assert captured["mode"] == "sede"
+    assert captured["include_all"] is True
 
 
 def test_list_sessioni_expert_mode_filters_assigned_session(monkeypatch):

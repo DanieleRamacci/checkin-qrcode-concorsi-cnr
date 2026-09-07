@@ -2,6 +2,7 @@ note.txt
 instance/
 checkin.db
 files_liste/
+.tokensave/
 
 # Python
 __pycache__/

@@ -76,6 +76,23 @@ def has_assigned_sede_session(user_email: str | None, commission_id: str) -> boo
             return cursor.fetchone() is not None
 
 
+def has_any_assigned_sede_session(user_email: str | None) -> bool:
+    if not user_email:
+        return False
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT 1
+                  FROM sessione_config
+                 WHERE LOWER(TRIM(COALESCE(email_informatico_sede, ''))) = %s
+                 LIMIT 1
+                """,
+                (_normalized_email(user_email),),
+            )
+            return cursor.fetchone() is not None
+
+
 def is_assigned_sede_session(user_email: str | None, session_id: str) -> bool:
     if not user_email:
         return False
@@ -125,9 +142,11 @@ def can_access_commission(
 ) -> bool:
     if not user_email:
         return False
+    roles = get_user_roles(user_email)
+    if ROLE_ADMIN in roles:
+        return True
     mode = normalize_operational_mode(profile_mode)
     if mode == TECHNICAL_MODE_EXPERT:
-        roles = get_user_roles(user_email)
         return ROLE_ESPERTO in roles and is_assigned_remote_expert(
             user_email,
             commission_id,
@@ -193,9 +212,11 @@ def can_access_session(
 ) -> bool:
     if not user_email:
         return False
+    roles = get_user_roles(user_email)
+    if ROLE_ADMIN in roles:
+        return True
     mode = normalize_operational_mode(profile_mode)
     if mode == TECHNICAL_MODE_EXPERT:
-        roles = get_user_roles(user_email)
         return ROLE_ESPERTO in roles and is_assigned_remote_expert_for_session(
             user_email,
             session_id,

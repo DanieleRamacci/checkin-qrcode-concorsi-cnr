@@ -86,3 +86,18 @@ def test_nginx_cutover_routes_are_not_proxied_to_legacy_backend():
         "device-link",
     ):
         assert legacy_prefix not in proxy_location
+
+
+def test_nginx_legacy_sessioni_redirect_preserves_mode():
+    conf = open("frontend/nginx.conf").read()
+
+    assert "set $legacy_sessioni_target /bandi/$arg_commission_id/sessioni;" in conf
+    assert "return 302 $legacy_sessioni_target?mode=$arg_mode;" in conf
+
+
+def test_legacy_qr_pdf_generates_device_token_without_shared_temp_file():
+    source = open("server_pg.py").read()
+
+    assert 'url_for("scanner.device_link", session_id=session_id, token=token' in source
+    assert "make_reg_token(session_id, app.secret_key)" in source
+    assert "temp_qr.png" not in source

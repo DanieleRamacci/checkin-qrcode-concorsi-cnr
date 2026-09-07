@@ -151,7 +151,22 @@ def test_sede_assignee_can_use_sede_profile(monkeypatch):
     )
 
 
-def test_admin_cannot_use_unassigned_sede_profile(monkeypatch):
+def test_user_with_any_sede_assignment_gets_sede_workflow(monkeypatch):
+    from utils import authorization
+
+    executed = []
+    monkeypatch.setattr(
+        authorization,
+        "get_db_connection",
+        tracking_connection_factory((1,), executed),
+    )
+
+    assert authorization.has_any_assigned_sede_session(" Informatico@CNR.it ")
+    assert executed[0][1] == ("informatico@cnr.it",)
+    assert "email_informatico_sede" in executed[0][0]
+
+
+def test_admin_can_use_unassigned_sede_profile_as_support(monkeypatch):
     from utils import authorization
 
     executed = []
@@ -166,12 +181,12 @@ def test_admin_cannot_use_unassigned_sede_profile(monkeypatch):
         tracking_connection_factory(None, executed),
     )
 
-    assert not authorization.can_access_session(
+    assert authorization.can_access_session(
         "admin@cnr.it",
         "session-1",
         profile_mode="sede",
     )
-    assert "email_informatico_sede" in executed[0][0]
+    assert executed == []
 
 
 def test_global_expert_cannot_use_unassigned_expert_profile(monkeypatch):
@@ -197,7 +212,7 @@ def test_global_expert_cannot_use_unassigned_expert_profile(monkeypatch):
     assert "email_esperto_remoto" in executed[0][0]
 
 
-def test_admin_cannot_use_unassigned_expert_profile(monkeypatch):
+def test_admin_can_use_unassigned_expert_profile_as_support(monkeypatch):
     from utils import authorization
 
     executed = []
@@ -212,7 +227,7 @@ def test_admin_cannot_use_unassigned_expert_profile(monkeypatch):
         tracking_connection_factory(None, executed),
     )
 
-    assert not authorization.can_access_session(
+    assert authorization.can_access_session(
         "admin@cnr.it",
         "session-1",
         profile_mode="expert",

@@ -131,12 +131,42 @@ import { SessioniService } from './sessioni.service';
         </div>
       }
     </div>
+
+    @if (loading()) {
+      <div class="loading-overlay" role="status" aria-live="polite" aria-busy="true">
+        <div class="loading-panel text-center">
+          <div class="spinner-border text-primary" aria-hidden="true"></div>
+          <div class="fw-semibold mt-3">
+            {{ syncing() ? 'Sincronizzazione sessioni da Selezioni Online…' : 'Caricamento sessioni…' }}
+          </div>
+          <div class="small text-muted mt-1">Attendi il completamento dell'operazione.</div>
+        </div>
+      </div>
+    }
   `,
   styles: `
     .empty-state {
       max-width: 760px;
       margin: 2rem auto;
       background: #fff;
+    }
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 2050;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      background: rgba(255, 255, 255, 0.72);
+    }
+    .loading-panel {
+      width: min(92vw, 420px);
+      border: 1px solid #d8e2ec;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 1rem 2.5rem rgba(23, 50, 77, 0.18);
+      padding: 1.5rem;
     }
   `,
 })

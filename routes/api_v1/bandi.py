@@ -161,6 +161,9 @@ def list_bandi(
                        BOOL_OR(
                            LOWER(TRIM(COALESCE(sc.email_esperto_remoto, ''))) = %s
                        ) AS is_expert_assigned,
+                       BOOL_OR(
+                           LOWER(TRIM(COALESCE(sc.email_informatico_sede, ''))) = %s
+                       ) AS is_sede_assigned,
                        (
                            BOOL_OR(COALESCE(b.expert_assigned, FALSE))
                            OR BOOL_OR(TRIM(COALESCE(sc.email_esperto_remoto, '')) <> '')
@@ -179,7 +182,14 @@ def list_bandi(
               GROUP BY c.commission_id
               ORDER BY MAX(c.titolo), c.commission_id
                 """,
-                (user_email, user_email, user_email, user_email.strip().lower(), *(() if include_all else (user_email,))),
+                (
+                    user_email,
+                    user_email,
+                    user_email,
+                    user_email.strip().lower(),
+                    user_email.strip().lower(),
+                    *(() if include_all else (user_email,)),
+                ),
             )
             rows = cursor.fetchall()
 
@@ -188,6 +198,7 @@ def list_bandi(
         serialized = _serialize(row)
         is_owner = bool(serialized.pop("is_owner", False))
         is_expert_assigned = bool(serialized.pop("is_expert_assigned", False))
+        is_sede_assigned = bool(serialized.pop("is_sede_assigned", False))
         user_source_role = serialized.pop("user_source_role", None)
         user_access_active = serialized.pop("user_access_active", None)
         visibility_reason = "owner" if is_owner else "admin"
@@ -198,6 +209,15 @@ def list_bandi(
             visibility_reason = (
                 "expert"
                 if is_expert_assigned
+                else "admin"
+            )
+        elif (
+            normalized_mode == authorization.TECHNICAL_MODE_SEDE
+            and include_all
+        ):
+            visibility_reason = (
+                "sede"
+                if is_sede_assigned
                 else "admin"
             )
         items.append(
@@ -307,7 +327,11 @@ def _include_admin_view(user_email: str) -> bool:
 def _include_all_for_mode(user_email: str, mode: str | None) -> bool:
     if ROLE_ADMIN not in get_user_roles(user_email):
         return False
-    return mode == "admin"
+    normalized_mode = authorization.normalize_operational_mode(mode)
+    return mode == "admin" or normalized_mode in (
+        authorization.TECHNICAL_MODE_EXPERT,
+        authorization.TECHNICAL_MODE_SEDE,
+    )
 
 
 @bandi_api_bp.get("/bandi")

@@ -29,6 +29,16 @@ def test_me_returns_user_context_and_csrf(monkeypatch):
     )
     monkeypatch.setattr(
         auth,
+        "ensure_fresh_access_token",
+        lambda **kwargs: "fresh-token",
+    )
+    monkeypatch.setattr(
+        auth,
+        "has_any_assigned_sede_session",
+        lambda email: True,
+    )
+    monkeypatch.setattr(
+        auth,
         "get_app_settings",
         lambda: {"institution_name": "CNR", "app_title": "Check-in"},
     )
@@ -49,6 +59,7 @@ def test_me_returns_user_context_and_csrf(monkeypatch):
     assert payload["display_name"] == "Esperto CNR"
     assert payload["roles"] == ["esperto_informatico"]
     assert "expert_workflow" in payload["capabilities"]
+    assert "sede_workflow" in payload["capabilities"]
     assert payload["csrf_token"]
     assert payload["app_version"] == "abc1234"
     assert payload["app_build_time"] == "2026-07-16T12:00:00Z"
@@ -81,6 +92,21 @@ def test_session_refresh_returns_new_expiry(monkeypatch):
         "expires_at": 123456,
         "refreshed": True,
     }
+
+
+def test_me_requires_reauthentication_when_refresh_fails(monkeypatch):
+    from routes.api_v1 import auth
+
+    monkeypatch.setattr(auth, "ensure_fresh_access_token", lambda **kwargs: None)
+    app = create_test_app()
+    client = app.test_client()
+    with client.session_transaction() as flask_session:
+        flask_session["user_email"] = "user@cnr.it"
+
+    response = client.get("/api/v1/me")
+
+    assert response.status_code == 401
+    assert response.get_json()["error"]["code"] == "reauthentication_required"
 
 
 def test_session_refresh_requires_reauthentication_when_refresh_fails(monkeypatch):
