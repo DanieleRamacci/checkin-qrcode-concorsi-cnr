@@ -17,6 +17,7 @@ from utils.jconon_service import (
 )
 from utils.oidc import ensure_fresh_access_token
 from utils.sessioni import get_bando_config
+from utils.sql_fragments import SESSION_ASSIGNMENT_COUNTS_SQL
 
 
 bandi_api_bp = Blueprint("api_v1_bandi", __name__)
@@ -33,6 +34,9 @@ def _serialize(row) -> dict:
 
 
 def _technical_bando_item(row, visibility_reason: str) -> dict:
+    session_count = int(row.get("session_count") or 0)
+    remote_count = int(row.get("remote_expert_assigned_count") or 0)
+    sede_count = int(row.get("sede_technician_assigned_count") or 0)
     return {
         "commission_id": row["commission_id"],
         "title": row.get("title") or row["commission_id"],
@@ -40,9 +44,14 @@ def _technical_bando_item(row, visibility_reason: str) -> dict:
         "referente_email": row.get("referente_email"),
         "esperto_remoto_email": row.get("esperto_remoto_email"),
         "config_status": row.get("config_status") or "da_configurare",
-        "expert_assigned": bool(row.get("expert_assigned")),
+        "expert_assigned": bool(row.get("expert_assigned")) or (
+            session_count > 0 and remote_count == session_count
+        ),
+        "remote_expert_assigned_count": remote_count,
+        "sede_technician_assigned_count": sede_count,
+        "incomplete_session_names": row.get("incomplete_session_names") or [],
         "required_data_complete": bool(row.get("required_data_complete")),
-        "session_count": int(row.get("session_count") or 0),
+        "session_count": session_count,
         "last_sync": _json_value(row.get("last_sync")),
         "visibility_reason": visibility_reason,
         "source_role": None,
@@ -55,7 +64,7 @@ def _list_remote_expert_bandi(user_email: str) -> list[dict]:
     with get_db_connection() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
             cursor.execute(
-                """
+                f"""
                 SELECT s.commission_id,
                        MAX(c.titolo) AS title,
                        TRUE AS configured,
@@ -63,6 +72,7 @@ def _list_remote_expert_bandi(user_email: str) -> list[dict]:
                        MAX(sc.email_esperto_remoto) AS esperto_remoto_email,
                        COALESCE(MAX(b.config_status), 'da_configurare') AS config_status,
                        TRUE AS expert_assigned,
+{SESSION_ASSIGNMENT_COUNTS_SQL}
                        BOOL_OR(COALESCE(b.required_data_complete, FALSE)) AS required_data_complete,
                        COUNT(DISTINCT s.session_id) AS session_count,
                        MAX(COALESCE(s.data_sync, b.configured_at::text)) AS last_sync
@@ -89,7 +99,7 @@ def _list_sede_bandi(user_email: str) -> list[dict]:
     with get_db_connection() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
             cursor.execute(
-                """
+                f"""
                 SELECT s.commission_id,
                        MAX(c.titolo) AS title,
                        BOOL_OR(b.commission_id IS NOT NULL) AS configured,
@@ -100,6 +110,7 @@ def _list_sede_bandi(user_email: str) -> list[dict]:
                            BOOL_OR(COALESCE(b.expert_assigned, FALSE))
                            OR BOOL_OR(TRIM(COALESCE(sc.email_esperto_remoto, '')) <> '')
                        ) AS expert_assigned,
+{SESSION_ASSIGNMENT_COUNTS_SQL}
                        BOOL_OR(COALESCE(b.required_data_complete, FALSE)) AS required_data_complete,
                        COUNT(DISTINCT s.session_id) AS session_count,
                        MAX(COALESCE(s.data_sync, b.configured_at::text)) AS last_sync
@@ -168,6 +179,7 @@ def list_bandi(
                            BOOL_OR(COALESCE(b.expert_assigned, FALSE))
                            OR BOOL_OR(TRIM(COALESCE(sc.email_esperto_remoto, '')) <> '')
                        ) AS expert_assigned,
+{SESSION_ASSIGNMENT_COUNTS_SQL}
                        BOOL_OR(COALESCE(b.required_data_complete, FALSE)) AS required_data_complete,
                        COUNT(DISTINCT s.session_id) AS session_count,
                        MAX(COALESCE(s.data_sync, c.data_sync)) AS last_sync
@@ -226,7 +238,13 @@ def list_bandi(
                 "session_count": int(row["session_count"] or 0),
                 "configured": bool(row["configured"]),
                 "config_status": row.get("config_status") or "da_configurare",
-                "expert_assigned": bool(row.get("expert_assigned")),
+                "expert_assigned": bool(row.get("expert_assigned")) or (
+                    int(row["session_count"] or 0) > 0
+                    and int(row.get("remote_expert_assigned_count") or 0) == int(row["session_count"] or 0)
+                ),
+                "remote_expert_assigned_count": int(row.get("remote_expert_assigned_count") or 0),
+                "sede_technician_assigned_count": int(row.get("sede_technician_assigned_count") or 0),
+                "incomplete_session_names": row.get("incomplete_session_names") or [],
                 "required_data_complete": bool(row.get("required_data_complete")),
                 "visibility_reason": visibility_reason,
                 "source_role": user_source_role,
@@ -256,7 +274,10 @@ def get_bando(commission_id: str, user_email: str | None = None) -> dict | None:
                        MAX(b.email_referente) AS referente_email,
                        MAX(b.email_esperto_remoto) AS esperto_remoto_email,
                        COALESCE(MAX(b.config_status), 'da_configurare') AS config_status,
-                       BOOL_OR(COALESCE(b.expert_assigned, FALSE)) AS expert_assigned,
+                       (
+                           BOOL_OR(COALESCE(b.expert_assigned, FALSE))
+                           OR BOOL_OR(TRIM(COALESCE(sc.email_esperto_remoto, '')) <> '')
+                       ) AS expert_assigned,
                        BOOL_OR(COALESCE(b.required_data_complete, FALSE)) AS required_data_complete,
                        COUNT(DISTINCT s.session_id) AS session_count,
                        MAX(COALESCE(s.data_sync, c.data_sync)) AS last_sync
@@ -265,6 +286,8 @@ def get_bando(commission_id: str, user_email: str | None = None) -> dict | None:
                     ON b.commission_id = c.commission_id
              LEFT JOIN sessioni AS s
                     ON s.commission_id = c.commission_id
+             LEFT JOIN sessione_config AS sc
+                    ON sc.session_id = s.session_id
                  WHERE c.commission_id = %s
               GROUP BY c.commission_id
                 """,

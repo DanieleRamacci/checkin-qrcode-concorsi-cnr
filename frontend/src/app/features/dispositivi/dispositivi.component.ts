@@ -5,6 +5,7 @@ import * as QRCode from 'qrcode';
 import { forkJoin } from 'rxjs';
 import { ApiClient } from '../../core/api-client';
 import { ApiList, DeviceSummary, SessionSummary } from '../../core/models/api.models';
+import { BackLinkComponent } from '../../shared/back-link.component';
 
 const STATUS_LABELS: Record<DeviceSummary['status'], string> = {
   online: 'connesso',
@@ -26,7 +27,7 @@ interface OperationalConfig {
  */
 @Component({
   selector: 'app-dispositivi',
-  imports: [RouterLink, DatePipe],
+  imports: [RouterLink, DatePipe, BackLinkComponent],
   template: `
     <div class="container-fluid dispositivi-page">
       <div class="row">
@@ -69,6 +70,7 @@ interface OperationalConfig {
         </aside>
 
         <main class="col-md-10 content-area">
+          <app-back-link [target]="['/sessioni', sessionId]" [queryParams]="{ mode: mode }" label="Torna alla gestione concorso" />
           <div class="it-card-wrapper">
             <div class="it-card rounded shadow-sm p-4 mb-4">
               <div class="d-flex justify-content-between align-items-center mb-3">

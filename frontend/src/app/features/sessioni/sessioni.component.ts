@@ -2,14 +2,16 @@ import { Component, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { BandoDetail, SessionSummary } from '../../core/models/api.models';
 import { AuthService } from '../../core/auth.service';
+import { BackLinkComponent } from '../../shared/back-link.component';
 import { BandiService } from '../bandi/bandi.service';
 import { SessioniService } from './sessioni.service';
 
 @Component({
   selector: 'app-sessioni',
-  imports: [RouterLink],
+  imports: [RouterLink, BackLinkComponent],
   template: `
     <div class="container my-5">
+      <app-back-link target="/bandi" [queryParams]="{ mode: mode }" label="Torna alla lista concorsi" />
       <h1 class="mb-1">Sessioni – {{ bando()?.title ?? 'Concorso' }}</h1>
       <p class="text-muted">Elenco delle sessioni collegate al concorso selezionato.</p>
 

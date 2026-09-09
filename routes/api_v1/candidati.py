@@ -9,6 +9,7 @@ from utils.candidati_service import (
     import_candidates,
     list_candidates,
     toggle_candidate_checkin,
+    update_candidate_note,
     update_reset_password,
 )
 from utils.oidc import ensure_fresh_access_token
@@ -79,6 +80,36 @@ def candidato_toggle_checkin(session_id, uid):
             toggle_candidate_checkin(
                 session_id,
                 uid,
+                actor_email=session["user_email"],
+            )
+        )
+    except CandidateNotFound:
+        return error_response("candidate_not_found", "Candidato non trovato.", 404)
+    except CandidateActionBlocked as error:
+        return error_response("candidate_action_blocked", str(error), 409)
+
+
+@candidati_api_bp.put(
+    "/sessioni/<session_id>/candidati/<uid>/note"
+)
+@api_auth_required
+@session_access_required()
+def candidato_note_update(session_id, uid):
+    payload = request.get_json(silent=True) or {}
+    note = payload.get("note", "")
+    if note is not None and not isinstance(note, str):
+        return error_response(
+            "validation_error",
+            "Il campo note deve essere testuale.",
+            422,
+            details={"note": "Formato non valido."},
+        )
+    try:
+        return jsonify(
+            update_candidate_note(
+                session_id,
+                uid,
+                note=note or "",
                 actor_email=session["user_email"],
             )
         )

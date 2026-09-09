@@ -81,6 +81,39 @@ def test_toggle_candidate_checkin_returns_updated_candidate(monkeypatch):
     assert response.get_json()["checkin_effettuato"] is True
 
 
+def test_update_candidate_note_returns_updated_candidate(monkeypatch):
+    from routes.api_v1 import candidati
+
+    allow_session(monkeypatch)
+    captured = {}
+
+    def update_note(session_id, uid, *, note, actor_email):
+        captured["args"] = (session_id, uid, note, actor_email)
+        return {"uid": uid, "note": note}
+
+    monkeypatch.setattr(
+        candidati,
+        "update_candidate_note",
+        update_note,
+    )
+
+    client, token = authenticated_client(create_test_app())
+    response = client.put(
+        "/api/v1/sessioni/session-1/candidati/candidate-1/note",
+        json={"note": "Documento verificato a vista"},
+        headers={"X-CSRF-Token": token},
+    )
+
+    assert response.status_code == 200
+    assert captured["args"] == (
+        "session-1",
+        "candidate-1",
+        "Documento verificato a vista",
+        "owner@cnr.it",
+    )
+    assert response.get_json()["note"] == "Documento verificato a vista"
+
+
 def test_import_candidates_reports_selezioni_online_authorization_error(monkeypatch):
     from routes.api_v1 import candidati
 

@@ -12,6 +12,9 @@ notifiche_api_bp = Blueprint("api_v1_notifiche", __name__)
 
 
 def _serialize(item):
+    # author_display/author_role sono gia' calcolati e persistiti da
+    # get_notifications al momento della creazione della notifica: qui si
+    # serializza solo, senza rifare query per ogni riga.
     return {
         key: value.isoformat() if isinstance(value, (date, datetime)) else value
         for key, value in item.items()

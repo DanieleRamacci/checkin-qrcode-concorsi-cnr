@@ -117,6 +117,7 @@ def get_sessioni_internamente(
         with get_db_connection() as conn:
             with conn.cursor() as cursor:
                 for session_string, candidati in sessioni_data.items():
+                    cursor.execute("SAVEPOINT session_sync_item")
                     try:
                         p = parse_session_string(session_string)  # deve dare p["data_esame"]
                         raw_key = f"{commission_id}::{session_string}"
@@ -139,8 +140,11 @@ def get_sessioni_internamente(
 
                         if cursor.rowcount > 0:
                             inserted += 1
+                        cursor.execute("RELEASE SAVEPOINT session_sync_item")
 
                     except Exception as e:
+                        cursor.execute("ROLLBACK TO SAVEPOINT session_sync_item")
+                        cursor.execute("RELEASE SAVEPOINT session_sync_item")
                         current_app.logger.warning("[sessioni] PARSE FAIL '%s': %s", session_string, e)
                         continue
 

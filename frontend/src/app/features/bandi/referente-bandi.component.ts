@@ -2,14 +2,15 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ReferenteBandoSummary } from '../../core/models/api.models';
+import { BackLinkComponent } from '../../shared/back-link.component';
 import { BandiService } from './bandi.service';
 
 @Component({
   selector: 'app-referente-bandi',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, BackLinkComponent],
   template: `
     <div class="container my-5">
-      <a routerLink="/" class="btn btn-outline-secondary btn-sm mb-3">&larr; Torna alla home</a>
+      <app-back-link target="/" label="Torna alla home" />
       <h1 class="mb-2">Bandi come referente</h1>
       <p class="lead">Di seguito trovi i bandi per cui Selezioni Online ti indica come RDP o referente.</p>
 
@@ -86,13 +87,22 @@ import { BandiService } from './bandi.service';
                         {{ statusLabel(bando.config_status) }}
                       </span>
                       <div class="small text-muted mt-1">
-                        Esperto:
-                        <strong>{{ bando.expert_assigned ? 'assegnato' : 'non assegnato' }}</strong>
+                        Esperto remoto:
+                        <strong>{{ expertAssignmentLabel(bando) }}</strong>
+                      </div>
+                      <div class="small text-muted">
+                        Informatico sede:
+                        <strong>{{ assignmentProgress(bando.sede_technician_assigned_count, bando.session_count) }}</strong>
                       </div>
                       <div class="small text-muted">
                         Dati:
                         <strong>{{ bando.required_data_complete ? 'compilati' : 'da completare' }}</strong>
                       </div>
+                      @if ((bando.incomplete_session_names ?? []).length > 0) {
+                        <div class="small text-danger mt-1">
+                          Sessioni incomplete: {{ (bando.incomplete_session_names ?? []).join(', ') }}
+                        </div>
+                      }
                     </td>
                     <td>
                       <a
@@ -191,6 +201,32 @@ export class ReferenteBandiComponent {
       default:
         return 'bg-secondary';
     }
+  }
+
+  assignmentProgress(count?: number | null, total?: number | null): string {
+    const normalizedTotal = Number(total || 0);
+    if (normalizedTotal <= 0) return 'nessuna sessione';
+    return `${Number(count || 0)}/${normalizedTotal} sessioni`;
+  }
+
+  /**
+   * Il rapporto sessioni non basta da solo: `expert_assigned` puo' risultare
+   * true anche quando il conteggio locale e' 0/N (es. dato sincronizzato a
+   * livello di bando da Selezioni Online prima che le sessioni fossero
+   * importate). Non ignorare quel segnale per evitare di tornare a mostrare
+   * "non assegnato" quando il backend sa che lo e'.
+   */
+  expertAssignmentLabel(bando: ReferenteBandoSummary): string {
+    const total = Number(bando.session_count || 0);
+    const count = Number(bando.remote_expert_assigned_count || 0);
+    if (total <= 0) {
+      return bando.expert_assigned ? 'assegnato' : 'nessuna sessione';
+    }
+    const progress = `${count}/${total} sessioni`;
+    if (count === 0 && bando.expert_assigned) {
+      return `${progress} (assegnato a livello bando)`;
+    }
+    return progress;
   }
 }
 

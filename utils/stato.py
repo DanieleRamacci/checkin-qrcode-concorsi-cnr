@@ -115,6 +115,51 @@ def set_stato_corrente(session_id, nuovo_stato, utente=None):
     finally:
         db.close()
 
+def claim_transition(session_id, stato_da, stato_a, utente=None):
+    """Transizione atomica: aggiorna lo stato solo se e' ancora `stato_da`.
+
+    A differenza di `set_stato_corrente`, il confronto e l'aggiornamento
+    avvengono in un'unica UPDATE condizionata, cosi' che due richieste
+    concorrenti sullo stesso passaggio di stato (es. doppio click o due tab
+    aperte su "Invia liste") non possano entrambe superare il controllo:
+    solo una vince la race e deve eseguire l'effetto collaterale associato
+    (es. invio email), l'altra riceve False e deve trattare l'operazione
+    come gia' completata.
+    """
+    if stato_a not in STATE_TRANSITIONS.get(stato_da, []):
+        raise Exception(f"[ERRORE] Transizione non valida da {stato_da} a {stato_a}")
+
+    db = get_db_connection()
+    try:
+        with db.cursor() as cursor:
+            cursor.execute(
+                "UPDATE sessioni SET stato_corrente = %s WHERE session_id = %s AND stato_corrente = %s",
+                (stato_a, session_id, stato_da),
+            )
+            claimed = cursor.rowcount > 0
+            if claimed:
+                cursor.execute(
+                    """
+                    INSERT INTO session_state_log (session_id, stato, timestamp, utente)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    (session_id, stato_a, datetime.now(), utente),
+                )
+        if claimed:
+            try:
+                from utils.notifications import add_notification
+                add_notification(session_id, "state", payload=stato_a, author_email=utente)
+            except Exception:
+                pass
+        db.commit()
+        return claimed
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 # Utility per sapere se ci si trova in uno specifico stato
 def is_nello_stato(session_id, stato_atteso):
     return get_stato_corrente(session_id) == stato_atteso

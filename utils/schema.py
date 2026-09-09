@@ -43,6 +43,17 @@ CANDIDATI_COLUMNS = (
     ("reset_password_effettuato", "BOOLEAN DEFAULT FALSE"),
     ("reset_password_effettuato_at", "TIMESTAMP"),
     ("reset_password_effettuato_by", "TEXT"),
+    ("note", "TEXT"),
+)
+
+LISTE_GENERATE_COLUMNS = (
+    ("email_status", "TEXT"),
+    ("email_error", "TEXT"),
+)
+
+SESSION_NOTIFICATIONS_COLUMNS = (
+    ("author_display", "TEXT"),
+    ("author_role", "TEXT"),
 )
 
 
@@ -96,5 +107,13 @@ def ensure_runtime_schema() -> None:
             for column, data_type in CANDIDATI_COLUMNS:
                 cursor.execute(
                     f"ALTER TABLE candidati ADD COLUMN IF NOT EXISTS {column} {data_type};"
+                )
+            for column, data_type in LISTE_GENERATE_COLUMNS:
+                cursor.execute(
+                    f"ALTER TABLE liste_generate ADD COLUMN IF NOT EXISTS {column} {data_type};"
+                )
+            for column, data_type in SESSION_NOTIFICATIONS_COLUMNS:
+                cursor.execute(
+                    f"ALTER TABLE session_notifications ADD COLUMN IF NOT EXISTS {column} {data_type};"
                 )
         conn.commit()

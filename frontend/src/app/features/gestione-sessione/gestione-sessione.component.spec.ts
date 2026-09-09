@@ -68,4 +68,58 @@ describe('GestioneSessioneComponent', () => {
     expect(fixture.nativeElement.textContent).not.toContain('Timeline Esame');
     fixture.destroy();
   });
+
+  it('shows the red pre-checkin warning for secretary before check-in starts', async () => {
+    await TestBed.configureTestingModule({
+      imports: [GestioneSessioneComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: {
+              paramMap: new Map([['sessionId', 'session-1']]),
+              queryParamMap: new Map([['mode', 'segretario']]),
+            },
+          },
+        },
+        {
+          provide: BandiService,
+          useValue: { detail: () => of({ configured: true }) },
+        },
+        {
+          provide: ApiClient,
+          useValue: {
+            get: (path: string) => {
+              if (path.startsWith('/sessioni/session-1?')) {
+                return of({
+                  session_id: 'session-1',
+                  commission_id: 'c1',
+                  bando_title: 'Bando test',
+                  name: 'Sessione prova',
+                  location: 'Roma',
+                  date: '2026-07-03',
+                  time: '09:00',
+                  device_count: 1,
+                });
+              }
+              if (path.includes('/state?')) return of({ current_state: 'dispositivi_connessi', actions: [] });
+              if (path.includes('/candidati') || path.includes('/notifications')) return of({ items: [] });
+              return of({});
+            },
+            post: () => of({}),
+            put: () => of({}),
+          },
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(GestioneSessioneComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Prima di iniziare a scansionare le domande avviare il check-in');
+    fixture.destroy();
+  });
 });

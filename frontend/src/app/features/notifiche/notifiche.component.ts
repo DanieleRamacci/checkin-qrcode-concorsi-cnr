@@ -6,7 +6,15 @@ import { catchError, EMPTY, switchMap, timer } from 'rxjs';
 import { ApiClient } from '../../core/api-client';
 import { ApiList } from '../../core/models/api.models';
 
-interface NotificationItem { id: number; type: string; payload: string; author_email?: string; created_at?: string; }
+interface NotificationItem {
+  id: number;
+  type: string;
+  payload: string;
+  author_email?: string;
+  author_display?: string;
+  author_role?: string;
+  created_at?: string;
+}
 
 @Component({
   selector: 'app-notifiche',
@@ -14,7 +22,14 @@ interface NotificationItem { id: number; type: string; payload: string; author_e
   template: `
     <div class="it-card shadow-sm p-3 bg-white mb-3 chat-card">
       <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
-        <h6 class="mb-0">Chat interna</h6>
+        <div class="d-flex align-items-center gap-2 min-w-0">
+          <h6 class="mb-0">Chat interna</h6>
+          @if (newCount()) {
+            <button class="badge rounded-pill text-bg-danger border-0" type="button" (click)="markSeen()">
+              {{ newCount() }} nuove
+            </button>
+          }
+        </div>
         <button class="btn btn-sm btn-outline-secondary" type="button" [disabled]="busy()" (click)="load()">
           @if (busy()) {
             <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
@@ -30,21 +45,26 @@ interface NotificationItem { id: number; type: string; payload: string; author_e
         } @else {
           <ul class="list-unstyled mb-0">
             @for (item of items(); track item.id) {
-              <li class="notification-row" [attr.title]="notificationTitle(item)">
-                @if (item.type === 'state') {
-                  <span class="badge bg-primary notification-badge">Notifica</span>
-                } @else if (item.type === 'reset') {
-                  <span class="badge bg-warning text-dark notification-badge">Reset</span>
-                } @else {
-                  <span class="badge bg-secondary notification-badge">Msg</span>
-                }
-                <span class="notification-author">{{ item.author_email || '-' }}</span>
-                @if (item.created_at) {
-                  <time class="notification-time" [attr.datetime]="item.created_at">
-                    {{ item.created_at | date:'dd/MM/yyyy HH:mm' }}
-                  </time>
-                }
-                <span class="notification-payload">{{ item.payload }}</span>
+              <li class="notification-row" [class.notification-new]="isNew(item)" [attr.title]="notificationTitle(item)">
+                <div class="notification-meta">
+                  @if (item.type === 'state') {
+                    <span class="badge bg-primary notification-badge">Stato</span>
+                  } @else if (item.type === 'reset') {
+                    <span class="badge bg-warning text-dark notification-badge">Reset</span>
+                  } @else if (item.type === 'candidate_note') {
+                    <span class="badge bg-info text-dark notification-badge">Nota</span>
+                  } @else {
+                    <span class="badge bg-secondary notification-badge">Msg</span>
+                  }
+                  <span class="notification-author">{{ item.author_role || 'Utente' }}</span>
+                  <span class="notification-name">{{ item.author_display || displayName(item.author_email) }}</span>
+                  @if (item.created_at) {
+                    <time class="notification-time" [attr.datetime]="item.created_at">
+                      {{ item.created_at | date:'dd/MM HH:mm' }}
+                    </time>
+                  }
+                </div>
+                <div class="notification-payload">{{ item.payload }}</div>
               </li>
             }
           </ul>
@@ -73,18 +93,26 @@ interface NotificationItem { id: number; type: string; payload: string; author_e
     }
 
     .notification-row {
-      display: grid;
-      grid-template-columns: max-content max-content max-content minmax(8rem, 1fr);
-      align-items: center;
-      gap: 0.45rem;
-      min-width: max-content;
       padding: 0.45rem 0;
       border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-      white-space: nowrap;
+      min-width: 0;
     }
 
     .notification-row:last-child {
       border-bottom: 0;
+    }
+
+    .notification-new {
+      border-left: 3px solid #d1344c;
+      padding-left: 0.5rem;
+    }
+
+    .notification-meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.35rem;
+      min-width: 0;
     }
 
     .notification-badge {
@@ -92,22 +120,32 @@ interface NotificationItem { id: number; type: string; payload: string; author_e
     }
 
     .notification-author,
+    .notification-name,
     .notification-time,
     .notification-payload {
       color: #5b6f82;
       font-size: 0.78rem;
       line-height: 1.2;
-      white-space: nowrap;
+      min-width: 0;
     }
 
     .notification-author {
       font-weight: 600;
     }
 
+    .notification-name,
+    .notification-time {
+      overflow-wrap: anywhere;
+    }
+
     .notification-payload {
+      display: block;
+      margin-top: 0.25rem;
       color: #32485f;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      font-size: 0.95rem;
+      font-weight: 600;
+      overflow-wrap: anywhere;
+      white-space: normal;
     }
   `,
 })
@@ -118,7 +156,10 @@ export class NotificheComponent {
   readonly items = signal<NotificationItem[]>([]);
   readonly busy = signal(false);
   readonly error = signal('');
+  readonly newCount = signal(0);
   message = '';
+  private initialized = false;
+  private latestSeenId = 0;
 
   notificationTitle(item: NotificationItem): string {
     const createdAt = item.created_at ?? '';
@@ -126,15 +167,20 @@ export class NotificheComponent {
     return [author, createdAt, item.payload].filter(Boolean).join(' - ');
   }
 
+  displayName(email: string | undefined): string {
+    if (!email) return '-';
+    return email.split('@')[0].replace(/[._]+/g, ' ');
+  }
+
   ngOnInit(): void {
     timer(0, 10_000).pipe(
       switchMap(() => this.fetch()),
       takeUntilDestroyed(this.destroyRef),
-    ).subscribe(({ items }) => this.items.set(items));
+    ).subscribe(({ items }) => this.applyItems(items));
   }
 
   load(): void {
-    this.fetch().subscribe(({ items }) => this.items.set(items));
+    this.fetch().subscribe(({ items }) => this.applyItems(items));
   }
 
   send(): void {
@@ -169,5 +215,25 @@ export class NotificheComponent {
         return [response];
       }),
     );
+  }
+
+  isNew(item: NotificationItem): boolean {
+    return this.initialized && item.id > this.latestSeenId;
+  }
+
+  markSeen(): void {
+    this.latestSeenId = Math.max(0, ...this.items().map((item) => item.id));
+    this.newCount.set(0);
+  }
+
+  private applyItems(items: NotificationItem[]): void {
+    if (!this.initialized) {
+      this.items.set(items);
+      this.latestSeenId = Math.max(0, ...items.map((item) => item.id));
+      this.initialized = true;
+      return;
+    }
+    this.items.set(items);
+    this.newCount.set(items.filter((item) => item.id > this.latestSeenId).length);
   }
 }

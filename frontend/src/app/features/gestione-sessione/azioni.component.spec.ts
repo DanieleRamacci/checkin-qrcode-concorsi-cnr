@@ -258,4 +258,142 @@ describe('AzioniComponent', () => {
     fixture.componentInstance.importCandidati();
     expect(postCalls).toBe(0);
   });
+
+  it('shows a visible success message after sending lists', async () => {
+    await TestBed.configureTestingModule({
+      imports: [AzioniComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: ApiClient,
+          useValue: {
+            get: () =>
+              of({
+                id: 1,
+                session_id: 'session-1',
+                num_presenti: 3,
+                generato_da: 'secretary@cnr.it',
+                timestamp_creazione: '2026-07-03T10:00:00Z',
+                downloads: {
+                  xlsx: '/api/v1/sessioni/session-1/lists/download?type=xlsx',
+                  moodle_csv: '/api/v1/sessioni/session-1/lists/download?type=moodle_csv',
+                },
+              }),
+            post: () =>
+              of({
+                sent: true,
+                already_sent: false,
+                status: 'sent',
+                message: 'Liste candidati inviate correttamente.',
+                recipients: ['esperto@cnr.it'],
+              }),
+            put: () => of({}),
+          },
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(AzioniComponent);
+    fixture.componentRef.setInput('sessionId', 'session-1');
+    fixture.componentRef.setInput('commissionId', 'commission-1');
+    fixture.componentRef.setInput('currentState', 'liste_generate');
+    fixture.componentRef.setInput('viewMode', 'segretario');
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    fixture.componentInstance.inviaListe();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Liste candidati inviate correttamente');
+    expect(fixture.nativeElement.textContent).toContain('esperto@cnr.it');
+  });
+
+  it('shows a warning when lists are available but email notification fails', async () => {
+    await TestBed.configureTestingModule({
+      imports: [AzioniComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: ApiClient,
+          useValue: {
+            get: () =>
+              of({
+                id: 1,
+                session_id: 'session-1',
+                num_presenti: 3,
+                generato_da: 'secretary@cnr.it',
+                timestamp_creazione: '2026-07-03T10:00:00Z',
+                downloads: {
+                  xlsx: '/api/v1/sessioni/session-1/lists/download?type=xlsx',
+                  moodle_csv: '/api/v1/sessioni/session-1/lists/download?type=moodle_csv',
+                },
+              }),
+            post: () =>
+              of({
+                sent: false,
+                already_sent: false,
+                state_updated: true,
+                status: 'available_email_failed',
+                message: "Liste candidati rese disponibili all'informatico da remoto. L'email di notifica non è stata inviata.",
+                warning: 'SMTP KO',
+                recipients: ['esperto@cnr.it'],
+              }),
+            put: () => of({}),
+          },
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(AzioniComponent);
+    fixture.componentRef.setInput('sessionId', 'session-1');
+    fixture.componentRef.setInput('commissionId', 'commission-1');
+    fixture.componentRef.setInput('currentState', 'liste_generate');
+    fixture.componentRef.setInput('viewMode', 'segretario');
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    fixture.componentInstance.inviaListe();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain("Liste candidati rese disponibili all'informatico da remoto");
+    expect(fixture.nativeElement.textContent).toContain('Email non inviata: SMTP KO');
+    expect(fixture.nativeElement.textContent).toContain('può comunque vedere e scaricare le liste');
+  });
+
+  it('does not request bando config before commission id is available', async () => {
+    const urls: string[] = [];
+    await TestBed.configureTestingModule({
+      imports: [AzioniComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: ApiClient,
+          useValue: {
+            get: (url: string) => {
+              urls.push(url);
+              return of({});
+            },
+            post: () => of({}),
+            put: () => of({}),
+          },
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(AzioniComponent);
+    fixture.componentRef.setInput('sessionId', 'session-1');
+    fixture.componentRef.setInput('commissionId', '');
+    fixture.componentRef.setInput('currentState', 'iniziale');
+    fixture.componentRef.setInput('viewMode', 'segretario');
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(urls).toContain('/sessioni/session-1/config?mode=segretario');
+    expect(urls.some((url) => url.includes('/bandi//config'))).toBe(false);
+    expect(urls.some((url) => url === '/bandi/config?mode=segretario')).toBe(false);
+  });
 });

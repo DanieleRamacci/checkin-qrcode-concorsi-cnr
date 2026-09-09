@@ -11,6 +11,7 @@ from utils.sessioni import (
     update_bando_da_openapi,
     update_bando_rdp_da_openapi,
 )
+from utils.sql_fragments import SESSION_ASSIGNMENT_COUNTS_SQL
 
 
 def _normalize_email(value: str | None) -> str:
@@ -81,6 +82,9 @@ def _serialize_referente_bando(item: dict, user_email: str) -> dict | None:
         "referente_email": user_email,
         "esperto_remoto_email": None,
         "session_count": 0,
+        "remote_expert_assigned_count": 0,
+        "sede_technician_assigned_count": 0,
+        "incomplete_session_names": [],
         "last_sync": None,
         "config_status": "da_configurare",
         "expert_assigned": False,
@@ -192,14 +196,18 @@ def list_local_referente_bandi(user_email: str) -> list[dict]:
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
             cursor.execute(
-                """
+                f"""
                 SELECT r.commission_id,
                        MAX(r.nome) AS title,
                        BOOL_OR(b.commission_id IS NOT NULL) AS configured,
                        MAX(b.email_referente) AS referente_email,
                        MAX(b.email_esperto_remoto) AS esperto_remoto_email,
                        COALESCE(MAX(b.config_status), 'da_configurare') AS config_status,
-                       BOOL_OR(COALESCE(b.expert_assigned, FALSE)) AS expert_assigned,
+                       (
+                           BOOL_OR(COALESCE(b.expert_assigned, FALSE))
+                           OR BOOL_OR(TRIM(COALESCE(sc.email_esperto_remoto, '')) <> '')
+                       ) AS expert_assigned,
+{SESSION_ASSIGNMENT_COUNTS_SQL}
                        BOOL_OR(COALESCE(b.required_data_complete, FALSE)) AS required_data_complete,
                        COUNT(DISTINCT s.session_id) AS session_count,
                        MAX(COALESCE(b.configured_at, b.fetched_at, r.synced_at)) AS last_sync,
@@ -209,6 +217,8 @@ def list_local_referente_bandi(user_email: str) -> list[dict]:
                     ON b.commission_id = r.commission_id
              LEFT JOIN sessioni AS s
                     ON s.commission_id = r.commission_id
+             LEFT JOIN sessione_config AS sc
+                    ON sc.session_id = s.session_id
                  WHERE r.user_email = %s
               GROUP BY r.commission_id
               ORDER BY MAX(r.nome), r.commission_id
@@ -220,7 +230,7 @@ def list_local_referente_bandi(user_email: str) -> list[dict]:
     items = []
     for row in rows:
         try:
-            rdp_names = json.loads(row[10] or "[]")
+            rdp_names = json.loads(row[13] or "[]")
         except (TypeError, ValueError):
             rdp_names = []
         items.append(
@@ -232,9 +242,12 @@ def list_local_referente_bandi(user_email: str) -> list[dict]:
                 "esperto_remoto_email": row[4],
                 "config_status": row[5] or "da_configurare",
                 "expert_assigned": bool(row[6]),
-                "required_data_complete": bool(row[7]),
-                "session_count": int(row[8] or 0),
-                "last_sync": _json_value(row[9]),
+                "remote_expert_assigned_count": int(row[7] or 0),
+                "sede_technician_assigned_count": int(row[8] or 0),
+                "incomplete_session_names": row[9] or [],
+                "required_data_complete": bool(row[10]),
+                "session_count": int(row[11] or 0),
+                "last_sync": _json_value(row[12]),
                 "capabilities": ["configure", "view"],
                 "rdps": [],
                 "commissioners": [],

@@ -25,8 +25,10 @@ describe('CandidatiComponent', () => {
             checkin_effettuato: false,
             reset_password_richiesto: false,
             reset_password_effettuato: false,
+            note: 'Carta identità aggiornata',
           }] }),
           post: () => of({}),
+          put: () => of({}),
         },
       }],
     }).compileComponents();
@@ -37,5 +39,60 @@ describe('CandidatiComponent', () => {
 
     expect(fixture.nativeElement.textContent).toContain('Ada');
     expect(fixture.nativeElement.textContent).toContain('QR');
+    expect(fixture.nativeElement.textContent).toContain('Note');
+    expect(fixture.nativeElement.textContent).toContain('Carta identità aggiornata');
+  });
+
+  it('saves candidate notes and updates the row', async () => {
+    let putPayload: unknown = null;
+    await TestBed.configureTestingModule({
+      imports: [CandidatiComponent],
+      providers: [{
+        provide: ApiClient,
+        useValue: {
+          get: () => of({ items: [{
+            uid: 'candidate-1',
+            first_name: 'Ada',
+            last_name: 'Lovelace',
+            document_number: 'DOC1',
+            document_expired: false,
+            checkin_effettuato: false,
+            reset_password_richiesto: false,
+            reset_password_effettuato: false,
+            note: '',
+          }] }),
+          post: () => of({}),
+          put: (_url: string, payload: unknown) => {
+            putPayload = payload;
+            return of({
+              uid: 'candidate-1',
+              first_name: 'Ada',
+              last_name: 'Lovelace',
+              document_number: 'DOC1',
+              document_expired: false,
+              checkin_effettuato: false,
+              reset_password_richiesto: false,
+              reset_password_effettuato: false,
+              note: 'Documento verificato a vista',
+            });
+          },
+        },
+      }],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(CandidatiComponent);
+    fixture.componentRef.setInput('sessionId', 'session-1');
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    fixture.componentInstance.openNotes(fixture.componentInstance.items()[0]);
+    fixture.componentInstance.noteDraft = 'Documento verificato a vista';
+    fixture.componentInstance.saveNotes();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(putPayload).toEqual({ note: 'Documento verificato a vista' });
+    expect(fixture.componentInstance.items()[0].note).toBe('Documento verificato a vista');
+    expect(fixture.nativeElement.textContent).toContain('Note candidato salvate');
   });
 });

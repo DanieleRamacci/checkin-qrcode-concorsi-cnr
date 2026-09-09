@@ -172,6 +172,8 @@ try:
         type TEXT NOT NULL,
         payload TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        author_display TEXT,
+        author_role TEXT,
         FOREIGN KEY (session_id) REFERENCES sessioni(session_id)
     );
     """)
@@ -212,6 +214,7 @@ try:
         reset_password_effettuato BOOLEAN DEFAULT FALSE,
         reset_password_effettuato_at TIMESTAMP,
         reset_password_effettuato_by TEXT,
+        note TEXT,
         PRIMARY KEY (uid, session_id),
         FOREIGN KEY (session_id) REFERENCES sessioni(session_id)
     );
@@ -265,7 +268,9 @@ try:
         file_csv_moodle TEXT NOT NULL,
         num_presenti INTEGER NOT NULL,
         generato_da TEXT NOT NULL,
-        timestamp_creazione TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        timestamp_creazione TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        email_status TEXT,
+        email_error TEXT
    );
    """)
 
@@ -473,6 +478,11 @@ try:
 
     # sessione_config: migrazioni additive
     cursor.execute("ALTER TABLE sessione_config ADD COLUMN IF NOT EXISTS data_accesso_piattaforma TEXT;")
+    cursor.execute("ALTER TABLE candidati ADD COLUMN IF NOT EXISTS note TEXT;")
+    cursor.execute("ALTER TABLE liste_generate ADD COLUMN IF NOT EXISTS email_status TEXT;")
+    cursor.execute("ALTER TABLE liste_generate ADD COLUMN IF NOT EXISTS email_error TEXT;")
+    cursor.execute("ALTER TABLE session_notifications ADD COLUMN IF NOT EXISTS author_display TEXT;")
+    cursor.execute("ALTER TABLE session_notifications ADD COLUMN IF NOT EXISTS author_role TEXT;")
 
     cursor.execute("""
     ALTER TABLE prove

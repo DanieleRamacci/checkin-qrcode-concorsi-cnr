@@ -69,6 +69,34 @@ Decisione post-deploy 010: `PRONTA SOLO TEST CONTROLLATO` / `PRONTA PRODUZIONE`
 / `APRIRE FIX`
 Motivo: ________________________________________________________________
 
+## Checklist anomalie post collaudo 011
+
+Questa sezione nasce dalle prove applicative del 2026-09-09. Compilarla dopo
+l'implementazione della feature `011-collaudo-fix-operativi`.
+
+| ID | Utente | URL/Azione | Risultato atteso | Esito | Note |
+|----|--------|------------|------------------|-------|------|
+| 011.1 | U1 segretario | Generare liste da gestione sessione | Spinner/messaggio visibile entro 1 secondo; pulsante non duplicabile | ____ | ____ |
+| 011.2 | U1 segretario | Durante generazione liste fare doppio click | Nessuna doppia generazione nascosta; stato finale chiaro | ____ | ____ |
+| 011.3 | U1 segretario | Durante generazione liste fare refresh o back | Al rientro lo stato e' recuperato o spiegato chiaramente | ____ | ____ |
+| 011.4 | U2 referente | Aprire dashboard referenti | Durante sync/aggiornamento appare spinner con testo chiaro | ____ | ____ |
+| 011.5 | U2 referente | Salvare informatici sede su tutte le sessioni | Lo stato non segnala piu informatico non assegnato | ____ | ____ |
+| 011.6 | U2 referente | Salvare informatico sede solo su una sessione di un bando multi-sessione | Il sistema indica quali sessioni sono ancora incomplete | ____ | ____ |
+| 011.7 | U0/U1/U2/U3/U5 | Usare pagine operative di dettaglio | Il pulsante `Torna indietro` riporta al contesto corretto mantenendo il profilo | ____ | ____ |
+| 011.8 | U1 segretario | Aprire sessione prima di avviare check-in | Avviso rosso visibile: avviare check-in prima di scansionare | ____ | ____ |
+| 011.9 | U1 segretario | Avviare check-in | L'avviso sparisce o cambia stato in modo coerente | ____ | ____ |
+| 011.10 | U1/U5 | Aprire lista candidati e premere `Note` | Si apre modal con campo testo per candidato specifico | ____ | ____ |
+| 011.11 | U1/U5 | Salvare nota candidato e ricaricare pagina | Nota persistente e associata al candidato corretto | ____ | ____ |
+| 011.12 | U1 | Generare liste Excel con candidato annotato | La colonna `note` compare nell'Excel in modo leggibile (nessuna generazione PDF prevista in questa fase) | ____ | ____ |
+| 011.13 | U1/U3/U5 mobile | Aprire widget notifiche/stati su schermo piccolo | Nessuno scroll orizzontale; ruolo sintetico, nome/data breve, messaggio evidente | ____ | ____ |
+| 011.14 | U1/U3/U5 | Generare nuovo cambio stato/notifica | Badge o indicatore di novita visibile | ____ | ____ |
+| 011.15 | U1 + U3/U5 | Tenere due dashboard aperte e cambiare stato da un profilo | Stato, timeline e azioni si aggiornano sull'altro profilo senza refresh | ____ | ____ |
+| 011.16 | U1 + U3/U5 | Interrompere connessione/realtime se possibile | Il sistema recupera via fallback o avvisa che i dati potrebbero non essere aggiornati | ____ | ____ |
+
+Decisione post-deploy 011: `PRONTA TEST CONTROLLATO` / `PRONTA PRODUZIONE`
+/ `APRIRE FIX`
+Motivo: ________________________________________________________________
+
 ## Test preliminari ambiente - Spec 003
 
 | ID | Utente | URL/Azione | Risultato atteso | Esito | Note |
@@ -240,6 +268,8 @@ Motivo: ________________________________________________________________
 Non promuovere in produzione finche' non sono vere tutte le condizioni seguenti:
 
 - Checklist post-deploy 010 completata con esito `PASS` oppure rischio residuo
+  accettato esplicitamente.
+- Checklist post-deploy 011 completata con esito `PASS` oppure rischio residuo
   accettato esplicitamente.
 - Spec 003: dominio test, login OIDC, health, versione e separazione
   test/produzione verificati.

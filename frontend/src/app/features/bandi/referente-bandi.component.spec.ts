@@ -22,8 +22,11 @@ describe('ReferenteBandiComponent', () => {
                     configured: false,
                     config_status: 'esperto_assegnato',
                     expert_assigned: true,
+                    remote_expert_assigned_count: 1,
+                    sede_technician_assigned_count: 0,
+                    incomplete_session_names: ['Sessione mattina'],
                     required_data_complete: false,
-                    session_count: 0,
+                    session_count: 1,
                     capabilities: ['configure', 'view'],
                     rdp_names: ['Rita Verdi'],
                   },
@@ -45,8 +48,73 @@ describe('ReferenteBandiComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Bando RDP');
     expect(fixture.nativeElement.textContent).toContain('Rita Verdi');
     expect(fixture.nativeElement.textContent).toContain('Esperto assegnato');
+    expect(fixture.nativeElement.textContent).toContain('Esperto remoto: 1/1 sessioni');
+    expect(fixture.nativeElement.textContent).toContain('Informatico sede: 0/1 sessioni');
+    expect(fixture.nativeElement.textContent).toContain('Sessioni incomplete: Sessione mattina');
     expect(fixture.nativeElement.textContent).toContain('da completare');
     expect(fixture.nativeElement.textContent).toContain('Configura bando');
+  });
+
+  it('does not contradict a bando-level expert_assigned flag when local session counts are zero', async () => {
+    await TestBed.configureTestingModule({
+      imports: [ReferenteBandiComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: BandiService,
+          useValue: {
+            listReferente: () =>
+              of({
+                items: [
+                  {
+                    commission_id: 'rdp-2',
+                    title: 'Bando sincronizzato senza sessioni locali',
+                    configured: false,
+                    config_status: 'esperto_assegnato',
+                    expert_assigned: true,
+                    remote_expert_assigned_count: 0,
+                    sede_technician_assigned_count: 0,
+                    incomplete_session_names: [],
+                    required_data_complete: false,
+                    session_count: 0,
+                    capabilities: ['configure', 'view'],
+                    rdp_names: [],
+                  },
+                  {
+                    commission_id: 'rdp-3',
+                    title: 'Bando multi-sessione con solo il flag di bando',
+                    configured: false,
+                    config_status: 'esperto_assegnato',
+                    expert_assigned: true,
+                    remote_expert_assigned_count: 0,
+                    sede_technician_assigned_count: 0,
+                    incomplete_session_names: ['Sessione A', 'Sessione B'],
+                    required_data_complete: false,
+                    session_count: 2,
+                    capabilities: ['configure', 'view'],
+                    rdp_names: [],
+                  },
+                ],
+                sync_error: null,
+                sync_source: 'remote',
+              }),
+            syncReferente: () => of({ items: [], sync_error: null, sync_source: 'remote' }),
+          },
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(ReferenteBandiComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // session_count 0 ma expert_assigned true: non deve dire "nessuna sessione"
+    // come se l'esperto non fosse assegnato.
+    expect(fixture.nativeElement.textContent).toContain('Esperto remoto: assegnato');
+    // session_count > 0 ma conteggio locale 0/N: il rapporto resta visibile,
+    // ma senza contraddire il flag di bando gia' noto come assegnato.
+    expect(fixture.nativeElement.textContent).toContain('Esperto remoto: 0/2 sessioni (assegnato a livello bando)');
   });
 
   it('renders the empty state when the user has no assigned bandi', async () => {

@@ -1,4 +1,4 @@
-import { Component, computed, inject, input, signal } from '@angular/core';
+import { Component, SimpleChanges, computed, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import * as QRCode from 'qrcode';
 import { ApiClient } from '../../core/api-client';
@@ -16,7 +16,7 @@ export function candidateQrPayload(uid: string): string {
       <div class="it-card shadow-sm p-4">
         <h5 class="mb-3">Elenco candidati</h5>
 
-        <div class="d-flex justify-content-end mb-2">
+        <div class="d-flex justify-content-end gap-2 mb-2">
           <button class="btn btn-outline-primary btn-sm" type="button" [disabled]="loading()" (click)="load()">
             @if (loading()) {
               <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
@@ -92,6 +92,7 @@ export function candidateQrPayload(uid: string): string {
                   <th>Documento</th>
                   <th>Validità</th>
                   <th>Check-in</th>
+                  <th>Note</th>
                   <th class="text-nowrap">Azioni</th>
                 </tr>
               </thead>
@@ -116,11 +117,26 @@ export function candidateQrPayload(uid: string): string {
                         <span class="badge bg-secondary">Non effettuato</span>
                       }
                     </td>
+                    <td class="candidate-note-cell">
+                      @if (item.note) {
+                        <span>{{ item.note }}</span>
+                      } @else {
+                        <span class="text-muted">-</span>
+                      }
+                    </td>
                     <td class="text-nowrap">
                       <button class="btn btn-sm btn-outline-dark me-1" type="button"
                         title="Mostra QR candidato" [attr.aria-label]="'Mostra QR candidato ' + item.first_name + ' ' + item.last_name"
                         (click)="showQr(item)">
                         QR
+                      </button>
+                      <button
+                        [class]="'btn btn-sm me-1 ' + (item.note ? 'btn-primary text-white' : 'btn-outline-primary')"
+                        type="button"
+                        [attr.aria-label]="'Apri note candidato ' + item.first_name + ' ' + item.last_name"
+                        (click)="openNotes(item)"
+                      >
+                        {{ item.note ? 'Modifica note' : 'Note' }}
                       </button>
                       <button
                         [class]="'btn btn-sm text-nowrap ' + (item.checkin_effettuato ? 'btn-outline-danger' : 'btn-outline-success')"
@@ -169,15 +185,61 @@ export function candidateQrPayload(uid: string): string {
         </div>
       </div>
     }
+
+    @if (noteCandidate(); as candidate) {
+      <div class="modal candidate-note-modal" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="candidateNoteTitle">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <form (ngSubmit)="saveNotes()">
+              <div class="modal-header">
+                <h2 class="modal-title h5" id="candidateNoteTitle">Note candidato</h2>
+                <button class="btn-close" type="button" aria-label="Chiudi" (click)="closeNotes()"></button>
+              </div>
+              <div class="modal-body">
+                <p class="fw-semibold mb-2">{{ candidate.last_name }} {{ candidate.first_name }}</p>
+                <label class="form-label" for="candidate-note-text">Note documento / identità</label>
+                <textarea
+                  id="candidate-note-text"
+                  class="form-control"
+                  name="candidateNote"
+                  rows="6"
+                  maxlength="2000"
+                  [(ngModel)]="noteDraft"
+                ></textarea>
+                <div class="form-text text-end">{{ noteDraft.length }}/2000</div>
+                @if (noteError()) {
+                  <div class="alert alert-danger mt-3 mb-0" role="alert">{{ noteError() }}</div>
+                }
+              </div>
+              <div class="modal-footer">
+                <button class="btn btn-secondary" type="button" [disabled]="noteSaving()" (click)="closeNotes()">Annulla</button>
+                <button class="btn btn-primary" type="submit" [disabled]="noteSaving()">
+                  @if (noteSaving()) { <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span> }
+                  Salva note
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    }
   `,
   styles: `
     .candidate-qr-modal { display: block; background: rgba(0, 0, 0, 0.5); }
+    .candidate-note-modal { display: block; background: rgba(0, 0, 0, 0.5); }
     .candidate-qr { image-rendering: pixelated; }
+    .candidate-note-cell {
+      max-width: 18rem;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      font-size: 0.9rem;
+    }
   `,
 })
 export class CandidatiComponent {
   readonly sessionId = input.required<string>();
   readonly viewMode = input<'segretario' | 'sede' | 'esperto' | 'admin'>('segretario');
+  readonly refreshTick = input(0);
   private readonly api = inject(ApiClient);
   readonly items = signal<CandidateSummary[]>([]);
   readonly message = signal('');
@@ -185,13 +247,17 @@ export class CandidatiComponent {
   readonly error = signal('');
   readonly mutationUid = signal<string | null>(null);
   readonly selectedCandidate = signal<CandidateSummary | null>(null);
+  readonly noteCandidate = signal<CandidateSummary | null>(null);
   readonly qrDataUrl = signal('');
   readonly qrLoading = signal(false);
+  readonly noteSaving = signal(false);
+  readonly noteError = signal('');
   readonly query = signal('');
   readonly sort = signal<'alpha' | 'checkin_no' | 'checkin_yes'>('alpha');
   readonly checkin = signal<'all' | 'yes' | 'no'>('all');
   readonly expiredOnly = signal(false);
   private searchDebounce?: ReturnType<typeof setTimeout>;
+  noteDraft = '';
 
   readonly filteredItems = computed(() => {
     let items = this.items();
@@ -208,6 +274,12 @@ export class CandidatiComponent {
   });
 
   ngOnInit(): void { this.load(); }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['refreshTick'] && !changes['refreshTick'].firstChange) {
+      this.load();
+    }
+  }
 
   onQueryChange(value: string): void {
     this.query.set(value);
@@ -274,5 +346,40 @@ export class CandidatiComponent {
   closeQr(): void {
     this.selectedCandidate.set(null);
     this.qrDataUrl.set('');
+  }
+
+  openNotes(candidate: CandidateSummary): void {
+    this.noteCandidate.set(candidate);
+    this.noteDraft = candidate.note ?? '';
+    this.noteError.set('');
+  }
+
+  closeNotes(): void {
+    if (this.noteSaving()) return;
+    this.noteCandidate.set(null);
+    this.noteDraft = '';
+    this.noteError.set('');
+  }
+
+  saveNotes(): void {
+    const candidate = this.noteCandidate();
+    if (!candidate) return;
+    this.noteSaving.set(true);
+    this.noteError.set('');
+    this.api.put<CandidateSummary>(
+      `/sessioni/${this.sessionId()}/candidati/${encodeURIComponent(candidate.uid)}/note?mode=${encodeURIComponent(this.viewMode())}`,
+      { note: this.noteDraft },
+    ).subscribe({
+      next: (updated) => {
+        this.items.update((items) => items.map((item) => item.uid === updated.uid ? updated : item));
+        this.message.set('Note candidato salvate.');
+        this.noteSaving.set(false);
+        this.closeNotes();
+      },
+      error: () => {
+        this.noteSaving.set(false);
+        this.noteError.set('Salvataggio note non riuscito.');
+      },
+    });
   }
 }

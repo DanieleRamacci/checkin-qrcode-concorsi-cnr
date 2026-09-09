@@ -26,6 +26,9 @@ export interface BandoSummary {
   esperto_remoto_email?: string | null;
   config_status?: string | null;
   expert_assigned?: boolean;
+  remote_expert_assigned_count?: number;
+  sede_technician_assigned_count?: number;
+  incomplete_session_names?: string[];
   required_data_complete?: boolean;
   session_count: number;
   last_sync?: string | null;
@@ -116,6 +119,7 @@ export interface CandidateSummary {
   checkin_effettuato: boolean;
   reset_password_richiesto: boolean;
   reset_password_effettuato: boolean;
+  note?: string;
 }
 
 export interface WorkflowAction {
@@ -152,4 +156,19 @@ export interface ListSummary {
   generato_da: string;
   timestamp_creazione: string;
   downloads: { xlsx: string; moodle_csv: string };
+  status?: string;
+  message?: string;
+  email_status?: 'sent' | 'failed' | null;
+  email_error?: string | null;
+}
+
+export interface ListSendResult {
+  sent: boolean;
+  already_sent?: boolean;
+  state_updated?: boolean;
+  status?: string;
+  message?: string;
+  warning?: string | null;
+  email_status?: 'sent' | 'failed' | null;
+  recipients: string[];
 }

@@ -3,7 +3,7 @@ import { Component, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ApiClient } from '../../core/api-client';
-import { ListSummary } from '../../core/models/api.models';
+import { ListSendResult, ListSummary } from '../../core/models/api.models';
 
 interface MergedConfig {
   email_esperto_remoto?: string;
@@ -36,7 +36,7 @@ interface SedeTechnician {
       <div class="overlay" role="status" aria-live="polite" aria-busy="true">
         <div class="text-center">
           <div class="spinner-border" role="status"><span class="visually-hidden">Caricamento…</span></div>
-          <p class="mt-3 mb-0">Operazione in corso… non chiudere la pagina.</p>
+          <p class="mt-3 mb-0">{{ operationMessage() }}</p>
         </div>
       </div>
     }
@@ -195,8 +195,13 @@ interface SedeTechnician {
                   </div>
                 }
               </div>
-              <button class="btn btn-primary" type="button" [disabled]="busy() || adminOnly()" (click)="importCandidati()">Scarica Candidati</button>
+              <button class="btn btn-primary" type="button" [disabled]="busy() || adminOnly()" (click)="importCandidati()">
+                @if (busy()) { <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span> }
+                Scarica Candidati
+              </button>
             </div>
+            @if (success()) { <div class="alert alert-success mt-3 mb-0" role="status">{{ success() }}</div> }
+            @if (warning()) { <div class="alert alert-warning mt-3 mb-0" role="status">{{ warning() }}</div> }
             @if (error()) { <div class="alert alert-danger mt-3 mb-0" role="alert">{{ error() }}</div> }
           </div>
         </div>
@@ -262,8 +267,13 @@ interface SedeTechnician {
                 <h5 class="mb-2">Genera Liste</h5>
                 <p class="mb-3 text-muted">Genera i file necessari (XLSX presenti + CSV Moodle aggiornato).</p>
               </div>
-              <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="generaListe()">Genera Liste</button>
+              <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="generaListe()">
+                @if (busy()) { <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span> }
+                Genera Liste
+              </button>
             </div>
+            @if (success()) { <div class="alert alert-success mt-3 mb-0" role="status">{{ success() }}</div> }
+            @if (warning()) { <div class="alert alert-warning mt-3 mb-0" role="status">{{ warning() }}</div> }
             @if (error()) { <div class="alert alert-danger mt-3 mb-0" role="alert">{{ error() }}</div> }
           </div>
         </div>
@@ -307,8 +317,27 @@ interface SedeTechnician {
                 <div class="alert alert-warning">Nessuna lista trovata.</div>
               }
             </div>
-            <button class="btn btn-success" type="button" [disabled]="busy()" (click)="inviaListe()">Invia lista ad esperto informatico</button>
+            <div class="send-list-actions">
+              @if (currentState() === 'liste_generate') {
+                <button class="btn btn-success" type="button" [disabled]="busy() || !latestList()" (click)="inviaListe()">
+                  @if (busy()) { <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span> }
+                  Invia lista ad esperto informatico
+                </button>
+              } @else if (latestList()?.email_status === 'failed') {
+                <div class="alert alert-warning mb-0" role="status">
+                  Liste disponibili: l'informatico da remoto può vederle e scaricarle dalla propria dashboard.
+                  L'invio della notifica email non è riuscito{{ latestList()?.email_error ? (' (' + latestList()?.email_error + ')') : '' }}.
+                </div>
+              } @else {
+                <div class="alert alert-success mb-0" role="status">
+                  Liste candidati inviate correttamente.
+                  L'informatico da remoto vede ora la fase successiva.
+                </div>
+              }
+            </div>
           </div>
+          @if (success()) { <div class="alert alert-success mt-3 mb-0" role="status">{{ success() }}</div> }
+          @if (warning()) { <div class="alert alert-warning mt-3 mb-0" role="status">{{ warning() }}</div> }
           @if (error()) { <div class="alert alert-danger mt-3 mb-0" role="alert">{{ error() }}</div> }
         </div>
       </div>
@@ -338,7 +367,10 @@ export class AzioniComponent {
 
   private readonly api = inject(ApiClient);
   readonly error = signal('');
+  readonly success = signal('');
+  readonly warning = signal('');
   readonly busy = signal(false);
+  readonly operationMessage = signal('Operazione in corso... non chiudere la pagina.');
   readonly mergedConfig = signal<MergedConfig | null>(null);
   readonly latestList = signal<ListSummary | null>(null);
   readonly expertOptions = signal<string[]>([]);
@@ -361,6 +393,7 @@ export class AzioniComponent {
 
   private loadContextData(): void {
     const modeParam = encodeURIComponent(this.viewMode());
+    const commissionId = this.commissionId();
     if (this.currentState() === 'iniziale') {
       this.api.get<Record<string, any>>(`/sessioni/${this.sessionId()}/config?mode=${modeParam}`).subscribe((data) => {
         this.sessionConfigModel = {
@@ -371,12 +404,14 @@ export class AzioniComponent {
           informatici_sede: (data['informatici_sede'] as unknown as SedeTechnician[]) ?? [],
         };
       });
-      this.api.get<Record<string, any>>(`/bandi/${this.commissionId()}/config?mode=${modeParam}`).subscribe((data) => {
+      if (!commissionId) return;
+      this.api.get<Record<string, any>>(`/bandi/${commissionId}/config?mode=${modeParam}`).subscribe((data) => {
         this.expertOptions.set(data['expert_options'] ?? []);
       });
     }
     if (this.currentState() === 'configurata') {
-      this.api.get<MergedConfig>(`/bandi/${this.commissionId()}/config?mode=${modeParam}`).subscribe((bando) => {
+      if (!commissionId) return;
+      this.api.get<MergedConfig>(`/bandi/${commissionId}/config?mode=${modeParam}`).subscribe((bando) => {
         this.api.get<MergedConfig>(`/sessioni/${this.sessionId()}/config?mode=${modeParam}`).subscribe((sessione) => {
           this.mergedConfig.set({ ...bando, ...Object.fromEntries(Object.entries(sessione).filter(([, v]) => v)) });
         });
@@ -399,16 +434,18 @@ export class AzioniComponent {
 
   saveSessionConfig(): void {
     this.error.set('');
+    this.success.set('');
+    this.warning.set('');
     const validationError = this.sessionConfigValidationError();
     if (validationError) {
       this.error.set(validationError);
       return;
     }
-    this.busy.set(true);
+    this.startBusy('Salvataggio configurazione in corso...');
     const modeParam = encodeURIComponent(this.viewMode());
     this.api.put(`/sessioni/${this.sessionId()}/config?mode=${modeParam}`, this.sessionConfigPayload()).subscribe({
-      next: () => { this.busy.set(false); this.changed.emit(); },
-      error: (err) => { this.busy.set(false); this.error.set(this.extractError(err)); },
+      next: () => { this.stopBusy(); this.success.set('Configurazione sessione salvata correttamente.'); this.changed.emit(); },
+      error: (err) => { this.stopBusy(); this.error.set(this.extractError(err)); },
     });
   }
 
@@ -423,39 +460,75 @@ export class AzioniComponent {
       return;
     }
     this.error.set('');
-    this.busy.set(true);
+    this.success.set('');
+    this.warning.set('');
+    this.startBusy('Importazione candidati in corso...');
     this.api.post(`/sessioni/${this.sessionId()}/candidati/import?mode=${encodeURIComponent(this.viewMode())}`).subscribe({
-      next: () => { this.busy.set(false); this.changed.emit(); },
-      error: (err) => { this.busy.set(false); this.error.set(this.extractError(err)); },
+      next: () => { this.stopBusy(); this.success.set('Lista candidati importata correttamente.'); this.changed.emit(); },
+      error: (err) => { this.stopBusy(); this.error.set(this.extractError(err)); },
     });
   }
 
   runAction(action: string, confirmation?: string): void {
     if (confirmation && !window.confirm(confirmation)) return;
     this.error.set('');
-    this.busy.set(true);
+    this.success.set('');
+    this.warning.set('');
+    this.startBusy('Aggiornamento stato in corso...');
     this.api.post(`/sessioni/${this.sessionId()}/actions/${action}?mode=${encodeURIComponent(this.viewMode())}`).subscribe({
-      next: () => { this.busy.set(false); this.changed.emit(); },
-      error: (err) => { this.busy.set(false); this.error.set(this.extractError(err)); },
+      next: () => { this.stopBusy(); this.changed.emit(); },
+      error: (err) => { this.stopBusy(); this.error.set(this.extractError(err)); },
     });
   }
 
   generaListe(): void {
     this.error.set('');
-    this.busy.set(true);
+    this.success.set('');
+    this.warning.set('');
+    this.startBusy('Generazione liste candidati in corso...');
     this.api.post<ListSummary>(`/sessioni/${this.sessionId()}/lists/generate?mode=${encodeURIComponent(this.viewMode())}`).subscribe({
-      next: (item) => { this.busy.set(false); this.latestList.set(item); this.changed.emit(); },
-      error: (err) => { this.busy.set(false); this.error.set(this.extractError(err)); },
+      next: (item) => {
+        this.stopBusy();
+        this.latestList.set(item);
+        this.success.set(item.message || 'Liste candidati generate correttamente.');
+        this.changed.emit();
+      },
+      error: (err) => { this.stopBusy(); this.error.set(this.extractError(err)); },
     });
   }
 
   inviaListe(): void {
     this.error.set('');
-    this.busy.set(true);
-    this.api.post(`/sessioni/${this.sessionId()}/lists/send?mode=${encodeURIComponent(this.viewMode())}`).subscribe({
-      next: () => { this.busy.set(false); this.changed.emit(); },
-      error: (err) => { this.busy.set(false); this.error.set(this.extractError(err)); },
+    this.success.set('');
+    this.warning.set('');
+    this.startBusy('Invio liste candidati all’informatico da remoto in corso...');
+    this.api.post<ListSendResult>(`/sessioni/${this.sessionId()}/lists/send?mode=${encodeURIComponent(this.viewMode())}`).subscribe({
+      next: (result) => {
+        this.stopBusy();
+        const recipients = result.recipients?.length
+          ? ` Destinatario: ${result.recipients.join(', ')}.`
+          : '';
+        this.success.set((result.message || 'Liste candidati inviate correttamente.') + recipients);
+        if (result.warning) {
+          this.warning.set(`Email non inviata: ${result.warning}. L'informatico da remoto può comunque vedere e scaricare le liste dalla propria dashboard.`);
+        }
+        if (result.email_status) {
+          this.latestList.update((item) => (item ? { ...item, email_status: result.email_status } : item));
+        }
+        this.changed.emit();
+      },
+      error: (err) => { this.stopBusy(); this.error.set(this.extractError(err)); },
     });
+  }
+
+  private startBusy(message: string): void {
+    this.operationMessage.set(message);
+    this.busy.set(true);
+  }
+
+  private stopBusy(): void {
+    this.busy.set(false);
+    this.operationMessage.set('Operazione in corso... non chiudere la pagina.');
   }
 
   private extractError(err: unknown): string {

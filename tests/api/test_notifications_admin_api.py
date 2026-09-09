@@ -48,6 +48,45 @@ def test_notification_feed(monkeypatch):
     assert response.get_json()["items"][0]["payload"] == "Test"
 
 
+def test_notification_feed_passes_through_persisted_author_role(monkeypatch):
+    # author_display/author_role sono calcolati e persistiti una sola volta,
+    # al momento della creazione, da utils.notifications.add_notification
+    # (vedi tests/test_notifications_service.py). L'endpoint si limita a
+    # serializzare cio' che get_notifications restituisce.
+    from routes.api_v1 import notifiche
+    from utils import authorization
+
+    monkeypatch.setattr(
+        authorization,
+        "can_access_session",
+        lambda email, session_id, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        notifiche,
+        "get_notifications",
+        lambda session_id, limit: [
+            {
+                "id": 1,
+                "session_id": session_id,
+                "author_email": "remote.expert@cnr.it",
+                "type": "state",
+                "payload": "liste_inviate",
+                "author_role": "Inf. remoto",
+                "author_display": "Remote Expert",
+            }
+        ],
+    )
+
+    response = authenticated_client(create_test_app()).get(
+        "/api/v1/sessioni/session-1/notifications"
+    )
+
+    assert response.status_code == 200
+    item = response.get_json()["items"][0]
+    assert item["author_role"] == "Inf. remoto"
+    assert item["author_display"] == "Remote Expert"
+
+
 def test_admin_roles_rejects_non_admin(monkeypatch):
     from routes.api_v1 import admin
 

@@ -44,6 +44,7 @@ def _candidate_dto(row) -> dict:
         "checkin_effettuato": bool(data.get("checkin_effettuato")),
         "reset_password_richiesto": bool(data.get("reset_password_richiesto")),
         "reset_password_effettuato": bool(data.get("reset_password_effettuato")),
+        "note": data.get("note") or "",
         "reset_password_richiesto_at": _iso(
             data.get("reset_password_richiesto_at")
         ),
@@ -82,7 +83,7 @@ def list_candidates(
             cursor.execute(
                 f"""
                 SELECT uid, first_name, last_name, document_number,
-                       document_date,
+                       document_date, note,
                        COALESCE(checkin_effettuato, FALSE) AS checkin_effettuato,
                        COALESCE(reset_password_richiesto, FALSE)
                            AS reset_password_richiesto,
@@ -105,7 +106,7 @@ def _get_candidate(session_id: str, uid: str) -> dict:
             cursor.execute(
                 """
                 SELECT uid, first_name, last_name, document_number,
-                       document_date,
+                       document_date, note,
                        COALESCE(checkin_effettuato, FALSE) AS checkin_effettuato,
                        COALESCE(reset_password_richiesto, FALSE)
                            AS reset_password_richiesto,
@@ -221,6 +222,38 @@ def update_reset_password(
         session_id,
         "reset",
         payload=f"Reset password: {operation} ({uid})",
+        author_email=actor_email,
+    )
+    return _get_candidate(session_id, uid)
+
+
+def update_candidate_note(
+    session_id: str,
+    uid: str,
+    *,
+    note: str,
+    actor_email: str,
+) -> dict:
+    normalized_note = (note or "").strip()
+    if len(normalized_note) > 2000:
+        raise CandidateActionBlocked("La nota non può superare 2000 caratteri.")
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE candidati
+                   SET note = %s
+                 WHERE session_id = %s AND uid = %s
+                """,
+                (normalized_note or None, session_id, uid),
+            )
+            if cursor.rowcount != 1:
+                raise CandidateNotFound(uid)
+        conn.commit()
+    add_notification(
+        session_id,
+        "candidate_note",
+        payload=f"Nota candidato aggiornata ({uid})",
         author_email=actor_email,
     )
     return _get_candidate(session_id, uid)

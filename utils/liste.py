@@ -27,12 +27,13 @@ def genera_liste_excel_csv(session_id, candidati):
     # XLSX
     wb = Workbook()
     ws = wb.active
-    ws.append(["uid","first_name","last_name","document_number","document_date","fiscal_code","stato"])
+    ws.append(["uid","first_name","last_name","document_number","document_date","fiscal_code","stato","note"])
     for c in candidati:
         ws.append([
             c.get("uid"), c.get("first_name"), c.get("last_name"),
             c.get("document_number"), c.get("document_date"), c.get("fiscal_code"),
-            "Presente"
+            "Presente",
+            c.get("note") or "",
         ])
     wb.save(xlsx_path)
 
@@ -77,7 +78,7 @@ def get_ultima_lista_generata(session_id):
 def get_candidati_by_sessione_checkin(session_id):
     with get_db_connection() as db:
         query = """
-            SELECT uid, first_name, last_name, fiscal_code, document_number, document_date, checkin_effettuato
+            SELECT uid, first_name, last_name, fiscal_code, document_number, document_date, checkin_effettuato, note
             FROM candidati
             WHERE session_id = %s AND checkin_effettuato = TRUE
         """
@@ -90,7 +91,7 @@ def get_candidati_by_sessione_checkin(session_id):
 def get_candidati_per_lista_completa(session_id):
     with get_db_connection() as db:
         query = """
-            SELECT uid, first_name, last_name, fiscal_code, document_number, document_date, checkin_effettuato
+            SELECT uid, first_name, last_name, fiscal_code, document_number, document_date, checkin_effettuato, note
             FROM candidati
             WHERE session_id = %s
         """
@@ -141,5 +142,4 @@ def get_lista_by_id(session_id, lista_id):
         "num_presenti": row[3],
         "timestamp_creazione": row[4],
     }
-
 

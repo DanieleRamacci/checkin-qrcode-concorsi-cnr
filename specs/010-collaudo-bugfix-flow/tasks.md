@@ -69,6 +69,19 @@
 - **Gate successivo**: completare T024 e registrare esiti nel verbale 009 prima
   di dichiarare `PRONTA PRODUZIONE`.
 
+### Manual validation update - 2026-09-09
+
+- Le verifiche con utenti/profili sono state svolte quasi integralmente; i
+  profili tecnici sono stati simulati dall'admin e devono essere ripetuti con
+  utenti tecnici reali o equivalenti.
+- Sono emersi difetti operativi non coperti dalla 010: spinner mancanti,
+  gestione reload/back durante operazioni lunghe, stato informatico in sede su
+  bandi multi-sessione, note candidato, widget notifiche mobile e aggiornamento
+  realtime di timeline/azioni.
+- Nuova feature aperta: `specs/011-collaudo-fix-operativi`.
+- La decisione resta: **NON PRONTA PER PRODUZIONE GENERALE** finche' la 011 non
+  e' implementata e ritestata.
+
 ## Final Phase: Polish & Cross-Cutting
 
 - [x] T026 Run backend suite with `PYTHONPATH=. .venv/bin/pytest -q`

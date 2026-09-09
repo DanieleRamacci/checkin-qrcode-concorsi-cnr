@@ -2,16 +2,15 @@ import { Component, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { BandoDetail, BandoPerson } from '../../core/models/api.models';
 import { AuthService } from '../../core/auth.service';
+import { BackLinkComponent } from '../../shared/back-link.component';
 import { BandiService } from './bandi.service';
 
 @Component({
   selector: 'app-bando-detail',
-  imports: [RouterLink],
+  imports: [RouterLink, BackLinkComponent],
   template: `
     <div class="container my-5" style="max-width: 860px;">
-      <a [routerLink]="['/bandi', commissionId, 'sessioni']" [queryParams]="{ mode: mode }" class="btn btn-outline-secondary btn-sm mb-3">
-        &larr; Torna alle sessioni
-      </a>
+      <app-back-link [target]="['/bandi', commissionId, 'sessioni']" [queryParams]="{ mode: mode }" label="Torna alle sessioni" />
 
       <h1 class="mb-1">Dettaglio Bando</h1>
       <p class="text-muted mb-4">

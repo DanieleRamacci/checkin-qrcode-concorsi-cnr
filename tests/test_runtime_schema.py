@@ -43,4 +43,5 @@ def test_runtime_schema_adds_remote_expert_status_columns(monkeypatch):
     assert "ALTER TABLE sessioni ADD COLUMN IF NOT EXISTS data_esame TEXT" in statements
     assert "ALTER TABLE candidati ADD COLUMN IF NOT EXISTS reset_password_richiesto BOOLEAN DEFAULT FALSE" in statements
     assert "ALTER TABLE candidati ADD COLUMN IF NOT EXISTS reset_password_effettuato BOOLEAN DEFAULT FALSE" in statements
+    assert "ALTER TABLE candidati ADD COLUMN IF NOT EXISTS note TEXT" in statements
     assert "COMMIT" in executed

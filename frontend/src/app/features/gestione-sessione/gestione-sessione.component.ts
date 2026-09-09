@@ -1,8 +1,10 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { forkJoin } from 'rxjs';
+import { forkJoin, switchMap, timer } from 'rxjs';
 import { ApiClient } from '../../core/api-client';
 import { SessionSummary, WorkflowState } from '../../core/models/api.models';
+import { BackLinkComponent } from '../../shared/back-link.component';
 import { BandiService } from '../bandi/bandi.service';
 import { CandidatiComponent } from '../candidati/candidati.component';
 import { ResetPasswordComponent } from '../candidati/reset-password.component';
@@ -24,7 +26,7 @@ interface OperationalConfig {
 
 @Component({
   selector: 'app-gestione-sessione',
-  imports: [RouterLink, CandidatiComponent, ResetPasswordComponent, NotificheComponent, ExamTimelineComponent, AzioniComponent],
+  imports: [RouterLink, BackLinkComponent, CandidatiComponent, ResetPasswordComponent, NotificheComponent, ExamTimelineComponent, AzioniComponent],
   template: `
     <div class="container-fluid gestione-sessione px-0">
       <div class="row g-0 session-workspace">
@@ -91,8 +93,20 @@ interface OperationalConfig {
         </aside>
 
         <main class="col-md-10 content-area">
+          @if (detail(); as sessionDetail) {
+            <app-back-link
+              [target]="['/bandi', sessionDetail.commission_id, 'sessioni']"
+              [queryParams]="{ mode: viewMode }"
+              label="Torna alle sessioni"
+            />
+          }
           @if (error()) {
             <div class="alert alert-danger mb-3" role="alert">{{ error() }}</div>
+          }
+          @if (showPreCheckinWarning()) {
+            <div class="alert alert-danger mb-3" role="alert">
+              <strong>Prima di iniziare a scansionare le domande avviare il check-in.</strong>
+            </div>
           }
           @if (detail()?.visibility_reason === 'admin') {
             <div class="alert alert-warning mb-3" role="alert">
@@ -114,7 +128,9 @@ interface OperationalConfig {
                     [adminOnly]="detail()?.visibility_reason === 'admin'"
                     (changed)="load()"
                   />
-                  <div class="mb-3"><app-candidati [sessionId]="sessionId" [viewMode]="viewMode" /></div>
+                  <div class="mb-3">
+                    <app-candidati [sessionId]="sessionId" [viewMode]="viewMode" [refreshTick]="refreshTick()" />
+                  </div>
                   @if (viewMode === 'sede' || viewMode === 'esperto') {
                     <app-reset-password [sessionId]="sessionId" [viewMode]="viewMode" />
                   }
@@ -162,6 +178,7 @@ export class GestioneSessioneComponent {
   private readonly api = inject(ApiClient);
   private readonly bandiService = inject(BandiService);
   private readonly route = inject(ActivatedRoute);
+  private readonly destroyRef = inject(DestroyRef);
   readonly sessionId = this.route.snapshot.paramMap.get('sessionId') ?? '';
   readonly viewMode = normalizeViewMode(this.route.snapshot.queryParamMap.get('mode'));
   readonly showTimeline = this.viewMode === 'segretario' || this.viewMode === 'admin';
@@ -169,12 +186,48 @@ export class GestioneSessioneComponent {
   readonly workflowState = signal<WorkflowState | null>(null);
   readonly bandoConfigured = signal(false);
   readonly mergedConfig = signal<OperationalConfig | null>(null);
+  readonly refreshTick = signal(0);
   readonly error = signal('');
 
-  constructor() { this.load(); }
+  constructor() {
+    this.load();
+    // Poll periodico di stato/timeline/azioni. switchMap annulla la richiesta
+    // precedente ad ogni nuovo tick e takeUntilDestroyed disiscrive (annullando
+    // anche una richiesta in volo) alla distruzione del componente, cosi' un
+    // tick in corso non puo' piu' scrivere su un componente gia' smontato.
+    timer(5000, 5000)
+      .pipe(
+        switchMap(() =>
+          this.api.get<WorkflowState>(`/sessioni/${this.sessionId}/state?mode=${encodeURIComponent(this.viewMode)}`),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (state) => {
+          const previous = this.workflowState()?.current_state ?? null;
+          this.workflowState.set(state);
+          if (previous && previous !== state.current_state) {
+            this.loadSessionContext();
+          }
+          // Aggiorna anche i figli (es. lista candidati/note) ad ogni tick e non
+          // solo sui cambi di stato: un'altra scheda puo' modificare dati a
+          // livello di candidato (nota, check-in) senza far avanzare lo stato
+          // della sessione.
+          this.refreshChildren();
+        },
+        error: () => {
+          // Evita alert ripetuti durante brevi problemi di rete: il prossimo polling riprova.
+        },
+      });
+  }
 
   load(): void {
     this.error.set('');
+    this.loadSessionContext();
+    this.loadWorkflowState();
+  }
+
+  private loadSessionContext(): void {
     const modeParam = encodeURIComponent(this.viewMode);
     this.api.get<SessionSummary>(`/sessioni/${this.sessionId}?mode=${modeParam}`).subscribe((detail) => {
       this.detail.set(detail);
@@ -194,10 +247,31 @@ export class GestioneSessioneComponent {
     }, (error) => {
       this.error.set(apiErrorText(error, 'Impossibile caricare la sessione.'));
     });
+  }
+
+  private loadWorkflowState(): void {
     this.api.get<WorkflowState>(`/sessioni/${this.sessionId}/state?mode=${encodeURIComponent(this.viewMode)}`).subscribe({
-      next: (state) => this.workflowState.set(state),
+      next: (state) => {
+        this.workflowState.set(state);
+        this.refreshChildren();
+      },
       error: (error) => this.error.set(apiErrorText(error, 'Impossibile caricare lo stato del workflow.')),
     });
+  }
+
+  private refreshChildren(): void {
+    this.refreshTick.update((value) => value + 1);
+  }
+
+  showPreCheckinWarning(): boolean {
+    if (!this.showTimeline) return false;
+    const currentState = this.workflowState()?.current_state;
+    return [
+      'iniziale',
+      'configurata',
+      'candidati_scaricati',
+      'dispositivi_connessi',
+    ].includes(currentState ?? '');
   }
 }
 

@@ -2,6 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { ApiClient } from '../../core/api-client';
+import { BackLinkComponent } from '../../shared/back-link.component';
 import { BandiService } from '../bandi/bandi.service';
 
 interface SedeTechnician {
@@ -26,12 +27,10 @@ interface SessionAssignment {
 
 @Component({
   selector: 'app-bando-config',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, BackLinkComponent],
   template: `
     <div class="container-xxl my-5">
-      <a [routerLink]="returnUrl()" class="btn btn-outline-secondary btn-sm mb-3">
-        &larr; {{ returnLabel() }}
-      </a>
+      <app-back-link [target]="returnUrl()" [label]="returnLabel()" />
       <h1 class="mb-1">Configura Bando</h1>
       <p class="text-muted mb-4">{{ title() }}</p>
 
