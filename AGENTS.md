@@ -1,5 +1,5 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current feature spec
-at specs/011-collaudo-fix-operativi/spec.md
+shell commands, and other important information, read the current plan
+at specs/013-revisione-ui-design/plan.md
 <!-- SPECKIT END -->
