@@ -17,7 +17,8 @@ import { ProfileService } from '../core/profile.service';
           <nav id="main-navigation" class="app-navigation" [class.is-open]="menuOpen()" aria-label="Navigazione principale">
             @for (item of profiles.navigation(); track item.label) {
               <a [routerLink]="item.path" [queryParams]="item.queryParams ?? null"
-                routerLinkActive="active" (click)="menuOpen.set(false)">{{ item.label }}</a>
+                routerLinkActive="active" [routerLinkActiveOptions]="{ exact: item.path === '/' }"
+                (click)="menuOpen.set(false)">{{ item.label }}</a>
             }
           </nav>
           <button class="app-profile-switch btn btn-outline-primary btn-sm" type="button" routerLink="/">

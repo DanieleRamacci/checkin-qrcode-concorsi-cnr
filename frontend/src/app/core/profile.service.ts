@@ -38,9 +38,7 @@ export class ProfileService {
   }
 
   navigation(): ProfileNavigationItem[] {
-    const [homePath, homeQuery = ''] = this.homeDestinations[this.active()].split('?');
-    const homeParams = Object.fromEntries(new URLSearchParams(homeQuery).entries());
-    const common: ProfileNavigationItem[] = [{ label: 'Home', path: homePath, ...(Object.keys(homeParams).length ? { queryParams: homeParams } : {}) }];
+    const common: ProfileNavigationItem[] = [{ label: 'Home', path: '/' }];
     switch (this.active()) {
       case 'segretario': return [...common, { label: 'I miei concorsi', path: '/bandi' }, { label: 'Scanner', path: '/scanner' }];
       case 'sede': return [...common, { label: 'Le mie sessioni', path: '/le-mie-sessioni', queryParams: { mode: 'sede' } }, { label: 'Scanner', path: '/scanner' }];
