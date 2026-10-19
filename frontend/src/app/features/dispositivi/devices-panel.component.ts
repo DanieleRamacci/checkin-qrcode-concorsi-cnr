@@ -15,8 +15,18 @@ import { ApiList, DeviceSummary } from '../../core/models/api.models';
       <div class="row align-items-center g-3">
         <div class="col-12 col-sm-auto text-center">@if (qrDataUrl()) { <img [src]="qrDataUrl()" width="150" height="150" alt="QR per collegare uno smartphone alla sessione" /> }</div>
         <div class="col">
-          <button class="btn btn-outline-primary btn-sm mb-2" type="button" (click)="copyLink()">Copia link di collegamento</button>
+          <div class="d-flex flex-wrap gap-2 mb-2">
+            <button class="btn btn-outline-primary btn-sm" type="button" [disabled]="!link()" (click)="copyLink()">Copia link di collegamento</button>
+            <button class="btn btn-outline-secondary btn-sm" type="button" [disabled]="!registrationToken()" (click)="copyToken()">Copia token di registrazione</button>
+          </div>
           <ol class="mb-0"><li>Apri la fotocamera del telefono.</li><li>Inquadra il QR code.</li><li>Segui il collegamento per associare il dispositivo.</li></ol>
+          @if (registrationToken()) {
+            <details class="mt-2">
+              <summary>Mostra token per i test</summary>
+              <p class="small text-muted mb-1">Il token di registrazione vale 30 minuti. Dopo l’associazione, il dispositivo riceve un token diverso per lo scanner.</p>
+              <code class="d-block p-2 bg-light rounded user-select-all" style="overflow-wrap:anywhere">{{ registrationToken() }}</code>
+            </details>
+          }
           @if (message()) { <p class="small mt-2 mb-0" role="status">{{ message() }}</p> }
         </div>
       </div>
@@ -40,6 +50,7 @@ export class DevicesPanelComponent {
   readonly devices = signal<DeviceSummary[]>([]);
   readonly qrDataUrl = signal('');
   readonly link = signal('');
+  readonly registrationToken = signal('');
   readonly message = signal('');
   readonly onlineCount = () => this.devices().filter((device) => device.status === 'online').length;
 
@@ -47,11 +58,16 @@ export class DevicesPanelComponent {
     const query = `?mode=${encodeURIComponent(this.mode())}`;
     this.api.post<{ registration_token: string }>(`/sessioni/${this.sessionId()}/devices/registration-token${query}`).subscribe({
       next: ({ registration_token }) => {
+        this.registrationToken.set(registration_token);
         const params = new URLSearchParams({ sessionId: this.sessionId(), token: registration_token });
         const url = `${window.location.origin}/scanner?${params}`;
         this.link.set(url);
         QRCode.toDataURL(url, { width: 150 }).then((data) => this.qrDataUrl.set(data));
-      }, error: () => this.message.set('Creazione del QR di collegamento non riuscita.'),
+      }, error: () => {
+        this.registrationToken.set('');
+        this.link.set('');
+        this.message.set('Creazione del QR di collegamento non riuscita.');
+      },
     });
     interval(2000).pipe(startWith(0), switchMap(() => this.api.get<ApiList<DeviceSummary>>(`/sessioni/${this.sessionId()}/devices${query}`)), takeUntilDestroyed(this.destroyRef)).subscribe({
       next: ({ items }) => this.devices.set(items ?? []),
@@ -60,8 +76,15 @@ export class DevicesPanelComponent {
   }
 
   async copyLink(): Promise<void> {
+    if (!this.link()) return;
     try { await navigator.clipboard.writeText(this.link()); this.message.set('Link copiato.'); }
     catch { this.message.set('Copia non riuscita: usa il QR code per collegare il dispositivo.'); }
+  }
+
+  async copyToken(): Promise<void> {
+    if (!this.registrationToken()) return;
+    try { await navigator.clipboard.writeText(this.registrationToken()); this.message.set('Token di registrazione copiato.'); }
+    catch { this.message.set('Copia non riuscita: apri “Mostra token per i test” e selezionalo manualmente.'); }
   }
 
   disconnect(device: DeviceSummary): void {
