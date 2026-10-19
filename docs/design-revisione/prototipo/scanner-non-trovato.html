@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Prova Scritta Sessione 2 · Check-in Concorsi (prototipo)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Titillium+Web:ital,wght@0,300;0,400;0,600;0,700;1,400&amp;family=Roboto+Mono:wght@400;700&amp;display=swap">
+<link rel="stylesheet" href="css/bootstrap-italia.min.css">
+<link rel="stylesheet" href="css/proposta.css">
+</head>
+<body>
+<a class="visually-hidden-focusable" href="#contenuto">Vai al contenuto</a>
+
+<main id="contenuto">
+
+<div class="app-phone app-phone--dark">
+  <header class="app-s-head">
+    <a href="mobile-sessione.html" class="app-m-icon" aria-label="Indietro"><svg class="icon icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-chevron-left"></use></svg></a>
+    <div class="app-minw flex-grow-1"><strong class="d-block text-truncate">Prova Scritta Sessione 2</strong><span class="small"><span class="app-dot app-dot--ok" aria-hidden="true"></span> Scanner collegato · 2/4 presenti</span></div>
+    
+    <div class="dropdown">
+      <button class="app-m-icon btn p-0" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Altre opzioni"><svg class="icon icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-more-items"></use></svg></button>
+      <div class="dropdown-menu dropdown-menu-end"><div class="link-list-wrapper"><ul class="link-list">
+        <li><a class="dropdown-item list-item" href="#"><span>Inserisci codice a mano</span></a></li>
+        <li><a class="dropdown-item list-item text-danger" href="#"><span>Scollega questo telefono</span></a></li>
+      </ul></div></div>
+    </div>
+  </header>
+  <div class="app-camera" role="img" aria-label="Inquadratura della fotocamera">
+    <p class="app-camera-hint">Inquadra il QR sulla domanda del candidato</p>
+    <div class="app-frame"><span></span><span></span><span></span><span></span></div>
+  </div>
+  <section class="app-sheet" aria-live="polite">
+    <div class="d-flex align-items-center gap-2 mb-2"><svg class="icon icon-danger" aria-hidden="true"><use href="svg/sprites.svg#it-close-circle"></use></svg><h2 class="h4 mb-0">Candidato non trovato</h2></div>
+    <p class="mb-3">Il QR non corrisponde a nessun candidato di questa sessione. Controlla che la domanda sia di questo concorso, oppure cerca il candidato per cognome.</p>
+    <a class="btn btn-primary btn-lg w-100" href="scanner.html">Scansiona di nuovo</a>
+    <button type="button" class="btn btn-outline-primary w-100 mt-2">Cerca per cognome</button></section>
+</div>
+</main>
+
+<a class="proto-index" href="index.html"><svg class="icon icon-xs icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-files"></use></svg> Indice prototipo</a>
+<script src="js/bootstrap-italia.bundle.min.js"></script>
+<script src="js/proposta.js"></script>
+</body>
+</html>

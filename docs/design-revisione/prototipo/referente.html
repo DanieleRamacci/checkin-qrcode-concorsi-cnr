@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>I bandi di cui sei referente · Check-in Concorsi (prototipo)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Titillium+Web:ital,wght@0,300;0,400;0,600;0,700;1,400&amp;family=Roboto+Mono:wght@400;700&amp;display=swap">
+<link rel="stylesheet" href="css/bootstrap-italia.min.css">
+<link rel="stylesheet" href="css/proposta.css">
+</head>
+<body>
+<a class="visually-hidden-focusable" href="#contenuto">Vai al contenuto</a>
+
+<!-- design-angular-kit: <it-header [showSlim]="true"> ridotto alla sola fascia slim.
+     Una fascia invece di tre: brand, menu principale, profilo attivo, utente. -->
+<header class="it-header-wrapper app-header">
+  <div class="it-header-slim-wrapper">
+    <div class="container">
+      <div class="it-header-slim-wrapper-content">
+        <a class="navbar-brand app-brand" href="home.html">CNR · Check-in Concorsi</a>
+        <div class="nav-mobile">
+          <nav aria-label="Navigazione principale">
+            <a class="it-opener d-lg-none" data-bs-toggle="collapse" href="#menu-principale" role="button" aria-expanded="false" aria-controls="menu-principale">
+              <span>Menu</span><svg class="icon" aria-hidden="true"><use href="svg/sprites.svg#it-expand"></use></svg>
+            </a>
+            <div class="link-list-wrapper collapse" id="menu-principale">
+              <ul class="link-list"><li><a class="list-item active" href="home.html" aria-current="page">Home</a></li><li><a class="list-item" href="concorsi.html">I miei concorsi</a></li><li><a class="list-item" href="scanner.html">Scanner</a></li></ul>
+            </div>
+          </nav>
+        </div>
+        <div class="it-header-slim-right-zone">
+          <!-- profilo attivo: porta alla pagina di scelta profilo -->
+          <a class="btn btn-dropdown app-profile-switch" href="profili.html">
+            <span class="d-none d-md-inline">Profilo: </span><strong>Referente</strong><svg class="icon icon-xs icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-exchange-circle"></use></svg><span class="visually-hidden">, cambia profilo</span>
+          </a>
+          <div class="it-access-top-wrapper">
+            <span class="btn btn-primary btn-sm btn-icon btn-full app-user">
+              <span class="rounded-icon"><svg class="icon icon-primary" aria-hidden="true"><use href="svg/sprites.svg#it-user"></use></svg></span>
+              <span class="d-none d-lg-block">[Nome Cognome]</span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+<main id="contenuto">
+
+<div class="container py-4 py-lg-5">
+  <h1 class="mb-1">I bandi di cui sei referente</h1>
+  <p class="text-secondary mb-3">Bandi in cui Selezioni Online ti indica come RDP o referente. Dati aggiornati oggi alle 10:19 · <button type="button" class="btn btn-link p-0 align-baseline fw-semibold" data-demo-sync>Aggiorna ora</button></p>
+  <div class="app-sync alert alert-info d-none" role="status" id="sync-status">
+    <div class="d-flex align-items-center gap-3"><div class="progress-spinner progress-spinner-active size-sm"><span class="visually-hidden">Caricamento</span></div>
+    <span><strong>Aggiornamento da Selezioni Online…</strong> Intanto vedi i bandi già sincronizzati.</span></div>
+  </div>
+  <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3">
+    <div class="d-flex flex-wrap gap-2" role="group" aria-label="Filtra bandi">
+      <button type="button" class="btn btn-sm btn-primary rounded-pill" aria-pressed="true">Da completare · 2</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" aria-pressed="false">Completi · 1</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" aria-pressed="false">Tutti · 4</button>
+    </div>
+    <div class="form-group mb-0 app-search"><label for="rq" class="active">Cerca concorso</label><input type="search" class="form-control" id="rq" placeholder="Codice o titolo"></div>
+  </div>
+  <div class="card card-bg no-after"><div class="card-body p-0"><div class="table-responsive"><table class="table align-middle mb-0 app-table">
+    <thead><tr><th scope="col">Concorso</th><th scope="col">RDP</th><th scope="col">Configurazione</th><th scope="col" class="text-end"><span class="visually-hidden">Azioni</span></th></tr></thead>
+    <tbody><tr><td><a href="configura-bando.html" class="fw-semibold">Concorso 999.999</a><br><span class="small text-secondary">[Titolo del bando]</span></td><td>[Nome Cognome]</td><td><span class="badge app-badge-success">Configurazione completa</span><ul class="list-unstyled small mb-0 mt-1 app-ref-check"><li>Esperto remoto: <strong>2 su 2</strong> sessioni</li><li>Informatico in sede: <strong>2 su 2</strong> sessioni</li><li>Dati del bando: <strong>compilati</strong></li></ul></td><td class="text-end"><a class="btn btn-outline-primary btn-sm" href="configura-bando.html">Rivedi</a></td></tr><tr><td><a href="configura-bando.html" class="fw-semibold">Concorso 111.112</a><br><span class="small text-secondary">[Titolo del bando]</span></td><td>[Nome Cognome]</td><td><span class="badge app-badge-warning">Da completare</span><ul class="list-unstyled small mb-0 mt-1 app-ref-check"><li>Esperto remoto: <strong>2 su 3</strong> sessioni</li><li>Informatico in sede: <strong>1 su 3</strong> sessioni</li><li>Dati del bando: <strong>compilati</strong></li><li class="text-warning-emphasis">Manca in: Roma Piazzale Aldo Moro 7</li></ul></td><td class="text-end"><a class="btn btn-primary btn-sm" href="configura-bando.html">Completa configurazione</a></td></tr><tr><td><a href="configura-bando.html" class="fw-semibold">Concorso [codice 03]</a><br><span class="small text-secondary">[Titolo del bando]</span></td><td>[Nome Cognome]</td><td><span class="badge app-badge-warning">Da completare</span><ul class="list-unstyled small mb-0 mt-1 app-ref-check"><li>Esperto remoto: <strong>0 su 1</strong> sessioni</li><li>Informatico in sede: <strong>0 su 1</strong> sessioni</li><li>Dati del bando: <strong>da completare</strong></li><li class="text-warning-emphasis">Manca in: [Sessione 1]</li></ul></td><td class="text-end"><a class="btn btn-primary btn-sm" href="configura-bando.html">Completa configurazione</a></td></tr><tr><td><a href="configura-bando.html" class="fw-semibold">Concorso [codice 04]</a><br><span class="small text-secondary">[Titolo del bando]</span></td><td><span class="text-secondary">Dato non disponibile</span></td><td><span class="badge app-badge-neutral">Nessuna sessione</span><ul class="list-unstyled small mb-0 mt-1 app-ref-check"><li>Esperto remoto: <strong>—</strong> sessioni</li><li>Informatico in sede: <strong>—</strong> sessioni</li><li>Dati del bando: <strong>da completare</strong></li></ul></td><td class="text-end"><a class="btn btn-primary btn-sm" href="configura-bando.html">Completa configurazione</a></td></tr></tbody></table></div></div></div>
+  
+<!-- <it-pagination> + selezione elementi per pagina -->
+<div class="app-pager">
+  <p class="mb-0 text-secondary">Bandi 1–4 di 4</p>
+  <nav class="pagination-wrapper mb-0" aria-label="Paginazione bandi referente"><ul class="pagination mb-0"><li class="page-item disabled"><a class="page-link" href="#" tabindex="-1" aria-disabled="true"><svg class="icon icon-primary" aria-hidden="true"><use href="svg/sprites.svg#it-chevron-left"></use></svg><span class="visually-hidden">Pagina precedente</span></a></li><li class="page-item active"><a class="page-link" href="#" aria-current="page">1</a></li><li class="page-item"><a class="page-link" href="#"><span class="visually-hidden">Pagina successiva</span><svg class="icon icon-primary" aria-hidden="true"><use href="svg/sprites.svg#it-chevron-right"></use></svg></a></li></ul></nav>
+  <div class="select-wrapper app-perpage"><label for="pp-pagina" class="visually-hidden">Elementi per pagina</label>
+    <select id="pp-pagina"><option>10 per pagina</option><option>25 per pagina</option><option>50 per pagina</option></select></div>
+</div>
+</div>
+</main>
+
+<footer class="it-footer app-footer">
+  <div class="it-footer-small-prints clearfix">
+    <div class="container">
+      <ul class="it-footer-small-prints-list list-inline mb-0 d-flex flex-column flex-md-row">
+        <li class="list-inline-item">Realizzato per CNR – Consiglio Nazionale delle Ricerche</li>
+        <li class="list-inline-item"><a href="#" title="Privacy Policy">Privacy policy</a></li>
+        <li class="list-inline-item ms-md-auto">Versione [versione]</li>
+      </ul>
+    </div>
+  </div>
+</footer>
+<a class="proto-index" href="index.html"><svg class="icon icon-xs icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-files"></use></svg> Indice prototipo</a>
+<script src="js/bootstrap-italia.bundle.min.js"></script>
+<script src="js/proposta.js"></script>
+</body>
+</html>

@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Log di sistema · Check-in Concorsi (prototipo)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Titillium+Web:ital,wght@0,300;0,400;0,600;0,700;1,400&amp;family=Roboto+Mono:wght@400;700&amp;display=swap">
+<link rel="stylesheet" href="css/bootstrap-italia.min.css">
+<link rel="stylesheet" href="css/proposta.css">
+</head>
+<body>
+<a class="visually-hidden-focusable" href="#contenuto">Vai al contenuto</a>
+
+<!-- design-angular-kit: <it-header [showSlim]="true"> ridotto alla sola fascia slim.
+     Una fascia invece di tre: brand, menu principale, profilo attivo, utente. -->
+<header class="it-header-wrapper app-header">
+  <div class="it-header-slim-wrapper">
+    <div class="container">
+      <div class="it-header-slim-wrapper-content">
+        <a class="navbar-brand app-brand" href="home.html">CNR · Check-in Concorsi</a>
+        <div class="nav-mobile">
+          <nav aria-label="Navigazione principale">
+            <a class="it-opener d-lg-none" data-bs-toggle="collapse" href="#menu-principale" role="button" aria-expanded="false" aria-controls="menu-principale">
+              <span>Menu</span><svg class="icon" aria-hidden="true"><use href="svg/sprites.svg#it-expand"></use></svg>
+            </a>
+            <div class="link-list-wrapper collapse" id="menu-principale">
+              <ul class="link-list"><li><a class="list-item" href="home.html">Home</a></li><li><a class="list-item" href="concorsi.html">I miei concorsi</a></li><li><a class="list-item" href="scanner.html">Scanner</a></li></ul>
+            </div>
+          </nav>
+        </div>
+        <div class="it-header-slim-right-zone">
+          <!-- profilo attivo: porta alla pagina di scelta profilo -->
+          <a class="btn btn-dropdown app-profile-switch" href="profili.html">
+            <span class="d-none d-md-inline">Profilo: </span><strong>Amministrazione</strong><svg class="icon icon-xs icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-exchange-circle"></use></svg><span class="visually-hidden">, cambia profilo</span>
+          </a>
+          <div class="it-access-top-wrapper">
+            <span class="btn btn-primary btn-sm btn-icon btn-full app-user">
+              <span class="rounded-icon"><svg class="icon icon-primary" aria-hidden="true"><use href="svg/sprites.svg#it-user"></use></svg></span>
+              <span class="d-none d-lg-block">[Nome Cognome]</span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+<main id="contenuto">
+
+<div class="container py-4 py-lg-5">
+  <!-- <it-breadcrumb> -->
+<nav class="breadcrumb-container" aria-label="Percorso di navigazione"><ol class="breadcrumb p-0 mb-2"><li class="breadcrumb-item"><a href="profili.html">Profili</a><span class="separator">/</span></li><li class="breadcrumb-item active" aria-current="page">Amministrazione</li></ol></nav>
+  <div class="row g-4">
+    <div class="col-12 col-lg-3">
+      <!-- <it-sidebar> / link-list: navigazione dell'area -->
+      <nav class="card card-bg no-after app-admin-nav" aria-label="Amministrazione"><div class="card-body">
+        <p class="app-eyebrow mb-2">Amministrazione</p>
+        <div class="link-list-wrapper"><ul class="link-list mb-0"><li><a class="list-item" href="admin-permessi.html"><svg class="icon icon-sm icon-primary" aria-hidden="true"><use href="svg/sprites.svg#it-key"></use></svg><span>Permessi</span></a></li><li><a class="list-item" href="admin-impostazioni.html"><svg class="icon icon-sm icon-primary" aria-hidden="true"><use href="svg/sprites.svg#it-settings"></use></svg><span>Impostazioni</span></a></li><li><a class="list-item active" href="admin-log.html" aria-current="page"><svg class="icon icon-sm icon-primary" aria-hidden="true"><use href="svg/sprites.svg#it-list"></use></svg><span>Log di sistema</span></a></li><li><a class="list-item" href="concorsi.html"><svg class="icon icon-sm icon-primary" aria-hidden="true"><use href="svg/sprites.svg#it-folder"></use></svg><span>Tutti i bandi</span></a></li></ul></div>
+      </div></nav>
+    </div>
+    <div class="col-12 col-lg-9 app-minw">
+      <h1 class="mb-3">Log di sistema</h1>
+      
+<div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3">
+  <p class="mb-0 text-secondary">Ultimi record di ogni registro, dal più recente.</p>
+  <div class="d-flex gap-2 align-items-end">
+    <div class="select-wrapper app-perpage"><label for="lg-n">Record</label><select id="lg-n"><option>Ultimi 200</option><option>Ultimi 500</option><option>Ultimi 1000</option></select></div>
+    <button type="button" class="btn btn-outline-primary btn-icon"><svg class="icon icon-xs icon-primary" aria-hidden="true"><use href="svg/sprites.svg#it-refresh"></use></svg><span>Aggiorna</span></button>
+  </div>
+</div>
+<!-- <it-tabs>: un registro per scheda, con il conteggio -->
+<ul class="nav nav-tabs mb-3" role="tablist">
+  <li class="nav-item"><a class="nav-link active" href="#" role="tab" aria-selected="true">Cambi di stato · 1</a></li>
+  <li class="nav-item"><a class="nav-link" href="#" role="tab" aria-selected="false">Email inviate · 0</a></li>
+  <li class="nav-item"><a class="nav-link" href="#" role="tab" aria-selected="false">Errori tecnici · 0</a></li>
+</ul>
+<div class="d-flex flex-wrap gap-3 mb-3">
+  <div class="form-group mb-0 app-search"><label for="lg-q" class="active">Cerca</label><input type="search" class="form-control" id="lg-q" placeholder="Sessione o utente"></div>
+</div>
+<div class="card card-bg no-after"><div class="card-body p-0"><div class="table-responsive"><table class="table align-middle mb-0 app-table">
+  <thead><tr><th scope="col">Quando</th><th scope="col">Sessione</th><th scope="col">Stato</th><th scope="col">Utente</th></tr></thead>
+  <tbody><tr><td class="app-num-cell">19/10/2026<br>10:29:56</td><td>Prova Scritta Sessione 2<br><span class="small text-secondary app-mono">c8b880a8…561dd</span></td>
+  <td>Dispositivi collegati<br><span class="small text-secondary app-mono">dispositivi_connessi</span></td><td>[nome.cognome]@cnr.it</td></tr></tbody>
+</table></div></div></div>
+<div class="app-empty mt-4"><svg class="icon icon-lg" aria-hidden="true"><use href="svg/sprites.svg#it-check-circle"></use></svg><p class="fw-semibold mb-1">Nessun errore tecnico registrato</p><p class="mb-0 text-secondary">Così appare la scheda "Errori tecnici" quando è vuota.</p></div>
+<p class="small text-secondary mt-3 mb-0">Date in formato italiano, nomi leggibili con il codice tecnico sotto per chi deve fare debug.</p>
+    </div>
+  </div>
+</div>
+</main>
+
+<footer class="it-footer app-footer">
+  <div class="it-footer-small-prints clearfix">
+    <div class="container">
+      <ul class="it-footer-small-prints-list list-inline mb-0 d-flex flex-column flex-md-row">
+        <li class="list-inline-item">Realizzato per CNR – Consiglio Nazionale delle Ricerche</li>
+        <li class="list-inline-item"><a href="#" title="Privacy Policy">Privacy policy</a></li>
+        <li class="list-inline-item ms-md-auto">Versione [versione]</li>
+      </ul>
+    </div>
+  </div>
+</footer>
+<a class="proto-index" href="index.html"><svg class="icon icon-xs icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-files"></use></svg> Indice prototipo</a>
+<script src="js/bootstrap-italia.bundle.min.js"></script>
+<script src="js/proposta.js"></script>
+</body>
+</html>

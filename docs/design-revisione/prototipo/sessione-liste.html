@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sessione · genera liste · Check-in Concorsi (prototipo)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Titillium+Web:ital,wght@0,300;0,400;0,600;0,700;1,400&amp;family=Roboto+Mono:wght@400;700&amp;display=swap">
+<link rel="stylesheet" href="css/bootstrap-italia.min.css">
+<link rel="stylesheet" href="css/proposta.css">
+</head>
+<body>
+<a class="visually-hidden-focusable" href="#contenuto">Vai al contenuto</a>
+
+<!-- design-angular-kit: <it-header [showSlim]="true"> ridotto alla sola fascia slim.
+     Una fascia invece di tre: brand, menu principale, profilo attivo, utente. -->
+<header class="it-header-wrapper app-header">
+  <div class="it-header-slim-wrapper">
+    <div class="container">
+      <div class="it-header-slim-wrapper-content">
+        <a class="navbar-brand app-brand" href="home.html">CNR · Check-in Concorsi</a>
+        <div class="nav-mobile">
+          <nav aria-label="Navigazione principale">
+            <a class="it-opener d-lg-none" data-bs-toggle="collapse" href="#menu-principale" role="button" aria-expanded="false" aria-controls="menu-principale">
+              <span>Menu</span><svg class="icon" aria-hidden="true"><use href="svg/sprites.svg#it-expand"></use></svg>
+            </a>
+            <div class="link-list-wrapper collapse" id="menu-principale">
+              <ul class="link-list"><li><a class="list-item" href="home.html">Home</a></li><li><a class="list-item active" href="concorsi.html" aria-current="page">I miei concorsi</a></li><li><a class="list-item" href="scanner.html">Scanner</a></li></ul>
+            </div>
+          </nav>
+        </div>
+        <div class="it-header-slim-right-zone">
+          <!-- profilo attivo: porta alla pagina di scelta profilo -->
+          <a class="btn btn-dropdown app-profile-switch" href="profili.html">
+            <span class="d-none d-md-inline">Profilo: </span><strong>Segretario</strong><svg class="icon icon-xs icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-exchange-circle"></use></svg><span class="visually-hidden">, cambia profilo</span>
+          </a>
+          <div class="it-access-top-wrapper">
+            <span class="btn btn-primary btn-sm btn-icon btn-full app-user">
+              <span class="rounded-icon"><svg class="icon icon-primary" aria-hidden="true"><use href="svg/sprites.svg#it-user"></use></svg></span>
+              <span class="d-none d-lg-block">[Nome Cognome]</span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+<main id="contenuto">
+
+<section class="app-session-head" aria-label="Sessione">
+  <div class="container py-3">
+    <!-- <it-breadcrumb> -->
+<nav class="breadcrumb-container" aria-label="Percorso di navigazione"><ol class="breadcrumb p-0 mb-2"><li class="breadcrumb-item"><a href="concorsi.html">I miei concorsi</a><span class="separator">/</span></li><li class="breadcrumb-item"><a href="sessioni.html">Concorso 999.999</a><span class="separator">/</span></li><li class="breadcrumb-item active" aria-current="page">Sessione</li></ol></nav>
+    <div class="app-minw">
+      <h1 class="h2 mb-1">Prova Scritta Sessione 2</h1>
+      <p class="mb-2 text-secondary">Oggi alle 14:17 · Roma, P.le Aldo Moro 7 · Concorso 999.999</p>
+      <p class="mb-0 d-flex flex-wrap gap-2"><span class="app-state-pill">Stato: <strong>Check-in concluso</strong></span></p>
+    </div>
+  </div>
+</section>
+<div class="container py-4">
+  <div class="row g-4">
+    <div class="col-12 col-lg-8 d-flex flex-column gap-4 app-minw">
+      
+<!-- PANNELLO AZIONI: card con intestazione propria, sempre in cima alla colonna principale.
+     Contiene solo ciò che si fa ADESSO; un solo pulsante pieno. -->
+<section class="card app-actions-card" aria-labelledby="az-title">
+  <div class="app-actions-head">
+    <svg class="icon icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-settings"></use></svg>
+    <h2 id="az-title" class="h5 mb-0">Azioni</h2>
+    <span class="app-actions-sub">cosa fare adesso</span>
+  </div>
+  <div class="card-body">
+    <p class="app-eyebrow mb-1">Fase 3 · Liste</p>
+    <h3 class="h3 mb-3">Genera le liste dei presenti</h3>
+    <p class="text-secondary mb-0">Creiamo il file Excel dei presenti e il CSV per Moodle. Potrai scaricarli prima di inviarli.</p>
+    <div class="app-longop d-none" id="gen-progress" role="status" aria-live="polite">
+      <p class="fw-semibold mb-2">Sto generando le liste…</p>
+      <div class="progress mb-2"><div class="progress-bar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div></div>
+      <p class="small text-secondary mb-0">Non chiudere la pagina. Può servire fino a un minuto.</p>
+    </div>
+    <div class="app-next-footer">
+      <p class="mb-0 text-secondary">3 presenti · 1 assente</p>
+      <a class="btn btn-primary btn-lg" href="sessione-liste-invia.html" data-demo-longop="gen-progress">Genera liste</a>
+    </div>
+  </div>
+</section>
+      
+      
+<!-- SEZIONE CANDIDATI: sempre presente sotto le Azioni; vuota finché non si scaricano i candidati -->
+<section class="card card-bg no-after app-cand-card" aria-labelledby="cand">
+  <div class="card-body">
+    <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3">
+      <h2 id="cand" class="h4 mb-0">Candidati · 3 presenti su 4</h2>
+      <span class="small text-secondary">Check-in concluso alle 14:41</span>
+    </div>
+    
+    <div class="table-responsive"><table class="table align-middle mb-0">
+      <thead><tr><th scope="col">Cognome e nome</th><th scope="col">Documento</th><th scope="col">Validità</th><th scope="col">Presenza</th></tr></thead>
+      <tbody><tr><td><strong>[COGNOME 1]</strong> [Nome]</td><td class="app-mono">[Numero documento]</td><td><span class="badge app-badge-danger">Scaduto</span></td><td><span class="text-success fw-semibold">Presente</span> <span class="small text-secondary">14:20 · da tabella</span></td></tr><tr><td><strong>[COGNOME 2]</strong> [Nome]</td><td class="app-mono">[Numero documento]</td><td><span class="badge app-badge-success">Valido</span></td><td><span class="text-success fw-semibold">Presente</span> <span class="small text-secondary">14:07 · da scanner</span></td></tr><tr><td><strong>[COGNOME 3]</strong> [Nome]</td><td class="app-mono">[Numero documento]</td><td><span class="badge app-badge-success">Valido</span></td><td><span class="text-success fw-semibold">Presente</span> <span class="small text-secondary">14:09 · da tabella</span></td></tr><tr><td><strong>[COGNOME 4]</strong> [Nome]</td><td class="app-mono">[Numero documento]</td><td><span class="badge app-badge-danger">Scaduto</span></td><td><span class="text-secondary">Assente</span></td></tr></tbody>
+    </table></div>
+  </div>
+</section>
+    </div>
+    <div class="col-12 col-lg-4 d-flex flex-column gap-4">
+      
+<!-- Timeline degli stati: lista ordinata con fasi; in Angular un componente proprio (o <it-timeline> verticale) -->
+<section class="card card-bg no-after app-tl-card" aria-labelledby="tl-title">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-baseline gap-2 mb-1">
+      <h2 id="tl-title" class="h5 mb-0">Timeline della sessione</h2>
+      <span class="small text-secondary text-nowrap">6 di 12</span>
+    </div>
+    <p class="small text-secondary mb-3">Si aggiorna ogni 5 secondi.</p>
+    <div class="app-tl-phase"><p class="app-tl-phase-name">1 · Preparazione</p><ol class="app-tl"><li class="is-done"><span class="app-tl-mark"><svg class="icon icon-xs icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-check"></use></svg></span><span class="app-tl-text">Sessione creata</span><span class="app-tl-time">09:12</span><span class="visually-hidden"> completato</span></li><li class="is-done"><span class="app-tl-mark"><svg class="icon icon-xs icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-check"></use></svg></span><span class="app-tl-text">Configurata</span><span class="app-tl-time">13:40</span><span class="visually-hidden"> completato</span></li><li class="is-done"><span class="app-tl-mark"><svg class="icon icon-xs icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-check"></use></svg></span><span class="app-tl-text">Candidati scaricati</span><span class="app-tl-time">13:41</span><span class="visually-hidden"> completato</span></li><li class="is-done"><span class="app-tl-mark"><svg class="icon icon-xs icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-check"></use></svg></span><span class="app-tl-text">Dispositivi collegati</span><span class="app-tl-time">13:58</span><span class="visually-hidden"> completato</span></li></ol></div><div class="app-tl-phase"><p class="app-tl-phase-name">2 · Check-in</p><ol class="app-tl"><li class="is-done"><span class="app-tl-mark"><svg class="icon icon-xs icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-check"></use></svg></span><span class="app-tl-text">Check-in avviato</span><span class="app-tl-time">14:05</span><span class="visually-hidden"> completato</span></li><li class="is-current" aria-current="step"><span class="app-tl-mark"></span><span class="app-tl-text">Check-in concluso</span><span class="app-tl-now">stato attuale</span></li></ol></div><div class="app-tl-phase"><p class="app-tl-phase-name">3 · Liste</p><ol class="app-tl"><li><span class="app-tl-mark"></span><span class="app-tl-text">Liste generate</span></li><li><span class="app-tl-mark"></span><span class="app-tl-text">Liste inviate</span></li></ol></div><div class="app-tl-phase is-other"><p class="app-tl-phase-name">4 · Esame · a cura dell&#39;esperto remoto</p><ol class="app-tl"><li><span class="app-tl-mark"></span><span class="app-tl-text">Presenti caricati su Moodle</span></li><li><span class="app-tl-mark"></span><span class="app-tl-text">Ambiente d&#39;esame pronto</span></li><li><span class="app-tl-mark"></span><span class="app-tl-text">Esame in corso</span></li><li><span class="app-tl-mark"></span><span class="app-tl-text">Esame concluso</span></li></ol></div>
+  </div>
+</section>
+      
+<!-- <it-card> riferimenti -->
+<section class="card card-bg no-after app-refs" aria-labelledby="rif">
+  <div class="card-body">
+    <h2 id="rif" class="h5 mb-3">Riferimenti</h2>
+    <dl class="mb-0">
+      <dt>Segretario</dt><dd>[Nome Cognome]<br><a href="mailto:segretario@example.org">[email]@cnr.it</a></dd>
+      <dt>Referente</dt><dd>[Nome Cognome]<br><a href="mailto:referente@example.org">[email]@cnr.it</a></dd>
+      <dt>Esperto remoto</dt><dd>[Nome Cognome]</dd>
+      <dt>Informatico in sede</dt><dd>[Nome Cognome]<br><a href="tel:+390600000000">[telefono]</a></dd>
+    </dl>
+  </div>
+</section>
+    </div>
+  </div>
+</div>
+
+<!-- CHAT INTERNA: pulsante fisso in basso a destra + pannello laterale sopra la pagina.
+     Non sposta il layout; badge con i non letti; gli stati restano nella timeline, non in chat.
+     In Angular: componente proprio con <it-button> + pannello (offcanvas) e <it-badge>. -->
+<button type="button" class="app-chat-fab" data-chat-open aria-controls="chat" aria-expanded="false">
+  <svg class="icon icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-comment"></use></svg><span>Messaggi</span><span class="app-chat-fab-badge">2<span class="visually-hidden"> messaggi non letti</span></span>
+</button>
+<aside id="chat" class="app-chat-drawer" aria-labelledby="chat-t">
+  <div class="app-chat-head">
+    <div class="app-minw"><h2 id="chat-t" class="h5 mb-0">Messaggi della sessione</h2><p class="small mb-0">Prova Scritta Sessione 2</p></div>
+    <button type="button" class="app-chat-close" data-chat-close aria-label="Chiudi i messaggi"><svg class="icon icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-close"></use></svg></button>
+  </div>
+  <div class="app-chat-people">
+    <span><span class="app-dot app-dot--ok" aria-hidden="true"></span> Segretario</span>
+    <span><span class="app-dot app-dot--ok" aria-hidden="true"></span> Esperto remoto</span>
+    <span><span class="app-dot app-dot--ok" aria-hidden="true"></span> Informatico in sede</span>
+  </div>
+  <ul class="app-chat-list"><li class="app-msg"><p class="app-msg-meta"><span class="app-role-tag app-role-tag--esp">Esperto remoto</span> <span>14:02</span></p><p class="app-msg-text">Sono collegato. Quando il check-in è concluso mandatemi le liste.</p></li><li class="app-msg app-msg--me"><p class="app-msg-meta"><span class="app-role-tag app-role-tag--seg">Tu</span> <span>14:03</span></p><p class="app-msg-text">Perfetto, iniziamo ora.</p></li><li class="app-msg"><p class="app-msg-meta"><span class="app-role-tag app-role-tag--sede">Informatico in sede</span> <span>15:05</span></p><p class="app-msg-text">Ho segnalato [COGNOME 2]: non entra su Moodle.</p></li><li class="app-msg"><p class="app-msg-meta"><span class="app-role-tag app-role-tag--esp">Esperto remoto</span> <span>15:06</span></p><p class="app-msg-text">Ricevuto, lo sistemo subito.</p></li></ul>
+  <div class="app-chat-compose">
+    <div class="app-quick" role="group" aria-label="Messaggi rapidi">
+      <button type="button" class="btn btn-outline-primary btn-xs">Ok, ricevuto</button>
+      <button type="button" class="btn btn-outline-primary btn-xs">Serve aiuto in aula</button>
+      <button type="button" class="btn btn-outline-primary btn-xs">Un attimo</button>
+    </div>
+    <form class="d-flex gap-2 align-items-end" onsubmit="event.preventDefault()">
+      <div class="form-group mb-0 flex-grow-1"><label for="chat-msg" class="active">Scrivi a tutti</label><input type="text" class="form-control" id="chat-msg"></div>
+      <button class="btn btn-primary" type="submit">Invia</button>
+    </form>
+  </div>
+</aside>
+
+</main>
+
+<footer class="it-footer app-footer">
+  <div class="it-footer-small-prints clearfix">
+    <div class="container">
+      <ul class="it-footer-small-prints-list list-inline mb-0 d-flex flex-column flex-md-row">
+        <li class="list-inline-item">Realizzato per CNR – Consiglio Nazionale delle Ricerche</li>
+        <li class="list-inline-item"><a href="#" title="Privacy Policy">Privacy policy</a></li>
+        <li class="list-inline-item ms-md-auto">Versione [versione]</li>
+      </ul>
+    </div>
+  </div>
+</footer>
+<a class="proto-index" href="index.html"><svg class="icon icon-xs icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-files"></use></svg> Indice prototipo</a>
+<script src="js/bootstrap-italia.bundle.min.js"></script>
+<script src="js/proposta.js"></script>
+</body>
+</html>

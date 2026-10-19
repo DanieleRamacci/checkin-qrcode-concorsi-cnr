@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Configura bando · Check-in Concorsi (prototipo)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Titillium+Web:ital,wght@0,300;0,400;0,600;0,700;1,400&amp;family=Roboto+Mono:wght@400;700&amp;display=swap">
+<link rel="stylesheet" href="css/bootstrap-italia.min.css">
+<link rel="stylesheet" href="css/proposta.css">
+</head>
+<body>
+<a class="visually-hidden-focusable" href="#contenuto">Vai al contenuto</a>
+
+<!-- design-angular-kit: <it-header [showSlim]="true"> ridotto alla sola fascia slim.
+     Una fascia invece di tre: brand, menu principale, profilo attivo, utente. -->
+<header class="it-header-wrapper app-header">
+  <div class="it-header-slim-wrapper">
+    <div class="container">
+      <div class="it-header-slim-wrapper-content">
+        <a class="navbar-brand app-brand" href="home.html">CNR · Check-in Concorsi</a>
+        <div class="nav-mobile">
+          <nav aria-label="Navigazione principale">
+            <a class="it-opener d-lg-none" data-bs-toggle="collapse" href="#menu-principale" role="button" aria-expanded="false" aria-controls="menu-principale">
+              <span>Menu</span><svg class="icon" aria-hidden="true"><use href="svg/sprites.svg#it-expand"></use></svg>
+            </a>
+            <div class="link-list-wrapper collapse" id="menu-principale">
+              <ul class="link-list"><li><a class="list-item" href="home.html">Home</a></li><li><a class="list-item active" href="concorsi.html" aria-current="page">I miei concorsi</a></li><li><a class="list-item" href="scanner.html">Scanner</a></li></ul>
+            </div>
+          </nav>
+        </div>
+        <div class="it-header-slim-right-zone">
+          <!-- profilo attivo: porta alla pagina di scelta profilo -->
+          <a class="btn btn-dropdown app-profile-switch" href="profili.html">
+            <span class="d-none d-md-inline">Profilo: </span><strong>Segretario</strong><svg class="icon icon-xs icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-exchange-circle"></use></svg><span class="visually-hidden">, cambia profilo</span>
+          </a>
+          <div class="it-access-top-wrapper">
+            <span class="btn btn-primary btn-sm btn-icon btn-full app-user">
+              <span class="rounded-icon"><svg class="icon icon-primary" aria-hidden="true"><use href="svg/sprites.svg#it-user"></use></svg></span>
+              <span class="d-none d-lg-block">[Nome Cognome]</span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+<main id="contenuto">
+
+<div class="container py-4 py-lg-5">
+  <!-- <it-breadcrumb> -->
+<nav class="breadcrumb-container" aria-label="Percorso di navigazione"><ol class="breadcrumb p-0 mb-2"><li class="breadcrumb-item"><a href="concorsi.html">I miei concorsi</a><span class="separator">/</span></li><li class="breadcrumb-item"><a href="sessioni.html">Concorso 999.999</a><span class="separator">/</span></li><li class="breadcrumb-item active" aria-current="page">Configura bando</li></ol></nav>
+  <h1 class="mb-1">Configura bando 999.999</h1>
+  <p class="text-secondary mb-4">Chi lavora alle sessioni di questo concorso. Ciò che è facoltativo puoi lasciarlo vuoto: il segretario lo indicherà all'apertura della sessione.</p>
+
+  <div class="row g-4">
+    <div class="col-12 col-lg-3">
+      <!-- indice di pagina con stato di completamento -->
+      <nav class="card card-bg no-after app-toc" aria-label="Sezioni della configurazione">
+        <div class="card-body">
+          <p class="app-eyebrow mb-2">Sezioni</p>
+          <ul class="list-unstyled mb-0">
+            <li><a href="#s-referente"><svg class="icon icon-xs icon-success" aria-hidden="true"><use href="svg/sprites.svg#it-check"></use></svg> Referente</a></li>
+            <li><a href="#s-segretario"><svg class="icon icon-xs icon-success" aria-hidden="true"><use href="svg/sprites.svg#it-check"></use></svg> Segretario e prova</a></li>
+            <li><a href="#s-commissione"><svg class="icon icon-xs icon-success" aria-hidden="true"><use href="svg/sprites.svg#it-check"></use></svg> Commissione · 5</a></li>
+            <li><a href="#s-sessioni" class="app-toc-todo"><svg class="icon icon-xs icon-warning" aria-hidden="true"><use href="svg/sprites.svg#it-warning-circle"></use></svg> Sessioni · 1 da completare</a></li>
+          </ul>
+        </div>
+      </nav>
+    </div>
+
+    <div class="col-12 col-lg-9 d-flex flex-column gap-4">
+      <section id="s-referente" class="card card-bg no-after"><div class="card-body">
+        <h2 class="h4 d-flex align-items-center gap-2">Referente del procedimento <span class="badge app-badge-neutral">Facoltativo</span></h2>
+        <div class="row g-3 align-items-end">
+          <div class="col-12 col-md-8">
+            <div class="select-wrapper"><label for="ref">Referente</label>
+              <select id="ref" data-demo-dirty><option>[Nome Cognome] — [email]</option><option>[Altro RDP]</option></select></div>
+          </div>
+          <div class="col-12 col-md-4"><button type="button" class="btn btn-outline-primary w-100">Invia richiesta al referente</button></div>
+        </div>
+        <p class="small text-secondary mt-2 mb-0">Solo tra gli RDP di Selezioni Online. La richiesta parte via email; il resto della pagina si salva con il pulsante in basso.</p>
+      </div></section>
+
+      <section id="s-segretario" class="card card-bg no-after"><div class="card-body">
+        <h2 class="h4">Segretario e prova</h2>
+        <div class="row g-3">
+          <div class="col-12 col-md-6"><div class="select-wrapper"><label for="seg">Segretario</label>
+            <select id="seg" data-demo-dirty><option>[Nome Cognome] — [email]@cnr.it</option></select></div>
+            <p class="small text-secondary mt-1 mb-0">Solo tra i componenti con ruolo SEGRETARIO su Selezioni Online.</p></div>
+          <div class="col-12 col-md-6"><div class="form-group mb-0"><label for="tel">Telefono segretario</label><input type="tel" class="form-control" id="tel" data-demo-dirty></div></div>
+          <div class="col-12 col-md-6"><div class="form-group mb-0"><label for="dur">Durata prova (minuti)</label><input type="number" class="form-control" id="dur" data-demo-dirty></div></div>
+          <div class="col-12 col-md-6"><div class="form-group mb-0"><label for="dat" class="active">Data accesso piattaforma</label><input type="date" class="form-control" id="dat" data-demo-dirty></div></div>
+        </div>
+      </div></section>
+
+      <section id="s-commissione" class="card card-bg no-after"><div class="card-body">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+          <h2 class="h4 mb-0">Commissione</h2>
+          <button type="button" class="btn btn-outline-primary btn-sm btn-icon"><svg class="icon icon-primary icon-xs" aria-hidden="true"><use href="svg/sprites.svg#it-plus"></use></svg><span>Aggiungi componente</span></button>
+        </div>
+        <div class="table-responsive"><table class="table mb-0">
+          <thead><tr><th scope="col">Nome</th><th scope="col">Email</th><th scope="col"><span class="visually-hidden">Azioni</span></th></tr></thead>
+          <tbody><tr><td>[Componente 1]</td><td>[email]@cnr.it</td><td class="text-end"><button type="button" class="btn btn-link text-danger p-0 fw-semibold" data-demo-dirty>Rimuovi<span class="visually-hidden"> componente 1</span></button></td></tr><tr><td>[Componente 2]</td><td>[email]@cnr.it</td><td class="text-end"><button type="button" class="btn btn-link text-danger p-0 fw-semibold" data-demo-dirty>Rimuovi<span class="visually-hidden"> componente 2</span></button></td></tr><tr><td>[Componente 3]</td><td>[email]@cnr.it</td><td class="text-end"><button type="button" class="btn btn-link text-danger p-0 fw-semibold" data-demo-dirty>Rimuovi<span class="visually-hidden"> componente 3</span></button></td></tr><tr><td>[Componente 4]</td><td>[email]@cnr.it</td><td class="text-end"><button type="button" class="btn btn-link text-danger p-0 fw-semibold" data-demo-dirty>Rimuovi<span class="visually-hidden"> componente 4</span></button></td></tr><tr><td>[Componente 5]</td><td>[email esterna] <span class="badge app-badge-warning ms-1">non istituzionale</span></td><td class="text-end"><button type="button" class="btn btn-link text-danger p-0 fw-semibold" data-demo-dirty>Rimuovi<span class="visually-hidden"> componente 5</span></button></td></tr></tbody>
+        </table></div>
+      </div></section>
+
+      <section id="s-sessioni" class="card card-bg no-after"><div class="card-body">
+        <h2 class="h4">Supporto tecnico per sessione</h2>
+        <p class="text-secondary">Esperto remoto e informatico in sede servono per avviare ogni sessione. Se li indichi qui, il segretario li trova già compilati.</p>
+        <div class="table-responsive"><table class="table align-middle mb-0">
+          <thead><tr><th scope="col">Sessione</th><th scope="col">Esperto remoto</th><th scope="col">Informatico in sede</th><th scope="col">Stato</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>Roma Piazzale Aldo Moro 7</strong><br><span class="small text-secondary">08/09/2025 · 11:09</span></td>
+              <td><div class="select-wrapper app-select-inline"><label for="esp1" class="visually-hidden">Esperto remoto per Roma Piazzale Aldo Moro 7</label>
+                <select id="esp1" data-demo-dirty><option>Scegli…</option><option>[Esperto remoto A]</option><option>[Esperto remoto B]</option></select></div></td>
+              <td><button type="button" class="btn btn-link p-0 fw-semibold">+ Aggiungi informatico</button></td>
+              <td><span class="badge app-badge-warning">Da completare</span></td>
+            </tr>
+            <tr>
+              <td><strong>Prova Scritta Sessione 2</strong><br><span class="small text-secondary">11/09/2025 · 14:17</span></td>
+              <td><div class="select-wrapper app-select-inline"><label for="esp2" class="visually-hidden">Esperto remoto per Prova Scritta Sessione 2</label>
+                <select id="esp2" data-demo-dirty><option>[Esperto remoto A]</option><option>[Esperto remoto B]</option></select></div></td>
+              <td>[Nome Cognome] · <a href="#">Modifica</a></td>
+              <td><span class="badge app-badge-success">Completa</span></td>
+            </tr>
+          </tbody>
+        </table></div>
+      </div></section>
+    </div>
+  </div>
+</div>
+
+<!-- barra di salvataggio fissa in basso: un solo salvataggio per tutta la pagina -->
+<div class="app-savebar" id="savebar">
+  <div class="container d-flex flex-wrap align-items-center justify-content-end gap-3">
+    <span class="flex-grow-1 text-secondary" id="savebar-text" role="status">Nessuna modifica da salvare</span>
+    <button type="button" class="btn btn-link fw-semibold" data-demo-reset>Annulla</button>
+    <a class="btn btn-primary" href="sessioni.html">Salva configurazione</a>
+  </div>
+</div>
+</main>
+
+<footer class="it-footer app-footer">
+  <div class="it-footer-small-prints clearfix">
+    <div class="container">
+      <ul class="it-footer-small-prints-list list-inline mb-0 d-flex flex-column flex-md-row">
+        <li class="list-inline-item">Realizzato per CNR – Consiglio Nazionale delle Ricerche</li>
+        <li class="list-inline-item"><a href="#" title="Privacy Policy">Privacy policy</a></li>
+        <li class="list-inline-item ms-md-auto">Versione [versione]</li>
+      </ul>
+    </div>
+  </div>
+</footer>
+<a class="proto-index" href="index.html"><svg class="icon icon-xs icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-files"></use></svg> Indice prototipo</a>
+<script src="js/bootstrap-italia.bundle.min.js"></script>
+<script src="js/proposta.js"></script>
+</body>
+</html>

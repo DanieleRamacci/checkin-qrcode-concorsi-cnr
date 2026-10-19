@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Impostazioni · Check-in Concorsi (prototipo)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Titillium+Web:ital,wght@0,300;0,400;0,600;0,700;1,400&amp;family=Roboto+Mono:wght@400;700&amp;display=swap">
+<link rel="stylesheet" href="css/bootstrap-italia.min.css">
+<link rel="stylesheet" href="css/proposta.css">
+</head>
+<body>
+<a class="visually-hidden-focusable" href="#contenuto">Vai al contenuto</a>
+
+<!-- design-angular-kit: <it-header [showSlim]="true"> ridotto alla sola fascia slim.
+     Una fascia invece di tre: brand, menu principale, profilo attivo, utente. -->
+<header class="it-header-wrapper app-header">
+  <div class="it-header-slim-wrapper">
+    <div class="container">
+      <div class="it-header-slim-wrapper-content">
+        <a class="navbar-brand app-brand" href="home.html">CNR · Check-in Concorsi</a>
+        <div class="nav-mobile">
+          <nav aria-label="Navigazione principale">
+            <a class="it-opener d-lg-none" data-bs-toggle="collapse" href="#menu-principale" role="button" aria-expanded="false" aria-controls="menu-principale">
+              <span>Menu</span><svg class="icon" aria-hidden="true"><use href="svg/sprites.svg#it-expand"></use></svg>
+            </a>
+            <div class="link-list-wrapper collapse" id="menu-principale">
+              <ul class="link-list"><li><a class="list-item" href="home.html">Home</a></li><li><a class="list-item" href="concorsi.html">I miei concorsi</a></li><li><a class="list-item" href="scanner.html">Scanner</a></li></ul>
+            </div>
+          </nav>
+        </div>
+        <div class="it-header-slim-right-zone">
+          <!-- profilo attivo: porta alla pagina di scelta profilo -->
+          <a class="btn btn-dropdown app-profile-switch" href="profili.html">
+            <span class="d-none d-md-inline">Profilo: </span><strong>Amministrazione</strong><svg class="icon icon-xs icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-exchange-circle"></use></svg><span class="visually-hidden">, cambia profilo</span>
+          </a>
+          <div class="it-access-top-wrapper">
+            <span class="btn btn-primary btn-sm btn-icon btn-full app-user">
+              <span class="rounded-icon"><svg class="icon icon-primary" aria-hidden="true"><use href="svg/sprites.svg#it-user"></use></svg></span>
+              <span class="d-none d-lg-block">[Nome Cognome]</span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+<main id="contenuto">
+
+<div class="container py-4 py-lg-5">
+  <!-- <it-breadcrumb> -->
+<nav class="breadcrumb-container" aria-label="Percorso di navigazione"><ol class="breadcrumb p-0 mb-2"><li class="breadcrumb-item"><a href="profili.html">Profili</a><span class="separator">/</span></li><li class="breadcrumb-item active" aria-current="page">Amministrazione</li></ol></nav>
+  <div class="row g-4">
+    <div class="col-12 col-lg-3">
+      <!-- <it-sidebar> / link-list: navigazione dell'area -->
+      <nav class="card card-bg no-after app-admin-nav" aria-label="Amministrazione"><div class="card-body">
+        <p class="app-eyebrow mb-2">Amministrazione</p>
+        <div class="link-list-wrapper"><ul class="link-list mb-0"><li><a class="list-item" href="admin-permessi.html"><svg class="icon icon-sm icon-primary" aria-hidden="true"><use href="svg/sprites.svg#it-key"></use></svg><span>Permessi</span></a></li><li><a class="list-item active" href="admin-impostazioni.html" aria-current="page"><svg class="icon icon-sm icon-primary" aria-hidden="true"><use href="svg/sprites.svg#it-settings"></use></svg><span>Impostazioni</span></a></li><li><a class="list-item" href="admin-log.html"><svg class="icon icon-sm icon-primary" aria-hidden="true"><use href="svg/sprites.svg#it-list"></use></svg><span>Log di sistema</span></a></li><li><a class="list-item" href="concorsi.html"><svg class="icon icon-sm icon-primary" aria-hidden="true"><use href="svg/sprites.svg#it-folder"></use></svg><span>Tutti i bandi</span></a></li></ul></div>
+      </div></nav>
+    </div>
+    <div class="col-12 col-lg-9 app-minw">
+      <h1 class="mb-3">Impostazioni</h1>
+      
+<section class="card card-bg no-after" aria-labelledby="im-id"><div class="card-body">
+  <h2 id="im-id" class="h4 mb-1">Identità dell'app</h2>
+  <p class="text-secondary">Questi testi compaiono nell'intestazione, nel piè di pagina e nelle email.</p>
+  <div class="row g-3">
+    <div class="col-12 col-md-6"><div class="form-group mb-0"><label for="i1" class="active">Nome ente</label><input class="form-control" id="i1" value="CNR"></div></div>
+    <div class="col-12 col-md-6"><div class="form-group mb-0"><label for="i2" class="active">Nome applicazione</label><input class="form-control" id="i2" value="Check-in CNR Concorsi"></div></div>
+    <div class="col-12 col-md-6"><div class="form-group mb-0"><label for="i3" class="active">Sottotitolo</label><input class="form-control" id="i3" value="Sistema gestione presenze concorsi"></div></div>
+    <div class="col-12 col-md-6"><div class="form-group mb-0"><label for="i4" class="active">Intestazione footer</label><input class="form-control" id="i4" value="CNR - Consiglio Nazionale delle Ricerche"></div></div>
+  </div>
+  <h3 class="h6 mt-4 mb-2">Anteprima intestazione</h3>
+  <div class="app-preview-head"><strong>CNR · Check-in CNR Concorsi</strong><span>Sistema gestione presenze concorsi</span></div>
+  <div class="app-next-footer"><p class="mb-0 text-secondary">Le modifiche valgono per tutti gli utenti.</p><button type="button" class="btn btn-primary">Salva impostazioni</button></div>
+</div></section>
+    </div>
+  </div>
+</div>
+</main>
+
+<footer class="it-footer app-footer">
+  <div class="it-footer-small-prints clearfix">
+    <div class="container">
+      <ul class="it-footer-small-prints-list list-inline mb-0 d-flex flex-column flex-md-row">
+        <li class="list-inline-item">Realizzato per CNR – Consiglio Nazionale delle Ricerche</li>
+        <li class="list-inline-item"><a href="#" title="Privacy Policy">Privacy policy</a></li>
+        <li class="list-inline-item ms-md-auto">Versione [versione]</li>
+      </ul>
+    </div>
+  </div>
+</footer>
+<a class="proto-index" href="index.html"><svg class="icon icon-xs icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-files"></use></svg> Indice prototipo</a>
+<script src="js/bootstrap-italia.bundle.min.js"></script>
+<script src="js/proposta.js"></script>
+</body>
+</html>

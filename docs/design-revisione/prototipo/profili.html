@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Scelta profilo · Check-in Concorsi (prototipo)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Titillium+Web:ital,wght@0,300;0,400;0,600;0,700;1,400&amp;family=Roboto+Mono:wght@400;700&amp;display=swap">
+<link rel="stylesheet" href="css/bootstrap-italia.min.css">
+<link rel="stylesheet" href="css/proposta.css">
+</head>
+<body>
+<a class="visually-hidden-focusable" href="#contenuto">Vai al contenuto</a>
+
+<!-- design-angular-kit: <it-header [showSlim]="true"> ridotto alla sola fascia slim.
+     Una fascia invece di tre: brand, menu principale, profilo attivo, utente. -->
+<header class="it-header-wrapper app-header">
+  <div class="it-header-slim-wrapper">
+    <div class="container">
+      <div class="it-header-slim-wrapper-content">
+        <a class="navbar-brand app-brand" href="home.html">CNR · Check-in Concorsi</a>
+        <div class="nav-mobile">
+          <nav aria-label="Navigazione principale">
+            <a class="it-opener d-lg-none" data-bs-toggle="collapse" href="#menu-principale" role="button" aria-expanded="false" aria-controls="menu-principale">
+              <span>Menu</span><svg class="icon" aria-hidden="true"><use href="svg/sprites.svg#it-expand"></use></svg>
+            </a>
+            <div class="link-list-wrapper collapse" id="menu-principale">
+              <ul class="link-list"><li><a class="list-item" href="home.html">Home</a></li><li><a class="list-item" href="concorsi.html">I miei concorsi</a></li><li><a class="list-item" href="scanner.html">Scanner</a></li></ul>
+            </div>
+          </nav>
+        </div>
+        <div class="it-header-slim-right-zone">
+          <!-- profilo attivo: porta alla pagina di scelta profilo -->
+          <a class="btn btn-dropdown app-profile-switch" href="profili.html">
+            <span class="d-none d-md-inline">Profilo: </span><strong>Segretario</strong><svg class="icon icon-xs icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-exchange-circle"></use></svg><span class="visually-hidden">, cambia profilo</span>
+          </a>
+          <div class="it-access-top-wrapper">
+            <span class="btn btn-primary btn-sm btn-icon btn-full app-user">
+              <span class="rounded-icon"><svg class="icon icon-primary" aria-hidden="true"><use href="svg/sprites.svg#it-user"></use></svg></span>
+              <span class="d-none d-lg-block">[Nome Cognome]</span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+<main id="contenuto">
+
+<div class="container py-4 py-lg-5">
+  <h1 class="mb-1">Con quale profilo vuoi lavorare?</h1>
+  <p class="lead text-secondary mb-4">Vedi solo i profili assegnati al tuo utente. Chi ne ha uno solo entra direttamente nella sua home.</p>
+  <!-- ogni card compare solo se l'utente ha il ruolo corrispondente (*ngIf sul ruolo) -->
+  <div class="app-role-grid">
+    
+      <article class="card card-bg no-after app-role app-role--last">
+        <div class="card-body d-flex flex-column gap-2">
+          <div class="d-flex align-items-center gap-2"><svg class="icon icon-primary" aria-hidden="true"><use href="svg/sprites.svg#it-pa"></use></svg><h2 class="h4 mb-0">Segretario</h2><span class="badge app-badge-neutral ms-2">Ultimo usato</span></div>
+          <p class="mb-0">Prepari le sessioni, registri le presenze e invii le liste.</p>
+          <p class="mb-0 small fw-semibold app-role-info">Oggi: Prova Scritta Sessione 2 alle 14:17</p>
+          <div class="mt-auto pt-2"><a class="btn btn-primary" href="home.html">Entra come Segretario</a></div>
+        </div>
+      </article>
+    
+      <article class="card card-bg no-after app-role">
+        <div class="card-body d-flex flex-column gap-2">
+          <div class="d-flex align-items-center gap-2"><svg class="icon icon-primary" aria-hidden="true"><use href="svg/sprites.svg#it-folder"></use></svg><h2 class="h4 mb-0">Referente</h2></div>
+          <p class="mb-0">Configuri i bandi di cui sei RDP o referente.</p>
+          <p class="mb-0 small fw-semibold app-role-info">1 bando da completare</p>
+          <div class="mt-auto pt-2"><a class="btn btn-outline-primary" href="referente.html">Entra come Referente</a></div>
+        </div>
+      </article>
+    
+      <article class="card card-bg no-after app-role">
+        <div class="card-body d-flex flex-column gap-2">
+          <div class="d-flex align-items-center gap-2"><svg class="icon icon-primary" aria-hidden="true"><use href="svg/sprites.svg#it-tool"></use></svg><h2 class="h4 mb-0">Informatico in sede</h2></div>
+          <p class="mb-0">Colleghi i dispositivi in aula e segnali i reset password.</p>
+          <p class="mb-0 small fw-semibold app-role-info">Oggi: Prova Scritta Sessione 2</p>
+          <div class="mt-auto pt-2"><a class="btn btn-outline-primary" href="home-sede.html">Entra come Informatico in sede</a></div>
+        </div>
+      </article>
+    
+      <article class="card card-bg no-after app-role">
+        <div class="card-body d-flex flex-column gap-2">
+          <div class="d-flex align-items-center gap-2"><svg class="icon icon-primary" aria-hidden="true"><use href="svg/sprites.svg#it-software"></use></svg><h2 class="h4 mb-0">Esperto remoto</h2></div>
+          <p class="mb-0">Ricevi le liste, aggiorni Moodle e avanzi le fasi dell&#39;esame.</p>
+          <p class="mb-0 small fw-semibold app-role-info">1 richiesta di reset da fare</p>
+          <div class="mt-auto pt-2"><a class="btn btn-outline-primary" href="home-esperto.html">Entra come Esperto remoto</a></div>
+        </div>
+      </article>
+  </div>
+  <section class="mt-4" aria-labelledby="admin">
+    <h2 id="admin" class="h6 text-secondary mb-2">Amministrazione <span class="fw-normal">· visibile solo agli amministratori</span></h2>
+    <div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-outline-secondary btn-sm" href="concorsi.html">Tutti i bandi</a>
+      <a class="btn btn-outline-secondary btn-sm" href="admin-permessi.html">Permessi</a>
+      <a class="btn btn-outline-secondary btn-sm" href="admin-impostazioni.html">Impostazioni</a>
+      <a class="btn btn-outline-secondary btn-sm" href="admin-log.html">Log di sistema</a>
+    </div>
+  </section>
+</div>
+</main>
+
+<footer class="it-footer app-footer">
+  <div class="it-footer-small-prints clearfix">
+    <div class="container">
+      <ul class="it-footer-small-prints-list list-inline mb-0 d-flex flex-column flex-md-row">
+        <li class="list-inline-item">Realizzato per CNR – Consiglio Nazionale delle Ricerche</li>
+        <li class="list-inline-item"><a href="#" title="Privacy Policy">Privacy policy</a></li>
+        <li class="list-inline-item ms-md-auto">Versione [versione]</li>
+      </ul>
+    </div>
+  </div>
+</footer>
+<a class="proto-index" href="index.html"><svg class="icon icon-xs icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-files"></use></svg> Indice prototipo</a>
+<script src="js/bootstrap-italia.bundle.min.js"></script>
+<script src="js/proposta.js"></script>
+</body>
+</html>

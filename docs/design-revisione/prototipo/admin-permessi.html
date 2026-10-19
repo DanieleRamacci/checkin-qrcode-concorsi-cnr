@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Permessi · Check-in Concorsi (prototipo)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Titillium+Web:ital,wght@0,300;0,400;0,600;0,700;1,400&amp;family=Roboto+Mono:wght@400;700&amp;display=swap">
+<link rel="stylesheet" href="css/bootstrap-italia.min.css">
+<link rel="stylesheet" href="css/proposta.css">
+</head>
+<body>
+<a class="visually-hidden-focusable" href="#contenuto">Vai al contenuto</a>
+
+<!-- design-angular-kit: <it-header [showSlim]="true"> ridotto alla sola fascia slim.
+     Una fascia invece di tre: brand, menu principale, profilo attivo, utente. -->
+<header class="it-header-wrapper app-header">
+  <div class="it-header-slim-wrapper">
+    <div class="container">
+      <div class="it-header-slim-wrapper-content">
+        <a class="navbar-brand app-brand" href="home.html">CNR · Check-in Concorsi</a>
+        <div class="nav-mobile">
+          <nav aria-label="Navigazione principale">
+            <a class="it-opener d-lg-none" data-bs-toggle="collapse" href="#menu-principale" role="button" aria-expanded="false" aria-controls="menu-principale">
+              <span>Menu</span><svg class="icon" aria-hidden="true"><use href="svg/sprites.svg#it-expand"></use></svg>
+            </a>
+            <div class="link-list-wrapper collapse" id="menu-principale">
+              <ul class="link-list"><li><a class="list-item" href="home.html">Home</a></li><li><a class="list-item" href="concorsi.html">I miei concorsi</a></li><li><a class="list-item" href="scanner.html">Scanner</a></li></ul>
+            </div>
+          </nav>
+        </div>
+        <div class="it-header-slim-right-zone">
+          <!-- profilo attivo: porta alla pagina di scelta profilo -->
+          <a class="btn btn-dropdown app-profile-switch" href="profili.html">
+            <span class="d-none d-md-inline">Profilo: </span><strong>Amministrazione</strong><svg class="icon icon-xs icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-exchange-circle"></use></svg><span class="visually-hidden">, cambia profilo</span>
+          </a>
+          <div class="it-access-top-wrapper">
+            <span class="btn btn-primary btn-sm btn-icon btn-full app-user">
+              <span class="rounded-icon"><svg class="icon icon-primary" aria-hidden="true"><use href="svg/sprites.svg#it-user"></use></svg></span>
+              <span class="d-none d-lg-block">[Nome Cognome]</span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+<main id="contenuto">
+
+<div class="container py-4 py-lg-5">
+  <!-- <it-breadcrumb> -->
+<nav class="breadcrumb-container" aria-label="Percorso di navigazione"><ol class="breadcrumb p-0 mb-2"><li class="breadcrumb-item"><a href="profili.html">Profili</a><span class="separator">/</span></li><li class="breadcrumb-item active" aria-current="page">Amministrazione</li></ol></nav>
+  <div class="row g-4">
+    <div class="col-12 col-lg-3">
+      <!-- <it-sidebar> / link-list: navigazione dell'area -->
+      <nav class="card card-bg no-after app-admin-nav" aria-label="Amministrazione"><div class="card-body">
+        <p class="app-eyebrow mb-2">Amministrazione</p>
+        <div class="link-list-wrapper"><ul class="link-list mb-0"><li><a class="list-item active" href="admin-permessi.html" aria-current="page"><svg class="icon icon-sm icon-primary" aria-hidden="true"><use href="svg/sprites.svg#it-key"></use></svg><span>Permessi</span></a></li><li><a class="list-item" href="admin-impostazioni.html"><svg class="icon icon-sm icon-primary" aria-hidden="true"><use href="svg/sprites.svg#it-settings"></use></svg><span>Impostazioni</span></a></li><li><a class="list-item" href="admin-log.html"><svg class="icon icon-sm icon-primary" aria-hidden="true"><use href="svg/sprites.svg#it-list"></use></svg><span>Log di sistema</span></a></li><li><a class="list-item" href="concorsi.html"><svg class="icon icon-sm icon-primary" aria-hidden="true"><use href="svg/sprites.svg#it-folder"></use></svg><span>Tutti i bandi</span></a></li></ul></div>
+      </div></nav>
+    </div>
+    <div class="col-12 col-lg-9 app-minw">
+      <h1 class="mb-3">Permessi</h1>
+      
+<section class="card card-bg no-after mb-4" aria-labelledby="pe-esp"><div class="card-body">
+  <h2 id="pe-esp" class="h4 mb-1">Esperti remoti</h2>
+  <p class="text-secondary">Chi è in questo elenco si può scegliere come esperto remoto nella configurazione dei bandi e delle sessioni.</p>
+  <form class="row g-3 align-items-end mb-3" onsubmit="event.preventDefault()">
+    <div class="col-12 col-md-8"><div class="form-group mb-0"><label for="em-esp" class="active">Email istituzionale</label><input type="email" class="form-control" id="em-esp" placeholder="nome.cognome@cnr.it"></div></div>
+    <div class="col-12 col-md-4"><button class="btn btn-primary w-100" type="submit">Aggiungi esperto</button></div>
+  </form>
+  <div class="table-responsive"><table class="table align-middle mb-0">
+    <thead><tr><th scope="col">Email</th><th scope="col">Ruolo</th><th scope="col">Aggiunto da</th><th scope="col">Data</th><th scope="col"><span class="visually-hidden">Azioni</span></th></tr></thead>
+    <tbody><tr><td>[nome.cognome]@cnr.it</td><td><span class="badge app-badge-neutral">Esperto remoto</span></td><td>[amministratore]@cnr.it</td><td class="app-num-cell">08/07/2026</td><td class="text-end"><button type="button" class="btn btn-link text-danger p-0 fw-semibold">Rimuovi<span class="visually-hidden"> [nome.cognome]@cnr.it</span></button></td></tr><tr><td>[nome.cognome]@cnr.it</td><td><span class="badge app-badge-neutral">Esperto remoto</span></td><td>[amministratore]@cnr.it</td><td class="app-num-cell">08/07/2026</td><td class="text-end"><button type="button" class="btn btn-link text-danger p-0 fw-semibold">Rimuovi<span class="visually-hidden"> [nome.cognome]@cnr.it</span></button></td></tr><tr><td>[nome.cognome]@cnr.it</td><td><span class="badge app-badge-neutral">Esperto remoto</span></td><td>[amministratore]@cnr.it</td><td class="app-num-cell">08/07/2026</td><td class="text-end"><button type="button" class="btn btn-link text-danger p-0 fw-semibold">Rimuovi<span class="visually-hidden"> [nome.cognome]@cnr.it</span></button></td></tr></tbody>
+  </table></div>
+</div></section>
+<section class="card card-bg no-after" aria-labelledby="pe-alt"><div class="card-body">
+  <h2 id="pe-alt" class="h4 mb-1">Altri ruoli</h2>
+  <p class="text-secondary">Amministratori e informatici in sede abilitati a tutte le sessioni.</p>
+  <form class="row g-3 align-items-end mb-3" onsubmit="event.preventDefault()">
+    <div class="col-12 col-md-5"><div class="form-group mb-0"><label for="em-alt" class="active">Email istituzionale</label><input type="email" class="form-control" id="em-alt" placeholder="nome.cognome@cnr.it"></div></div>
+    <div class="col-12 col-md-4"><div class="select-wrapper"><label for="ro-alt">Ruolo</label><select id="ro-alt"><option>Amministratore</option><option>Informatico in sede</option></select></div></div>
+    <div class="col-12 col-md-3"><button class="btn btn-outline-primary w-100" type="submit">Aggiungi</button></div>
+  </form>
+  <div class="table-responsive"><table class="table align-middle mb-0">
+    <thead><tr><th scope="col">Email</th><th scope="col">Ruolo</th><th scope="col">Aggiunto da</th><th scope="col">Data</th><th scope="col"><span class="visually-hidden">Azioni</span></th></tr></thead>
+    <tbody><tr><td>[nome.cognome]@cnr.it</td><td><span class="badge app-badge-neutral">Amministratore</span></td><td>[amministratore]@cnr.it</td><td class="app-num-cell">01/07/2026</td><td class="text-end"><button type="button" class="btn btn-link text-danger p-0 fw-semibold">Rimuovi<span class="visually-hidden"> [nome.cognome]@cnr.it</span></button></td></tr></tbody>
+  </table></div>
+  <p class="small text-secondary mt-3 mb-0">"Rimuovi" chiede conferma. Il ruolo si mostra con il nome leggibile, non con il codice (esperto_informatico).</p>
+</div></section>
+    </div>
+  </div>
+</div>
+</main>
+
+<footer class="it-footer app-footer">
+  <div class="it-footer-small-prints clearfix">
+    <div class="container">
+      <ul class="it-footer-small-prints-list list-inline mb-0 d-flex flex-column flex-md-row">
+        <li class="list-inline-item">Realizzato per CNR – Consiglio Nazionale delle Ricerche</li>
+        <li class="list-inline-item"><a href="#" title="Privacy Policy">Privacy policy</a></li>
+        <li class="list-inline-item ms-md-auto">Versione [versione]</li>
+      </ul>
+    </div>
+  </div>
+</footer>
+<a class="proto-index" href="index.html"><svg class="icon icon-xs icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-files"></use></svg> Indice prototipo</a>
+<script src="js/bootstrap-italia.bundle.min.js"></script>
+<script src="js/proposta.js"></script>
+</body>
+</html>

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Le mie sessioni · Check-in Concorsi (prototipo)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Titillium+Web:ital,wght@0,300;0,400;0,600;0,700;1,400&amp;family=Roboto+Mono:wght@400;700&amp;display=swap">
+<link rel="stylesheet" href="css/bootstrap-italia.min.css">
+<link rel="stylesheet" href="css/proposta.css">
+</head>
+<body>
+<a class="visually-hidden-focusable" href="#contenuto">Vai al contenuto</a>
+
+<!-- design-angular-kit: <it-header [showSlim]="true"> ridotto alla sola fascia slim.
+     Una fascia invece di tre: brand, menu principale, profilo attivo, utente. -->
+<header class="it-header-wrapper app-header">
+  <div class="it-header-slim-wrapper">
+    <div class="container">
+      <div class="it-header-slim-wrapper-content">
+        <a class="navbar-brand app-brand" href="home.html">CNR · Check-in Concorsi</a>
+        <div class="nav-mobile">
+          <nav aria-label="Navigazione principale">
+            <a class="it-opener d-lg-none" data-bs-toggle="collapse" href="#menu-principale" role="button" aria-expanded="false" aria-controls="menu-principale">
+              <span>Menu</span><svg class="icon" aria-hidden="true"><use href="svg/sprites.svg#it-expand"></use></svg>
+            </a>
+            <div class="link-list-wrapper collapse" id="menu-principale">
+              <ul class="link-list"><li><a class="list-item active" href="home.html" aria-current="page">Home</a></li><li><a class="list-item" href="concorsi.html">I miei concorsi</a></li><li><a class="list-item" href="scanner.html">Scanner</a></li></ul>
+            </div>
+          </nav>
+        </div>
+        <div class="it-header-slim-right-zone">
+          <!-- profilo attivo: porta alla pagina di scelta profilo -->
+          <a class="btn btn-dropdown app-profile-switch" href="profili.html">
+            <span class="d-none d-md-inline">Profilo: </span><strong>Informatico in sede</strong><svg class="icon icon-xs icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-exchange-circle"></use></svg><span class="visually-hidden">, cambia profilo</span>
+          </a>
+          <div class="it-access-top-wrapper">
+            <span class="btn btn-primary btn-sm btn-icon btn-full app-user">
+              <span class="rounded-icon"><svg class="icon icon-primary" aria-hidden="true"><use href="svg/sprites.svg#it-user"></use></svg></span>
+              <span class="d-none d-lg-block">[Nome Cognome]</span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+<main id="contenuto">
+
+<div class="container py-4 py-lg-5">
+  <h1 class="mb-1">Le mie sessioni</h1>
+  <p class="lead text-secondary mb-4">Sessioni in cui sei indicato come <strong class="text-body">Informatico in sede</strong> · <a href="profili.html">cambia profilo</a></p>
+  <section class="card app-today mb-4" aria-labelledby="oggi"><div class="card-body d-flex flex-wrap align-items-center gap-4">
+    <div class="app-datebox app-datebox--today" aria-hidden="true"><span>Oggi</span><strong>14:17</strong></div>
+    <div class="flex-grow-1 app-minw">
+      <p class="app-eyebrow mb-1" id="oggi">In corso oggi</p>
+      <h2 class="h3 mb-1">Prova Scritta Sessione 2</h2>
+      <p class="mb-1 text-secondary">Concorso 999.999 · Roma, P.le Aldo Moro 7</p>
+      <p class="mb-0"><span class="app-state-pill">Stato: <strong>Ambiente d&#39;esame pronto</strong></span> <span class="badge app-badge-warning ms-1">1 reset in attesa</span></p>
+    </div>
+    <a class="btn btn-primary btn-lg" href="sessione-sede.html">Apri sessione</a>
+  </div></section>
+  <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3">
+    <div class="d-flex flex-wrap gap-2" role="group" aria-label="Filtra sessioni">
+      <button type="button" class="btn btn-sm btn-primary rounded-pill" aria-pressed="true">Da oggi in poi · 3</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" aria-pressed="false">Passate · 12</button>
+    </div>
+    <div class="form-group mb-0 app-search"><label for="ms" class="active">Cerca sessione</label><input type="search" class="form-control" id="ms" placeholder="Nome, concorso o sede"></div>
+  </div>
+  <div class="card card-bg no-after"><div class="card-body p-0"><div class="table-responsive"><table class="table align-middle mb-0 app-table">
+    <thead><tr><th scope="col">Data</th><th scope="col">Sessione</th><th scope="col">Stato</th><th scope="col">Reset segnalati</th><th scope="col" class="text-end"><span class="visually-hidden">Azioni</span></th></tr></thead>
+    <tbody><tr class="app-row-today"><td class="app-num-cell"><strong>Oggi</strong><br>14:17</td><td><a href="sessione-sede.html" class="fw-semibold">Prova Scritta Sessione 2</a><br><span class="small text-secondary">Concorso 999.999 · Roma, P.le Aldo Moro 7</span></td><td>Ambiente d&#39;esame pronto</td><td class="app-num-cell">1 reset in attesa</td><td class="text-end"><a class="btn btn-primary btn-sm" href="sessione-sede.html">Apri sessione</a></td></tr><tr class=""><td class="app-num-cell"><strong>30/09</strong><br>15:52</td><td><a href="#" class="fw-semibold">Sessione scritto</a><br><span class="small text-secondary">Concorso 111.112 · Roma, P.le Aldo Moro 5</span></td><td>Da configurare</td><td class="app-num-cell">—</td><td class="text-end"><a class="btn btn-outline-primary btn-sm" href="#">Apri sessione</a></td></tr><tr class=""><td class="app-num-cell"><strong>02/10</strong><br>09:30</td><td><a href="#" class="fw-semibold">[Sessione 3]</a><br><span class="small text-secondary">Concorso [codice] · [Sede, aula]</span></td><td>Configurata</td><td class="app-num-cell">—</td><td class="text-end"><a class="btn btn-outline-primary btn-sm" href="#">Apri sessione</a></td></tr></tbody></table></div></div></div>
+  
+<!-- <it-pagination> + selezione elementi per pagina -->
+<div class="app-pager">
+  <p class="mb-0 text-secondary">Sessioni 1–3 di 3</p>
+  <nav class="pagination-wrapper mb-0" aria-label="Paginazione sessioni"><ul class="pagination mb-0"><li class="page-item disabled"><a class="page-link" href="#" tabindex="-1" aria-disabled="true"><svg class="icon icon-primary" aria-hidden="true"><use href="svg/sprites.svg#it-chevron-left"></use></svg><span class="visually-hidden">Pagina precedente</span></a></li><li class="page-item active"><a class="page-link" href="#" aria-current="page">1</a></li><li class="page-item"><a class="page-link" href="#"><span class="visually-hidden">Pagina successiva</span><svg class="icon icon-primary" aria-hidden="true"><use href="svg/sprites.svg#it-chevron-right"></use></svg></a></li></ul></nav>
+  <div class="select-wrapper app-perpage"><label for="pp-pagina" class="visually-hidden">Elementi per pagina</label>
+    <select id="pp-pagina"><option>10 per pagina</option><option>25 per pagina</option><option>50 per pagina</option></select></div>
+</div>
+</div>
+</main>
+
+<footer class="it-footer app-footer">
+  <div class="it-footer-small-prints clearfix">
+    <div class="container">
+      <ul class="it-footer-small-prints-list list-inline mb-0 d-flex flex-column flex-md-row">
+        <li class="list-inline-item">Realizzato per CNR – Consiglio Nazionale delle Ricerche</li>
+        <li class="list-inline-item"><a href="#" title="Privacy Policy">Privacy policy</a></li>
+        <li class="list-inline-item ms-md-auto">Versione [versione]</li>
+      </ul>
+    </div>
+  </div>
+</footer>
+<a class="proto-index" href="index.html"><svg class="icon icon-xs icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-files"></use></svg> Indice prototipo</a>
+<script src="js/bootstrap-italia.bundle.min.js"></script>
+<script src="js/proposta.js"></script>
+</body>
+</html>

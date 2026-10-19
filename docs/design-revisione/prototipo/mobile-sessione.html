@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sessione su smartphone · Check-in Concorsi (prototipo)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Titillium+Web:ital,wght@0,300;0,400;0,600;0,700;1,400&amp;family=Roboto+Mono:wght@400;700&amp;display=swap">
+<link rel="stylesheet" href="css/bootstrap-italia.min.css">
+<link rel="stylesheet" href="css/proposta.css">
+</head>
+<body>
+<a class="visually-hidden-focusable" href="#contenuto">Vai al contenuto</a>
+
+<main id="contenuto">
+
+<div class="app-phone">
+  <header class="app-m-head">
+    <a href="sessioni.html" class="app-m-icon" aria-label="Indietro: sessioni del concorso"><svg class="icon icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-chevron-left"></use></svg></a>
+    <div class="app-minw flex-grow-1"><strong class="d-block text-truncate">Prova Scritta Sessione 2</strong><span class="small">Oggi 14:17 · Concorso 999.999</span></div>
+    <a href="#m-msg" class="app-m-icon position-relative" aria-label="Messaggi, 2 non letti"><svg class="icon icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-comment"></use></svg><span class="app-m-dot">2</span></a>
+  </header>
+  <div class="app-m-body">
+    <p class="mb-0"><span class="app-state-pill">Stato: <strong>Check-in avviato</strong></span> <span class="small text-secondary">dalle 14:05</span></p>
+    <section class="card card-bg no-after"><div class="card-body">
+      <p class="app-counter app-counter--sm mb-2"><strong>2</strong> <span>/ 4 presenti</span></p>
+      <div class="progress app-progress mb-3"><div class="progress-bar" role="progressbar" style="width: 50%" aria-valuenow="50" aria-valuemin="0" aria-valuemax="100" aria-label="Presenti sul totale"></div></div>
+      <a class="btn btn-primary btn-lg w-100 btn-icon justify-content-center" href="scanner.html"><svg class="icon icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-camera"></use></svg><span>Apri scanner</span></a>
+    </div></section>
+    <section class="card card-bg no-after" aria-labelledby="m-mancano"><div class="card-body">
+      <div class="d-flex justify-content-between align-items-baseline mb-2"><h2 id="m-mancano" class="h5 mb-0">Mancano 2</h2><a href="#" class="small fw-semibold">Tutti</a></div>
+      <div class="form-group mb-2"><label for="mq" class="visually-hidden">Cerca candidato</label><input type="search" class="form-control" id="mq" placeholder="Cerca cognome o documento"></div>
+      <ul class="list-unstyled app-m-list mb-0">
+        <li><span class="flex-grow-1"><strong>[COGNOME 1] [Nome]</strong><br><span class="small text-danger fw-semibold">Documento scaduto</span></span><button type="button" class="btn btn-outline-success btn-sm">Presente</button></li>
+        <li><span class="flex-grow-1"><strong>[COGNOME 4] [Nome]</strong><br><span class="small text-danger fw-semibold">Documento scaduto</span></span><button type="button" class="btn btn-outline-success btn-sm">Presente</button></li>
+      </ul>
+    </div></section>
+    <button type="button" class="btn btn-outline-primary w-100">Concludi check-in…</button>
+  </div>
+  <nav class="app-m-tabs" aria-label="Sezioni">
+    <a href="mobile-sessione.html" aria-current="page">Sessione</a>
+    <a href="#">Candidati</a>
+    <a href="#" id="m-msg">Messaggi · 2</a>
+  </nav>
+</div>
+</main>
+
+<a class="proto-index" href="index.html"><svg class="icon icon-xs icon-white" aria-hidden="true"><use href="svg/sprites.svg#it-files"></use></svg> Indice prototipo</a>
+<script src="js/bootstrap-italia.bundle.min.js"></script>
+<script src="js/proposta.js"></script>
+</body>
+</html>

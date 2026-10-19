@@ -1,0 +1,84 @@
+<title>Prototipo Check-in Concorsi</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@300;400;600;700&amp;family=Roboto+Mono&amp;display=swap">
+<link rel="stylesheet" href="css/bootstrap-italia.min.css">
+<link rel="stylesheet" href="css/proposta.css">
+<style>
+  /* Indice del prototipo: stessa base Bootstrap Italia delle pagine */
+  .hub { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 40px 64px; max-width: 1140px; margin: 0 auto; }
+  .hub-intro { max-width: 70ch; }
+  .hub h1 { text-wrap: balance; }
+  .hub-flow { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+  .hub-flow a { display: grid; grid-template-columns: 56px 1fr auto; gap: 16px; align-items: center; background: #fff; border: 1px solid var(--app-line); border-radius: 8px; padding: 16px 20px; text-decoration: none; color: var(--app-ink); }
+  .hub-flow a:hover, .hub-flow a:focus-visible { border-color: var(--app-primary); box-shadow: 0 0 0 1px var(--app-primary); }
+  .hub-step { width: 44px; height: 44px; border-radius: 50%; background: var(--app-primary-soft); color: var(--app-primary); font-weight: 700; display: flex; align-items: center; justify-content: center; font-variant-numeric: tabular-nums; }
+  .hub-flow h3 { font-size: 1.15rem; margin: 0 0 2px; color: var(--app-primary); }
+  .hub-flow p { margin: 0; color: var(--app-muted); font-size: .95rem; }
+  .hub-tag { font-size: .8rem; font-weight: 600; color: var(--app-muted); white-space: nowrap; }
+  .hub-map { overflow-x: auto; background: #fff; border-radius: 8px; border: 1px solid var(--app-line); }
+  .hub-map table { margin: 0; min-width: 560px; }
+  .hub-map code { font-family: "Roboto Mono", monospace; font-size: .85rem; color: #17324d; }
+  @media (max-width: 575px) { .hub-flow a { grid-template-columns: 44px 1fr; } .hub-tag { grid-column: 2; } }
+</style>
+
+<div class="hub">
+  <p class="app-eyebrow mb-2">CNR · Check-in Concorsi · proposta di revisione</p>
+  <h1 class="mb-3">Prototipo navigabile del flusso del segretario</h1>
+  <div class="hub-intro mb-5">
+    <p class="lead">Pagine HTML costruite con Bootstrap Italia 2.17, la stessa libreria su cui si basa design-angular-kit 21. Classi e struttura corrispondono ai componenti del kit, così ogni pagina si può riportare in Angular quasi uno a uno.</p>
+    <p class="mb-0 text-secondary">Parti da Scelta profilo e segui i pulsanti principali: il percorso porta dalla sessione di oggi fino all'invio delle liste. Su ogni pagina il link "Indice prototipo" in basso a sinistra riporta qui. I dati sono segnaposto.</p>
+  </div>
+
+  <h2 class="h4 mb-3">Il percorso, nell'ordine in cui lo vive il segretario</h2>
+  <ol class="hub-flow mb-5">
+    <li><a href="profili.html"><span class="hub-step">1</span><span><h3>Scelta profilo</h3><p>Le card dei profili che l'utente ha davvero (segretario, referente, informatici); amministrazione a parte.</p></span><span class="hub-tag">Desktop</span></a></li>
+    <li><a href="home.html"><span class="hub-step">2</span><span><h3>Home del segretario</h3><p>La prossima sessione in primo piano e le altre sessioni in arrivo.</p></span><span class="hub-tag">Desktop</span></a></li>
+    <li><a href="concorsi.html"><span class="hub-step">3</span><span><h3>I miei concorsi</h3><p>Tabella paginata con ricerca, filtri, ordinamento e stato della configurazione.</p></span><span class="hub-tag">Desktop</span></a></li>
+    <li><a href="sessioni.html"><span class="hub-step">4</span><span><h3>Sessioni del concorso</h3><p>Tabella paginata: sessione di oggi evidenziata, stato e presenti per ogni sessione.</p></span><span class="hub-tag">Desktop</span></a></li>
+    <li><a href="configura-bando.html"><span class="hub-step">5</span><span><h3>Configura bando</h3><p>Indice delle sezioni con spunte, assegnazioni per sessione, un solo salvataggio.</p></span><span class="hub-tag">Desktop</span></a></li>
+    <li><a href="sessione-prepara.html"><span class="hub-step">6</span><span><h3>Sessione · configura</h3><p>Pannello Azioni con il modulo, timeline degli stati a destra, sezione Candidati vuota sotto.</p></span><span class="hub-tag">Desktop</span></a></li>
+    <li><a href="sessione-scarica.html"><span class="hub-step">7</span><span><h3>Sessione · scarica candidati</h3><p>"Scarica candidati" con avanzamento; la tabella candidati è già lì sotto, in attesa.</p></span><span class="hub-tag">Desktop</span></a></li>
+    <li><a href="sessione-dispositivi.html"><span class="hub-step">8</span><span><h3>Sessione · collega dispositivi</h3><p>QR e dispositivi nel pannello Azioni; sotto, i candidati appena scaricati.</p></span><span class="hub-tag">Desktop</span></a></li>
+    <li><a href="sessione-checkin.html"><span class="hub-step">9</span><span><h3>Sessione · check-in</h3><p>Contatore presenti nelle Azioni; tabella candidati con filtri e "Segna presente".</p></span><span class="hub-tag">Desktop</span></a></li>
+    <li><a href="sessione-liste.html"><span class="hub-step">10</span><span><h3>Sessione · genera liste</h3><p>Operazione lunga con avanzamento; tabella con presenti e assenti.</p></span><span class="hub-tag">Desktop</span></a></li>
+    <li><a href="sessione-liste-invia.html"><span class="hub-step">11</span><span><h3>Sessione · invia liste</h3><p>File scaricabili e "Invia liste".</p></span><span class="hub-tag">Desktop</span></a></li>
+    <li><a href="sessione-liste-inviate.html"><span class="hub-step">12</span><span><h3>Sessione · liste inviate</h3><p>"Hai finito la tua parte"; la timeline mostra cosa fa l'esperto.</p></span><span class="hub-tag">Desktop</span></a></li>
+    <li><a href="sessione-chat.html"><span class="hub-step">C</span><span><h3>Chat interna aperta</h3><p>Pulsante "Messaggi" fisso in basso a destra con i non letti; il pannello si apre sopra la pagina senza spostarla.</p></span><span class="hub-tag">Tutti i ruoli</span></a></li>
+    <li><a href="sessione-sede.html"><span class="hub-step">S</span><span><h3>Informatico in sede</h3><p>Segnala chi ha bisogno del reset password e vede quando è stato fatto. Niente pulsanti del segretario.</p></span><span class="hub-tag">Desktop</span></a></li>
+    <li><a href="sessione-esperto.html"><span class="hub-step">E</span><span><h3>Esperto remoto</h3><p>Avvia l'esame e lavora la coda dei reset password segnalati dall'aula.</p></span><span class="hub-tag">Desktop</span></a></li>
+    <li><a href="home-esperto.html"><span class="hub-step">H</span><span><h3>Le mie sessioni · esperto remoto</h3><p>Sessioni assegnate, quella di oggi in evidenza con i reset da fare.</p></span><span class="hub-tag">Desktop</span></a></li>
+    <li><a href="home-sede.html"><span class="hub-step">H</span><span><h3>Le mie sessioni · informatico in sede</h3><p>Stessa pagina per l'informatico in sede.</p></span><span class="hub-tag">Desktop</span></a></li>
+    <li><a href="referente.html"><span class="hub-step">R</span><span><h3>Dashboard referente</h3><p>Bandi da completare in evidenza, cosa manca per ogni bando, paginazione.</p></span><span class="hub-tag">Desktop</span></a></li>
+    <li><a href="admin-permessi.html"><span class="hub-step">A</span><span><h3>Amministrazione</h3><p>Area unica con menu: permessi, impostazioni, log di sistema, tutti i bandi.</p></span><span class="hub-tag">Desktop</span></a></li>
+    <li><a href="sessione-scaduta.html"><span class="hub-step">!</span><span><h3>Sessione di accesso scaduta</h3><p>Avviso prima del rientro al login; poi si torna sulla stessa pagina. Più la pagina di uscita.</p></span><span class="hub-tag">Desktop</span></a></li>
+    <li><a href="mobile-sessione.html"><span class="hub-step">13</span><span><h3>Sessione su smartphone</h3><p>Contatore, "Apri scanner", chi manca.</p></span><span class="hub-tag">Smartphone</span></a></li>
+    <li><a href="scanner.html"><span class="hub-step">14</span><span><h3>Scanner</h3><p>Fotocamera a tutto schermo, candidato in un pannello dal basso.</p></span><span class="hub-tag">Smartphone</span></a></li>
+    <li><a href="scanner-associa.html"><span class="hub-step">S</span><span><h3>Scanner · collega il telefono</h3><p>Associazione inquadrando il QR della sessione; poi collegamento in corso, errore, riuscito.</p></span><span class="hub-tag">Smartphone</span></a></li>
+    <li><a href="scanner-non-avviato.html"><span class="hub-step">S</span><span><h3>Scanner · check-in non avviato</h3><p>Scansione in pausa finché il segretario non avvia: si sblocca da solo.</p></span><span class="hub-tag">Smartphone</span></a></li>
+    <li><a href="scanner-non-trovato.html"><span class="hub-step">S</span><span><h3>Scanner · candidato non trovato</h3><p>Spiega il motivo e propone di cercare per cognome.</p></span><span class="hub-tag">Smartphone</span></a></li>
+    <li><a href="scanner-gia-registrato.html"><span class="hub-step">S</span><span><h3>Scanner · già registrato</h3><p>Dice da quando è presente; nessuna azione richiesta.</p></span><span class="hub-tag">Smartphone</span></a></li>
+  </ol>
+
+  <h2 class="h4 mb-2">Da HTML a design-angular-kit</h2>
+  <p class="text-secondary mb-3">Nel sorgente di ogni pagina un commento indica il componente del kit da usare per ciascun blocco.</p>
+  <div class="hub-map mb-5">
+    <table class="table">
+      <thead><tr><th scope="col">Blocco nel prototipo</th><th scope="col">Classi Bootstrap Italia</th><th scope="col">Componente design-angular-kit</th></tr></thead>
+      <tbody>
+        <tr><td>Header a una fascia</td><td><code>it-header-slim-wrapper</code></td><td><code>&lt;it-header [showSlim]&gt;</code> ridotto alla fascia slim</td></tr>
+        <tr><td>Percorso</td><td><code>breadcrumb-container</code></td><td><code>&lt;it-breadcrumb&gt;</code></td></tr>
+        <tr><td>Fasi della sessione</td><td><code>steppers</code>, <code>steppers-header</code></td><td><code>&lt;it-steppers-container&gt;</code></td></tr>
+        <tr><td>Card "Prossimo passo"</td><td><code>card</code> + <code>app-next</code></td><td><code>&lt;it-card&gt;</code> + <code>itButton="primary"</code></td></tr>
+        <tr><td>Attività e messaggi</td><td><code>collapse</code></td><td><code>&lt;it-collapse&gt;</code></td></tr>
+        <tr><td>Filtri con conteggio</td><td><code>btn rounded-pill</code></td><td><code>&lt;it-chip&gt;</code> selezionabili</td></tr>
+        <tr><td>Operazioni lunghe</td><td><code>progress</code>, <code>progress-spinner</code></td><td><code>&lt;it-progress-bar&gt;</code>, <code>&lt;it-spinner&gt;</code></td></tr>
+        <tr><td>Conferma "Concludi check-in"</td><td><code>modal</code></td><td><code>&lt;it-modal&gt;</code></td></tr>
+        <tr><td>Avvisi e esito invio</td><td><code>alert</code>, <code>callout</code></td><td><code>&lt;it-alert&gt;</code>, <code>&lt;it-callout&gt;</code></td></tr>
+        <tr><td>Moduli</td><td><code>form-group</code>, <code>select-wrapper</code></td><td><code>&lt;it-input&gt;</code>, <code>&lt;it-select&gt;</code></td></tr>
+        <tr><td>Tabelle</td><td><code>table</code>, <code>table-responsive</code></td><td><code>&lt;it-table&gt;</code></td></tr>
+        <tr><td>"Non trovi un concorso?"</td><td><code>accordion</code></td><td><code>&lt;it-accordion&gt;</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="small text-secondary mb-0">Gli stili propri dell'app sono in <code>css/proposta.css</code>: card "Prossimo passo", contatori, barra delle fasi, cornice smartphone. Tutto il resto viene da Bootstrap Italia senza modifiche.</p>
+</div>
