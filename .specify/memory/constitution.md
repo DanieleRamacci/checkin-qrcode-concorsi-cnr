@@ -1,25 +1,3 @@
-<!--
-Sync Impact Report
-Version change: template -> 1.0.0
-Modified principles:
-- [PRINCIPLE_1_NAME] -> I. Stato Applicativo Esplicito
-- [PRINCIPLE_2_NAME] -> II. Autorizzazione Prima della Logica
-- [PRINCIPLE_3_NAME] -> III. Backend Come Fonte di Verita
-- [PRINCIPLE_4_NAME] -> IV. Integrazioni Isolate e Tracciabili
-- [PRINCIPLE_5_NAME] -> V. Migrazione Incrementale e Verificabile
-Added sections:
-- Vincoli Tecnici Correnti
-- Workflow e Quality Gates
-Removed sections:
-- Placeholder template sections
-Templates requiring updates:
-- .specify/templates/plan-template.md: reviewed, no change required
-- .specify/templates/spec-template.md: reviewed, no change required
-- .specify/templates/tasks-template.md: reviewed, no change required
-- .specify/templates/checklist-template.md: reviewed, no change required
-Follow-up TODOs: none
--->
-
 # Check-in CNR Concorsi Constitution
 
 ## Core Principles
@@ -79,10 +57,11 @@ frontale aumenterebbe il rischio di regressioni nei passaggi piu critici.
 
 ## Vincoli Tecnici Correnti
 
-Il runtime principale e `server_pg.py`. Il backend usa Flask, blueprint, sessioni
-server-side e PostgreSQL. Il frontend corrente usa template Jinja, frammenti HTMX
-e JavaScript vanilla. L'autenticazione e basata su OIDC authorization code flow.
-La containerizzazione usa Docker e docker-compose; Redis puo essere usato come
+Il runtime principale e `server_pg.py`. Il backend usa Python 3.11, Flask,
+blueprint, sessioni server-side e PostgreSQL. Il frontend corrente e una SPA
+Angular 21.2 in TypeScript, basata su `design-angular-kit` 21.2 e Bootstrap
+Italia 2.18.1. L'autenticazione e basata su OIDC authorization code flow. La
+containerizzazione usa Docker e docker-compose; Redis puo essere usato come
 session store.
 
 Le specifiche future devono indicare esplicitamente se modificano:
@@ -91,7 +70,7 @@ Le specifiche future devono indicare esplicitamente se modificano:
 - schema DB o migrazioni
 - autenticazione/sessione
 - autorizzazioni
-- contratti API o risposte HTML/HTMX
+- contratti API o risposte HTML
 - integrazioni esterne
 - generazione o invio liste
 
@@ -132,4 +111,4 @@ Versioning:
 Ogni plan deve includere un Constitution Check. Ogni tasks.md deve contenere task
 di verifica per sicurezza, workflow e documentazione quando la feature li tocca.
 
-**Version**: 1.0.0 | **Ratified**: 2026-06-24 | **Last Amended**: 2026-06-24
+**Version**: 1.0.1 | **Ratified**: 2026-06-24 | **Last Amended**: 2026-10-19

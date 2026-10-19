@@ -64,7 +64,7 @@ aggiornato il 19/10/2026 (schermate P01–P22, P09a–P09e).
 
 | Elemento | Implementazione |
 | --- | --- |
-| Header a una fascia | `it-header` se permette la sola fascia slim con navigazione e zona destra; altrimenti componente proprio con le classi del prototipo (decisione ancora aperta nel pacchetto) |
+| Header a una fascia | Componente applicativo con le classi del prototipo (`app-header`, `app-brand`, `app-profile-switch`). `it-header` 21.2 non espone un input per rimuovere la fascia centrale e la navbar: `showSlim` controlla soltanto la fascia slim; le altre due sono sempre renderizzate. |
 | Percorso | `it-breadcrumb` |
 | Paginazione | `it-pagination` + select elementi per pagina |
 | Conferme ("Concludi check-in", sessione scaduta, rimozione permesso) | `it-modal` |
