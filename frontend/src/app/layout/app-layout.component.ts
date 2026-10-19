@@ -1,7 +1,7 @@
-import { Component, inject, signal } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Component, computed, inject, signal } from '@angular/core';
+import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../core/auth.service';
-import { ProfileService } from '../core/profile.service';
+import { AppProfile, availableProfiles, ProfileService } from '../core/profile.service';
 
 @Component({
   selector: 'app-layout',
@@ -15,15 +15,33 @@ import { ProfileService } from '../core/profile.service';
           <button class="app-menu-toggle btn btn-outline-primary btn-sm" type="button"
             [attr.aria-expanded]="menuOpen()" aria-controls="main-navigation" (click)="menuOpen.set(!menuOpen())">Menu</button>
           <nav id="main-navigation" class="app-navigation" [class.is-open]="menuOpen()" aria-label="Navigazione principale">
-            @for (item of profiles.navigation(); track item.label) {
+            @for (item of navigationItems(); track item.label) {
               <a [routerLink]="item.path" [queryParams]="item.queryParams ?? null"
                 routerLinkActive="active" [routerLinkActiveOptions]="{ exact: item.path === '/' }"
                 (click)="menuOpen.set(false)">{{ item.label }}</a>
             }
           </nav>
-          <button class="app-profile-switch btn btn-outline-primary btn-sm" type="button" routerLink="/">
-            Profilo: {{ profiles.label() }}
-          </button>
+          <div class="app-profile-zone position-relative">
+            <button class="app-profile-switch btn btn-outline-primary btn-sm" type="button"
+              [attr.aria-expanded]="profileMenuOpen()" aria-controls="profile-menu" (click)="toggleProfileMenu()">
+              @if (isChoosingProfile() || !availableProfiles().includes(profiles.active())) { Scegli profilo } @else { Profilo: {{ profiles.label() }} }
+              <span aria-hidden="true">▾</span>
+            </button>
+            @if (profileMenuOpen()) {
+              <nav id="profile-menu" class="app-profile-menu shadow" aria-label="Pagine dei profili">
+                <a routerLink="/" (click)="profileMenuOpen.set(false)">Scegli il tuo profilo</a>
+                @for (profile of availableProfiles(); track profile) {
+                  <div class="app-profile-menu-group">
+                    <p class="small fw-semibold mb-1">{{ profiles.label(profile) }}</p>
+                    @for (item of profiles.linksFor(profile); track item.label) {
+                      <a [routerLink]="item.path" [queryParams]="item.queryParams ?? null"
+                        (click)="openProfilePage(profile)">{{ item.label }}</a>
+                    }
+                  </div>
+                }
+              </nav>
+            }
+          </div>
           <div class="app-user-zone position-relative">
             <button class="btn btn-primary btn-sm" type="button" [attr.aria-expanded]="userMenuOpen()"
               aria-controls="user-menu" (click)="toggleUserMenu()">
@@ -81,6 +99,10 @@ import { ProfileService } from '../core/profile.service';
     .app-navigation a { color: #17324d; text-decoration: none; padding: .55rem .35rem; border-bottom: 3px solid transparent; }
     .app-navigation a.active { color: #005cb9; border-color: #0066cc; font-weight: 700; }
     .app-menu-toggle { display: none; }
+    .app-profile-menu { position: absolute; right: 0; top: calc(100% + .35rem); z-index: 1001; min-width: 17rem; max-height: 70vh; overflow-y: auto; padding: .75rem; border: 1px solid #d9dadb; border-radius: 4px; background: white; color: #17324d; }
+    .app-profile-menu a { display: block; padding: .4rem .5rem; color: inherit; text-decoration: none; border-radius: 4px; }
+    .app-profile-menu a:hover, .app-profile-menu a:focus-visible { background: #f0f6fc; color: #005cb9; }
+    .app-profile-menu-group { margin-top: .5rem; padding-top: .5rem; border-top: 1px solid #d9dadb; }
     .app-user-zone { text-align: right; }
     .app-user-menu { position: absolute; right: 0; top: calc(100% + .35rem); z-index: 1000; min-width: 17rem; padding: .75rem; border-radius: 4px; background: white; color: #17324d; text-align: left; }
     .app-user-menu a, .app-user-menu button { display: block; width: 100%; padding: .45rem .5rem; border: 0; background: transparent; text-align: left; color: inherit; text-decoration: none; }
@@ -94,7 +116,7 @@ import { ProfileService } from '../core/profile.service';
       .app-navigation { display: none; flex-basis: 100%; order: 5; flex-direction: column; align-items: stretch; gap: 0; }
       .app-navigation.is-open { display: flex; }
       .app-navigation a { padding: .65rem .5rem; border-bottom: 1px solid #d9dadb; }
-      .app-profile-switch { order: 3; }
+      .app-profile-zone { order: 3; }
       .app-user-zone { order: 4; }
     }
   `,
@@ -102,16 +124,35 @@ import { ProfileService } from '../core/profile.service';
 export class AppLayoutComponent {
   readonly auth = inject(AuthService);
   readonly profiles = inject(ProfileService);
+  private readonly router = inject(Router);
+  readonly availableProfiles = computed(() => availableProfiles(this.auth.user()));
   readonly userMenuOpen = signal(false);
+  readonly profileMenuOpen = signal(false);
   readonly menuOpen = signal(false);
   readonly currentYear = new Date().getFullYear();
 
   get settings() { return this.auth.settings(); }
   get appVersion(): string { return this.auth.user()?.app_version || 'n/d'; }
   get appBuildTime(): string { return this.auth.user()?.app_build_time || 'n/d'; }
+  isChoosingProfile(): boolean { return this.router.url.split('?')[0] === '/'; }
+  navigationItems() {
+    const available = this.availableProfiles();
+    if (this.isChoosingProfile() || !available.includes(this.profiles.active())) return [{ label: 'Scegli profilo', path: '/' }];
+    return this.profiles.navigation(available.length > 1);
+  }
   toggleUserMenu(): void {
     if (!this.auth.user()) { this.login(); return; }
+    this.profileMenuOpen.set(false);
     this.userMenuOpen.set(!this.userMenuOpen());
+  }
+  toggleProfileMenu(): void {
+    this.userMenuOpen.set(false);
+    this.profileMenuOpen.set(!this.profileMenuOpen());
+  }
+  openProfilePage(profile: AppProfile): void {
+    this.profiles.select(profile);
+    this.profileMenuOpen.set(false);
+    this.menuOpen.set(false);
   }
   login(): void { this.auth.login(); }
   logout(): void { this.userMenuOpen.set(false); this.auth.logout(); }

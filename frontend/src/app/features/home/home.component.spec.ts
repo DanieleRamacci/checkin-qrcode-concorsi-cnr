@@ -43,7 +43,7 @@ describe('HomeComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Referente');
     expect(fixture.nativeElement.textContent).toContain('Amministrazione');
     expect(fixture.nativeElement.textContent).not.toContain('Continua come Amministratore');
-    expect(fixture.nativeElement.textContent).toContain('Ultimo usato');
+    expect(fixture.nativeElement.querySelector('[role="tablist"]')).toBeTruthy();
   });
 
   it('hides sede profile when the user has no assigned sede workflow', async () => {

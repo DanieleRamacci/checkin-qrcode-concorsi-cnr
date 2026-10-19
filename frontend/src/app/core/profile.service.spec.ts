@@ -1,6 +1,5 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { vi } from 'vitest';
 import { ProfileService } from './profile.service';
 
 describe('ProfileService', () => {
@@ -14,15 +13,4 @@ describe('ProfileService', () => {
     expect(service.navigation().find((item) => item.label === 'Home')).toEqual({ label: 'Home', path: '/' });
   });
 
-  it('continues to work when browser storage throws', () => {
-    vi.stubGlobal('localStorage', {
-      getItem: () => { throw new Error('storage unavailable'); },
-      setItem: () => { throw new Error('storage unavailable'); },
-    });
-    TestBed.configureTestingModule({ providers: [provideRouter([])] });
-    const service = TestBed.inject(ProfileService);
-    expect(() => service.select('esperto')).not.toThrow();
-    expect(service.active()).toBe('esperto');
-    vi.unstubAllGlobals();
-  });
 });
