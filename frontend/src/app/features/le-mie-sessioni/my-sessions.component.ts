@@ -6,6 +6,7 @@ import { AssignedSessionSummary, AssignedSessionsResponse } from '../../core/mod
 import { sessionStateLabel } from '../../shared/session-states';
 import { FilterChipOption, FilterChipsComponent } from '../../shared/filter-chips.component';
 import { PagerComponent } from '../../shared/pager.component';
+import { competitionLabel } from '../../shared/competition-label';
 
 type SessionFilter = 'upcoming' | 'past';
 
@@ -33,7 +34,7 @@ type SessionFilter = 'upcoming' | 'past';
                   <article class="card h-100 border-primary">
                     <div class="card-body">
                       <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
-                        <div><p class="small text-muted mb-1">{{ item.time }} · {{ item.location || 'Sede non indicata' }}</p><h3 class="h5 mb-1">{{ item.name }}</h3><p class="mb-2">{{ item.bando_title || item.commission_id }}</p></div>
+                        <div><p class="small text-muted mb-1">{{ item.time }} · {{ item.location || 'Sede non indicata' }}</p><h3 class="h5 mb-1">{{ item.name }}</h3><p class="mb-2">{{ competitionLabel(item.bando_title, item.commission_id) }}</p></div>
                         <span class="badge text-bg-light">{{ stateLabel(item.current_state) }}</span>
                       </div>
                       @if (item.open_reset_count > 0) {
@@ -50,7 +51,7 @@ type SessionFilter = 'upcoming' | 'past';
           <section class="mb-5" aria-labelledby="prossima-title">
             <h2 id="prossima-title" class="h3 mb-3">Prossima sessione</h2>
             <article class="card border-primary"><div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
-              <div><p class="small text-muted mb-1">{{ formatDate(item.date) }} · {{ item.time }} · {{ item.location || 'Sede non indicata' }}</p><h3 class="h5 mb-1">{{ item.name }}</h3><p class="mb-0">{{ item.bando_title || item.commission_id }}</p></div>
+              <div><p class="small text-muted mb-1">{{ formatDate(item.date) }} · {{ item.time }} · {{ item.location || 'Sede non indicata' }}</p><h3 class="h5 mb-1">{{ item.name }}</h3><p class="mb-0">{{ competitionLabel(item.bando_title, item.commission_id) }}</p></div>
               <div class="d-flex align-items-center gap-3"><span class="badge text-bg-light">{{ stateLabel(item.current_state) }}</span><a class="btn btn-primary" [routerLink]="['/sessioni', item.session_id]" [queryParams]="{ mode: routeMode() }">Apri sessione</a></div>
             </div></article>
           </section>
@@ -68,7 +69,7 @@ type SessionFilter = 'upcoming' | 'past';
             <thead><tr><th>Data</th><th>Sessione</th><th>Concorso</th><th>Sede</th><th>Stato</th><th>Reset aperti</th><th>Azioni</th></tr></thead>
             <tbody>
               @for (item of pageItems(); track item.session_id) {
-                <tr><td>{{ formatDate(item.date) }}<br /><span class="small text-muted">{{ item.time }}</span></td><th scope="row">{{ item.name }}</th><td>{{ item.bando_title || item.commission_id }}</td><td>{{ item.location || '—' }}</td><td>{{ stateLabel(item.current_state) }}</td><td>{{ item.open_reset_count || '—' }}</td><td><a class="btn btn-sm btn-primary" [routerLink]="['/sessioni', item.session_id]" [queryParams]="{ mode: routeMode() }">Apri sessione</a></td></tr>
+                <tr><td>{{ formatDate(item.date) }}<br /><span class="small text-muted">{{ item.time }}</span></td><th scope="row">{{ item.name }}</th><td>{{ competitionLabel(item.bando_title, item.commission_id) }}</td><td>{{ item.location || '—' }}</td><td>{{ stateLabel(item.current_state) }}</td><td>{{ item.open_reset_count || '—' }}</td><td><a class="btn btn-sm btn-primary" [routerLink]="['/sessioni', item.session_id]" [queryParams]="{ mode: routeMode() }">Apri sessione</a></td></tr>
               } @empty { <tr><td colspan="7" class="text-center py-4">Nessuna sessione corrisponde ai filtri.</td></tr> }
             </tbody>
           </table></div>
@@ -79,6 +80,7 @@ type SessionFilter = 'upcoming' | 'past';
   `,
 })
 export class MySessionsComponent {
+  readonly competitionLabel = competitionLabel;
   private readonly api = inject(ApiClient);
   private readonly route = inject(ActivatedRoute);
   readonly mode = signal<'sede' | 'expert'>('sede');

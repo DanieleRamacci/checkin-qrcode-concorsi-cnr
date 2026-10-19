@@ -170,8 +170,8 @@ body:has(.app-savebar) .proto-index { bottom: calc(84px + env(safe-area-inset-bo
 .proto-index { left: auto; right: max(12px, env(safe-area-inset-right, 0px)); }
 
 /* v2: profili, paginazione, timeline, pannello azioni */
-.app-profile-switch { display: inline-flex; align-items: center; gap: 8px; color: #fff !important; border: 1px solid rgba(255,255,255,.55); border-radius: 4px; padding: 0 12px; min-height: 44px; text-decoration: none; }
-.app-profile-switch:hover { background: rgba(255,255,255,.12); }
+.app-profile-switch { display: inline-flex; align-items: center; gap: 8px; color: var(--app-primary) !important; border: 1px solid var(--app-primary); border-radius: 4px; padding: 0 12px; min-height: 44px; text-decoration: none; }
+.app-profile-switch:hover { background: var(--app-primary-soft); }
 .app-role-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
 .app-role { border-radius: 8px; height: 100%; }
 .app-role--last { border: 2px solid var(--app-primary); }
@@ -206,8 +206,9 @@ body:has(.app-savebar) .proto-index { bottom: calc(84px + env(safe-area-inset-bo
 .app-tl li:last-child::before { bottom: 50%; }
 .app-tl li:only-child::before { display: none; }
 .app-tl-mark { position: relative; z-index: 1; width: 24px; height: 24px; flex: none; border-radius: 50%; border: 2px solid #9da6af; background: #fff; display: inline-flex; align-items: center; justify-content: center; }
-.app-tl-text { flex-grow: 1; }
-.app-tl-time { font-size: .85rem; font-variant-numeric: tabular-nums; }
+.app-tl-text { flex-grow: 1; min-width: 0; }
+.app-tl-time { font-size: .8rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; line-height: 1.35; }
+.app-tl-mark { color: #fff; font-size: .9rem; font-weight: 700; }
 .app-tl li.is-done { color: var(--app-ink); }
 .app-tl li.is-done::before { background: var(--app-ok); }
 .app-tl li.is-done .app-tl-mark { background: var(--app-ok); border-color: var(--app-ok); }
@@ -223,8 +224,7 @@ body:has(.app-savebar) .proto-index { bottom: calc(84px + env(safe-area-inset-bo
 .app-chat-fab { position: fixed; z-index: 40; right: max(20px, env(safe-area-inset-right, 0px)); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); display: inline-flex; align-items: center; gap: 8px; background: var(--app-primary); color: #fff; border: 0; border-radius: 28px; padding: 0 20px; min-height: 52px; font: inherit; font-weight: 700; box-shadow: 0 4px 14px rgba(0,0,0,.25); cursor: pointer; }
 .app-chat-fab:hover { background: #004d99; }
 .app-chat-fab-badge { background: #fff; color: var(--app-primary); border-radius: 12px; min-width: 24px; padding: 0 7px; font-size: .85rem; line-height: 22px; text-align: center; }
-.app-chat-drawer { position: fixed; z-index: 50; top: 0; right: 0; bottom: 0; width: min(400px, 100%); background: #fff; box-shadow: -6px 0 24px rgba(0,0,0,.18); display: flex; flex-direction: column; transform: translateX(105%); visibility: hidden; transition: transform .2s ease, visibility .2s; }
-.app-chat-drawer.is-open { transform: none; visibility: visible; }
+.app-chat-drawer { position: fixed; z-index: 50; top: 0; right: 0; bottom: 0; width: min(400px, 100%); background: #fff; box-shadow: -6px 0 24px rgba(0,0,0,.18); display: flex; flex-direction: column; }
 .app-chat-head { background: var(--app-primary); color: #fff; display: flex; align-items: center; gap: 12px; padding: 14px 16px calc(14px) 20px; padding-top: calc(14px + env(safe-area-inset-top, 0px)); }
 .app-chat-head h2 { color: #fff; }
 .app-chat-close { margin-left: auto; width: 44px; height: 44px; flex: none; border: 0; background: transparent; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }

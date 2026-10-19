@@ -63,6 +63,7 @@ describe('GestioneSessioneComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Stai lavorando come Esperto remoto');
+    expect(fixture.nativeElement.querySelector('nav[aria-label="Percorso"]')?.textContent).toContain('Le mie sessioni');
     expect(fixture.nativeElement.textContent).toContain('367.222 FA Test - Funzionario di Amministrazione');
     expect(fixture.nativeElement.textContent).toContain('Avanzamento della sessione');
     fixture.destroy();

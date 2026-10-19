@@ -71,7 +71,8 @@ describe('SessioniComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Prova scritta');
-    expect(fixture.nativeElement.textContent).toContain('Concorso c1');
+    expect(fixture.nativeElement.querySelector('h1')?.textContent).toContain('Concorso CNR');
+    expect(fixture.nativeElement.textContent).not.toContain('Concorso c1');
     expect(fixture.nativeElement.textContent).toContain('Apri sessione');
     expect(fixture.nativeElement.textContent).not.toContain('Modifica config bando');
     fixture.componentInstance.setDateFilter('upcoming');

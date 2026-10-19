@@ -7,7 +7,7 @@ import { AuthService } from '../../core/auth.service';
 import { BandiService } from '../bandi/bandi.service';
 
 describe('SecretaryHomeComponent', () => {
-  it('shows the closest next session and a link for a bando with no downloaded sessions', async () => {
+  it('shows the closest next session without listing undownloaded competitions as sessions', async () => {
     await TestBed.configureTestingModule({
       imports: [SecretaryHomeComponent],
       providers: [
@@ -23,10 +23,31 @@ describe('SecretaryHomeComponent', () => {
     const fixture = TestBed.createComponent(SecretaryHomeComponent);
     fixture.detectChanges();
     const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Buongiorno, Ada Lovelace');
+    expect(text).toContain('Buongiorno, Ada');
     expect(text).toContain('Sessione B');
     expect(text).toContain('Prossimo passo: Salva e continua');
-    expect(text).toContain('sessioni non ancora scaricate');
+    expect(text).not.toContain('Concorso senza sessioni');
     expect(text.indexOf('Sessione B')).toBeLessThan(text.indexOf('Sessione A'));
+  });
+
+  it('shows one clear empty state when only competitions without sessions are available', async () => {
+    await TestBed.configureTestingModule({
+      imports: [SecretaryHomeComponent],
+      providers: [
+        provideRouter([]),
+        { provide: AuthService, useValue: { user: signal({ display_name: 'DANIELE RAMACCI' }) } },
+        { provide: BandiService, useValue: { list: () => of({ items: [
+          { commission_id: 'c1', title: '999.999', session_count: 0, next_session: null },
+          { commission_id: 'c2', title: '999.999', session_count: 0, next_session: null },
+        ] }) } },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(SecretaryHomeComponent);
+    fixture.detectChanges();
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Buongiorno, Daniele');
+    expect(text).toContain('2 concorsi non hanno ancora sessioni sincronizzate');
+    expect(text).not.toContain('999.999');
+    expect(fixture.nativeElement.querySelectorAll('.app-row')).toHaveLength(0);
   });
 });

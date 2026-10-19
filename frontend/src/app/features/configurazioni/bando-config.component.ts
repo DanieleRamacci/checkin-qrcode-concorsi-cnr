@@ -4,6 +4,7 @@ import { FormsModule, NgForm } from '@angular/forms';
 import { ApiClient } from '../../core/api-client';
 import { BackLinkComponent } from '../../shared/back-link.component';
 import { BandiService } from '../bandi/bandi.service';
+import { competitionLabel } from '../../shared/competition-label';
 
 interface SedeTechnician {
   nome: string;
@@ -32,7 +33,7 @@ interface SessionAssignment {
     <div class="container-xxl my-5">
       <app-back-link [target]="returnUrl()" [label]="returnLabel()" />
       <h1 class="mb-1">Configura bando</h1>
-      <p class="text-muted mb-4">{{ title() }}</p>
+      <p class="text-muted mb-4">{{ competitionLabel(title(), id) }}</p>
 
       <div class="row g-4">
         <aside class="col-12 col-lg-3 col-xl-2">
@@ -247,6 +248,7 @@ interface SessionAssignment {
   `,
 })
 export class BandoConfigComponent {
+  readonly competitionLabel = competitionLabel;
   private readonly api = inject(ApiClient);
   private readonly bandiService = inject(BandiService);
   private readonly route = inject(ActivatedRoute);

@@ -5,6 +5,7 @@ import { ReferenteBandoSummary } from '../../core/models/api.models';
 import { FilterChipOption, FilterChipsComponent } from '../../shared/filter-chips.component';
 import { PagerComponent } from '../../shared/pager.component';
 import { BandiService } from './bandi.service';
+import { competitionLabel } from '../../shared/competition-label';
 
 @Component({
   selector: 'app-referente-bandi',
@@ -74,7 +75,7 @@ import { BandiService } from './bandi.service';
               <tbody>
                 @for (bando of pageItems(); track bando.commission_id) {
                   <tr>
-                    <th scope="row">{{ bando.title }}</th>
+                    <th scope="row">{{ competitionLabel(bando.title, bando.commission_id) }}</th>
                     <td>
                       @if ((bando.rdp_names ?? []).length > 0) {
                         {{ (bando.rdp_names ?? []).join(', ') }}
@@ -129,6 +130,7 @@ import { BandiService } from './bandi.service';
   `,
 })
 export class ReferenteBandiComponent {
+  readonly competitionLabel = competitionLabel;
   private readonly service = inject(BandiService);
   readonly items = signal<ReferenteBandoSummary[]>([]);
   readonly loading = signal(true);

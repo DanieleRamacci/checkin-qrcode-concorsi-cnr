@@ -94,28 +94,23 @@ export function candidateQrPayload(uid: string): string {
           <div class="alert alert-warning" role="alert">Nessun candidato presente.</div>
         } @else {
           <div class="table-responsive">
-            <table class="table table-striped table-hover">
+            <table class="table table-striped table-hover align-middle candidate-table">
               <caption class="visually-hidden">Candidati della sessione</caption>
               <thead class="table-light">
                 <tr>
-                  <th>#</th>
-                  <th>Nome</th>
-                  <th>Cognome</th>
+                  <th>Cognome e nome</th>
                   <th>Documento</th>
-                  <th>Validità</th>
                   <th>Presenza</th>
-                  <th>Note</th>
-                  <th class="text-nowrap">Azioni</th>
+                  <th class="text-end">Azioni</th>
                 </tr>
               </thead>
               <tbody>
-                @for (item of pageItems(); track item.uid; let i = $index) {
+                @for (item of pageItems(); track item.uid) {
                   <tr [class.table-success]="item.checkin_effettuato" [class.table-danger]="!item.checkin_effettuato">
-                    <th scope="row">{{ i + 1 }}</th>
-                    <td>{{ item.first_name }}</td>
-                    <td>{{ item.last_name }}</td>
-                    <td>{{ item.document_number }}</td>
-                    <td>
+                    <th scope="row" class="candidate-name"><strong>{{ item.last_name }}</strong> {{ item.first_name }}
+                      @if (item.note) { <small class="d-block text-muted candidate-note-preview">{{ item.note }}</small> }
+                    </th>
+                    <td><span class="app-mono">{{ item.document_number }}</span><br />
                       @if (item.document_expired) {
                         <span class="badge bg-danger">Scaduto</span>
                       } @else {
@@ -124,26 +119,20 @@ export function candidateQrPayload(uid: string): string {
                     </td>
                     <td>
                       @if (item.checkin_effettuato) {
-                        <span class="badge bg-success">Presente@if (item.checkin_at) { {{ item.checkin_at | date:'HH:mm' }} · da {{ item.checkin_source === 'scanner' ? 'scanner' : 'tabella' }} }</span>
+                        <span class="text-success fw-semibold">Presente</span>
+                        @if (item.checkin_at) { <br /><small class="text-muted">{{ item.checkin_at | date:'HH:mm' }} · da {{ item.checkin_source === 'scanner' ? 'scanner' : 'tabella' }}</small> }
                       } @else {
-                        <span class="badge bg-secondary">Assente</span>
+                        <span class="text-muted">{{ sectionMode() === 'checkin' ? 'Da registrare' : 'Assente' }}</span>
                       }
                     </td>
-                    <td class="candidate-note-cell">
-                      @if (item.note) {
-                        <span>{{ item.note }}</span>
-                      } @else {
-                        <span class="text-muted">-</span>
-                      }
-                    </td>
-                    <td class="text-nowrap">
-                      <button class="btn btn-sm btn-outline-dark me-1" type="button"
+                    <td><div class="candidate-actions">
+                      <button class="btn btn-sm btn-outline-dark" type="button"
                         title="Mostra QR candidato" [attr.aria-label]="'Mostra QR candidato ' + item.first_name + ' ' + item.last_name"
                         (click)="showQr(item)">
                         QR
                       </button>
                       <button
-                        [class]="'btn btn-sm me-1 ' + (item.note ? 'btn-primary text-white' : 'btn-outline-primary')"
+                        class="btn btn-sm btn-link fw-semibold"
                         type="button"
                         [attr.aria-label]="'Apri note candidato ' + item.first_name + ' ' + item.last_name"
                         (click)="openNotes(item)"
@@ -151,15 +140,14 @@ export function candidateQrPayload(uid: string): string {
                         {{ item.note ? 'Modifica note' : 'Note' }}
                       </button>
                       @if (sectionMode() === 'checkin') { <button
-                        [class]="'btn btn-sm text-nowrap ' + (item.checkin_effettuato ? 'btn-outline-danger' : 'btn-outline-success')"
-                        style="white-space: nowrap;"
+                        [class]="'btn btn-sm ' + (item.checkin_effettuato ? 'btn-link text-danger' : 'btn-outline-success')"
                         type="button"
                         [disabled]="mutationUid() === item.uid"
                         (click)="requestToggle(item)"
                       >
                         {{ item.checkin_effettuato ? 'Annulla presenza' : 'Segna presente' }}
                       </button> }
-                    </td>
+                    </div></td>
                   </tr>
                 }
               </tbody>
@@ -254,12 +242,11 @@ export function candidateQrPayload(uid: string): string {
     .candidate-qr-modal { display: block; background: rgba(0, 0, 0, 0.5); }
     .candidate-note-modal { display: block; background: rgba(0, 0, 0, 0.5); }
     .candidate-qr { image-rendering: pixelated; }
-    .candidate-note-cell {
-      max-width: 18rem;
-      white-space: normal;
-      overflow-wrap: anywhere;
-      font-size: 0.9rem;
-    }
+    .candidate-table { width: 100%; }
+    .candidate-name { min-width: 10rem; overflow-wrap: anywhere; }
+    .candidate-note-preview { max-width: 18rem; font-weight: 400; overflow-wrap: anywhere; }
+    .candidate-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .35rem; min-width: 12rem; }
+    .candidate-actions .btn { white-space: nowrap; }
   `,
 })
 export class CandidatiComponent {

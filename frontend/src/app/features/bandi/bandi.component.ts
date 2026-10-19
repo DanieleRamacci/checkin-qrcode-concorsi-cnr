@@ -6,6 +6,7 @@ import { AuthService } from '../../core/auth.service';
 import { BandiService } from './bandi.service';
 import { FilterChipsComponent, FilterChipOption } from '../../shared/filter-chips.component';
 import { PagerComponent } from '../../shared/pager.component';
+import { competitionLabel } from '../../shared/competition-label';
 
 @Component({
   selector: 'app-bandi',
@@ -93,7 +94,7 @@ import { PagerComponent } from '../../shared/pager.component';
               <thead><tr><th>Concorso</th><th>Prossima sessione</th><th>Sessioni</th><th>Configurazione</th><th>Azioni</th></tr></thead>
               <tbody>
                 @for (bando of pageItems(); track bando.commission_id) {
-                  <tr><th scope="row">{{ bando.title }}</th>
+                  <tr><th scope="row">{{ competitionLabel(bando.title, bando.commission_id) }}</th>
                     <td>@if (bando.next_session) { {{ bando.next_session.date }} · {{ bando.next_session.time }}<br /><span class="small text-muted">{{ bando.next_session.name }}</span> } @else { <span class="text-muted">Nessuna sessione in arrivo</span> }</td>
                     <td>{{ bando.session_count }}</td>
                     <td><span class="badge" [class.text-bg-success]="bando.configured && bando.required_data_complete !== false" [class.text-bg-warning]="!bando.configured || bando.required_data_complete === false">{{ bando.configured && bando.required_data_complete !== false ? 'Completa' : 'Da completare' }}</span></td>
@@ -135,7 +136,7 @@ import { PagerComponent } from '../../shared/pager.component';
                     <th scope="row">{{ i + 1 }}</th>
                     <td>
                       <div class="d-flex flex-column gap-1">
-                        <span>{{ bando.title }}</span>
+                        <span>{{ competitionLabel(bando.title, bando.commission_id) }}</span>
                         @if (accessBadgeLabel(bando)) {
                           <span [class]="'badge align-self-start ' + accessBadgeClass(bando)">
                             {{ accessBadgeLabel(bando) }}
@@ -249,6 +250,7 @@ import { PagerComponent } from '../../shared/pager.component';
   `,
 })
 export class BandiComponent {
+  readonly competitionLabel = competitionLabel;
   private readonly service = inject(BandiService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);

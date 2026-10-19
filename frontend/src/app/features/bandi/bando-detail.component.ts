@@ -3,6 +3,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { BandoDetail, BandoPerson } from '../../core/models/api.models';
 import { AuthService } from '../../core/auth.service';
 import { BackLinkComponent } from '../../shared/back-link.component';
+import { competitionLabel } from '../../shared/competition-label';
 import { BandiService } from './bandi.service';
 
 @Component({
@@ -13,10 +14,7 @@ import { BandiService } from './bandi.service';
       <app-back-link [target]="['/bandi', commissionId, 'sessioni']" [queryParams]="{ mode: mode }" label="Torna alle sessioni" />
 
       <h1 class="mb-1">Dettaglio bando</h1>
-      <p class="text-muted mb-4">
-        Codice: <strong>{{ detail()?.title ?? commissionId }}</strong> &mdash;
-        commission_id: <code>{{ commissionId }}</code>
-      </p>
+      <p class="text-muted mb-4">{{ competitionLabel(detail()?.title, commissionId) }}</p>
 
       @if (loading()) {
         <div class="d-flex align-items-center" role="status">
@@ -97,6 +95,7 @@ import { BandiService } from './bandi.service';
   `,
 })
 export class BandoDetailComponent {
+  readonly competitionLabel = competitionLabel;
   private readonly service = inject(BandiService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);

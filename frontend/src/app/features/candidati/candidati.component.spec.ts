@@ -39,8 +39,9 @@ describe('CandidatiComponent', () => {
 
     expect(fixture.nativeElement.textContent).toContain('Ada');
     expect(fixture.nativeElement.textContent).toContain('QR');
-    expect(fixture.nativeElement.textContent).toContain('Note');
+    expect(fixture.nativeElement.textContent).toContain('Modifica note');
     expect(fixture.nativeElement.textContent).toContain('Carta identità aggiornata');
+    expect(fixture.nativeElement.querySelectorAll('.candidate-table thead th')).toHaveLength(4);
   });
 
   it('shows the reset table inside the candidates section for the in-person profile', async () => {

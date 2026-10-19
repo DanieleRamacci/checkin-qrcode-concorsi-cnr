@@ -2,6 +2,7 @@ import { Component, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { SessionSummary } from '../../core/models/api.models';
 import { sessionStateLabel } from '../../shared/session-states';
+import { competitionLabel } from '../../shared/competition-label';
 
 @Component({
   selector: 'app-mobile-session',
@@ -10,7 +11,7 @@ import { sessionStateLabel } from '../../shared/session-states';
     <main class="mobile-session" aria-label="Gestione sessione da smartphone">
       <header class="mobile-head">
         <a class="back-link" routerLink="/bandi" [queryParams]="{ mode: mode() }" aria-label="Torna ai concorsi">‹</a>
-        <div class="mobile-title"><span>{{ session()?.bando_title || 'Concorso' }}</span><h1>{{ session()?.name || 'Sessione' }}</h1></div>
+        <div class="mobile-title"><span>{{ competitionLabel(session()?.bando_title, session()?.commission_id) }}</span><h1>{{ session()?.name || 'Sessione' }}</h1></div>
         <span class="message-count" aria-label="Messaggi non letti">{{ unreadCount() }}</span>
       </header>
       <div class="mobile-summary">
@@ -57,6 +58,7 @@ import { sessionStateLabel } from '../../shared/session-states';
   `,
 })
 export class MobileSessionComponent {
+  readonly competitionLabel = competitionLabel;
   readonly session = input<SessionSummary | null>(null);
   readonly currentState = input('');
   readonly mode = input('segretario');

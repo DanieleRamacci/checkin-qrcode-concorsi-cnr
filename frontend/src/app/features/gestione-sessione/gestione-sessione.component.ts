@@ -62,7 +62,7 @@ interface OperationalConfig {
               </app-mobile-session>
             } @else {
           <div class="row g-4">
-            <div class="col-12 col-xl-8 action-column">
+            <div class="col-12 col-xl-9 action-column">
               @if (detail()) {
                   <app-azioni
                     [sessionId]="sessionId"
@@ -83,7 +83,7 @@ interface OperationalConfig {
                   <app-notifiche [sessionId]="sessionId" [mode]="viewMode" />
               }
             </div>
-            <aside class="col-12 col-xl-4 timeline-column">
+            <aside class="col-12 col-xl-3 timeline-column">
               <app-state-timeline [currentState]="workflowState()?.current_state ?? ''" [history]="workflowState()?.history ?? []" [faseEsameMia]="viewMode === 'esperto'" />
               @if (mergedConfig(); as cfg) { <app-session-references [references]="cfg" /> }
             </aside>

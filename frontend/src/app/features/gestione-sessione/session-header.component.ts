@@ -3,6 +3,7 @@ import { RouterLink } from '@angular/router';
 import { SessionSummary } from '../../core/models/api.models';
 import { AppProfile } from '../../core/profile.service';
 import { sessionStateLabel } from '../../shared/session-states';
+import { competitionLabel } from '../../shared/competition-label';
 
 @Component({
   selector: 'app-session-header',
@@ -10,12 +11,23 @@ import { sessionStateLabel } from '../../shared/session-states';
   template: `
     <section class="app-session-head mb-4">
       <nav aria-label="Percorso"><ol class="breadcrumb mb-2">
-        <li class="breadcrumb-item"><a routerLink="/bandi">I miei concorsi</a></li>
-        <li class="breadcrumb-item"><a [routerLink]="['/bandi', session().commission_id, 'sessioni']">Concorso {{ session().commission_id }}</a></li>
+        @if (profile() === 'sede' || profile() === 'esperto') {
+          <li class="breadcrumb-item"><a routerLink="/le-mie-sessioni" [queryParams]="{ mode: profile() === 'sede' ? 'sede' : 'expert' }">Le mie sessioni</a></li>
+          <li class="breadcrumb-item">{{ competitionLabel(session().bando_title, session().commission_id) }}</li>
+        } @else {
+          @if (profile() === 'admin') {
+            <li class="breadcrumb-item"><a routerLink="/bandi" [queryParams]="{ mode: 'admin' }">Tutti i bandi</a></li>
+          } @else if (profile() === 'referente') {
+            <li class="breadcrumb-item"><a routerLink="/referenti/bandi">I bandi di cui sei referente</a></li>
+          } @else {
+            <li class="breadcrumb-item"><a routerLink="/bandi" [queryParams]="{ mode: 'segretario' }">I miei concorsi</a></li>
+          }
+          <li class="breadcrumb-item"><a [routerLink]="['/bandi', session().commission_id, 'sessioni']" [queryParams]="{ mode: profile() }">{{ competitionLabel(session().bando_title, session().commission_id) }}</a></li>
+        }
         <li class="breadcrumb-item active" aria-current="page">Sessione</li>
       </ol></nav>
       <div class="d-flex flex-wrap justify-content-between gap-3 align-items-start">
-        <div><p class="app-eyebrow mb-1">{{ session().bando_title || session().commission_id }}</p>
+        <div><p class="app-eyebrow mb-1">{{ competitionLabel(session().bando_title, session().commission_id) }}</p>
           <h1 class="h2 mb-1">{{ session().name }}</h1>
           <p class="mb-0 text-muted">{{ session().date }} · {{ session().time }} · {{ session().location }}</p>
         </div>
@@ -34,5 +46,6 @@ export class SessionHeaderComponent {
   readonly profile = input<AppProfile>('segretario');
   readonly adminView = input(false);
   readonly sessionStateLabel = sessionStateLabel;
+  readonly competitionLabel = competitionLabel;
   profileLabel(): string { return ({ segretario: 'Segretario', referente: 'Referente', sede: 'Informatico in sede', esperto: 'Esperto remoto', admin: 'Amministratore' } as const)[this.profile()]; }
 }

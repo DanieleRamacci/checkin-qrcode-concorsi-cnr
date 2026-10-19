@@ -8,15 +8,16 @@ import { SessioniService } from './sessioni.service';
 import { FilterChipsComponent, FilterChipOption } from '../../shared/filter-chips.component';
 import { PagerComponent } from '../../shared/pager.component';
 import { sessionStateInfo, sessionStateLabel } from '../../shared/session-states';
+import { competitionLabel } from '../../shared/competition-label';
 
 @Component({
   selector: 'app-sessioni',
   imports: [RouterLink, FormsModule, FilterChipsComponent, PagerComponent],
   template: `
     <div class="container my-5">
-      <p class="small text-muted mb-1"><a routerLink="/bandi" [queryParams]="{ mode: mode }">I miei concorsi</a> / Concorso {{ commissionId }}</p>
-      <h1 class="mb-1">Concorso {{ commissionId }}</h1>
-      <p class="text-muted">{{ bando()?.title ?? 'Sessioni del concorso' }} · {{ items().length }} sessioni</p>
+      <nav aria-label="Percorso"><ol class="breadcrumb mb-2"><li class="breadcrumb-item"><a routerLink="/bandi" [queryParams]="{ mode: mode }">I miei concorsi</a></li><li class="breadcrumb-item active" aria-current="page">{{ competitionLabel(bando()?.title, commissionId) }}</li></ol></nav>
+      <h1 class="mb-1">{{ competitionLabel(bando()?.title, commissionId) === 'Concorso' ? 'Sessioni del concorso' : competitionLabel(bando()?.title, commissionId) }}</h1>
+      <p class="text-muted">{{ items().length }} {{ items().length === 1 ? 'sessione' : 'sessioni' }}</p>
 
       <div class="d-flex gap-2 align-items-center mb-3">
         <a
@@ -52,8 +53,13 @@ import { sessionStateInfo, sessionStateLabel } from '../../shared/session-states
       @if (bando() && !bando()!.configured) {
         <div class="alert alert-warning d-flex align-items-center py-2 mb-3" role="alert">
           <span class="flex-grow-1">
-            <strong>Bando non configurato.</strong>
-            Il referente deve completare i riferimenti operativi del bando. Puoi gestire la sessione dalla scheda azioni.
+            @if (!bando()!.metadata_fetched_at) {
+              <strong>Dati del concorso da sincronizzare.</strong>
+              Apri la configurazione per recuperare componenti e segretario da Selezioni Online.
+            } @else {
+              <strong>Configurazione del bando da completare.</strong>
+              Verifica i riferimenti operativi prima di proseguire.
+            }
           </span>
           @if (canConfigureBando()) {
             <a [routerLink]="['/bandi', commissionId, 'config']" [queryParams]="{ returnUrl: currentUrl() }" class="btn btn-sm btn-warning ms-3 text-nowrap">
@@ -69,7 +75,7 @@ import { sessionStateInfo, sessionStateLabel } from '../../shared/session-states
         </div>
       }
 
-      @if (bando() && (bando()!.commissioners || []).length === 0) {
+      @if (bando()?.configured && bando()?.metadata_fetched_at && (bando()?.commissioners || []).length === 0) {
         <div class="alert alert-warning py-2 mb-3" role="alert">
           Componenti di commissione non sincronizzati o non aggiornati.
         </div>
@@ -180,6 +186,7 @@ import { sessionStateInfo, sessionStateLabel } from '../../shared/session-states
   `,
 })
 export class SessioniComponent {
+  readonly competitionLabel = competitionLabel;
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly service = inject(SessioniService);

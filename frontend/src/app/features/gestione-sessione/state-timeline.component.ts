@@ -1,3 +1,4 @@
+import { DatePipe } from '@angular/common';
 import { Component, computed, input } from '@angular/core';
 import { WorkflowState } from '../../core/models/api.models';
 import { sessionStateInfo } from '../../shared/session-states';
@@ -7,6 +8,7 @@ const PHASES = ['Preparazione', 'Check-in', 'Liste', 'Esame'];
 
 @Component({
   selector: 'app-state-timeline',
+  imports: [DatePipe],
   template: `
     <section class="app-timeline it-card shadow-sm p-3" aria-labelledby="timeline-title">
       <h2 id="timeline-title" class="h5">Avanzamento della sessione</h2>
@@ -17,9 +19,11 @@ const PHASES = ['Preparazione', 'Check-in', 'Liste', 'Esame'];
           <ol class="app-tl list-unstyled">
             @for (step of phase.steps; track step.state) {
               <li [class.is-done]="step.done" [class.is-current]="step.current" [attr.aria-current]="step.current ? 'step' : null">
-                <span class="fw-semibold">{{ step.label }}</span>
-                @if (step.current) { <span class="visually-hidden">, stato attuale</span> }
-                @if (step.event) { <small class="d-block text-muted">{{ step.event.at }} · {{ step.event.actor_role }}</small> }
+                <span class="app-tl-mark" aria-hidden="true">@if (step.done) { ✓ }</span>
+                <span class="app-tl-text"><span class="fw-semibold">{{ step.label }}</span>
+                  @if (step.current) { <span class="visually-hidden">, stato attuale</span> }
+                  @if (step.event) { <small class="d-block text-muted app-tl-time">{{ step.event.at | date:'dd/MM/yyyy · HH:mm' }} · {{ step.event.actor_role }}</small> }
+                </span>
               </li>
             }
           </ol>

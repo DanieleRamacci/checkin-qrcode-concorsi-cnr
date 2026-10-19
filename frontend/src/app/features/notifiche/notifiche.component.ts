@@ -58,7 +58,7 @@ interface NotificationItem {
     .app-chat-fab { position: fixed; z-index: 30; right: 1.25rem; bottom: 1.25rem; display:flex; align-items:center; gap:.55rem; min-height:48px; padding:.65rem 1rem; border:0; border-radius:999px; color:#fff; background:#005cb9; box-shadow:0 4px 16px #17324d40; font-weight:700; }
     .app-chat-fab-badge { display:grid; place-items:center; min-width:1.4rem; height:1.4rem; padding:0 .3rem; border-radius:99px; color:white; background:#c62828; font-size:.75rem; }
     .app-chat-backdrop { position:fixed; z-index:39; inset:0; background:#102a43aa; }
-    .app-chat-drawer { position:fixed; z-index:40; inset:0 0 0 auto; width:min(400px,100vw); display:flex; flex-direction:column; padding:1rem; background:#fff; box-shadow:-8px 0 28px #102a4330; }
+    .app-chat-drawer { position:fixed; z-index:40; inset:0 0 0 auto; width:min(400px,100vw); display:flex; flex-direction:column; padding:1rem; background:#fff; box-shadow:-8px 0 28px #102a4330; transform:none; visibility:visible; }
     .app-chat-head { display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; padding-bottom:.8rem; border-bottom:1px solid #d9dadb; }
     .app-chat-messages { flex:1; min-height:0; overflow:auto; display:flex; flex-direction:column; gap:.75rem; padding:1rem .25rem; }
     .app-msg { max-width:92%; align-self:flex-start; padding:.65rem .75rem; border-radius:.75rem; background:#f1f3f5; overflow-wrap:anywhere; }

@@ -30,8 +30,11 @@ describe('NotificheComponent', () => {
     await fixture.whenStable();
     fixture.detectChanges();
     expect(fixture.componentInstance.messages()).toHaveLength(2);
-    fixture.componentInstance.openDrawer();
+    (fixture.nativeElement.querySelector('.app-chat-fab') as HTMLButtonElement).click();
     fixture.detectChanges();
+    const drawer = fixture.nativeElement.querySelector('.app-chat-drawer') as HTMLElement;
+    expect(drawer).toBeTruthy();
+    expect(getComputedStyle(drawer).visibility).toBe('visible');
     expect(fixture.nativeElement.textContent).toContain('Nota di Rossi Ada aggiornata');
     expect(fixture.nativeElement.textContent).toContain('Richiesto un reset password per Rossi Ada');
     expect(fixture.nativeElement.textContent).not.toContain('checkin_avviato');
