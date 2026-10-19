@@ -29,3 +29,6 @@ coverage/
 .idea/
 *.swp
 *.tmp
+
+# Spec Kit local catalog cache
+.specify/integrations/.cache/

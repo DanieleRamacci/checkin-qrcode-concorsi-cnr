@@ -1,7 +1,40 @@
+import logging
 import os
 import time, json, base64, requests
+from functools import lru_cache
 import jwt
 from flask import current_app, session
+
+log = logging.getLogger(__name__)
+
+# Tolleranza sullo sfasamento di orologio con l'IdP, applicata a iat/nbf.
+DEFAULT_CLOCK_SKEW_SECONDS = 120
+MAX_CLOCK_SKEW_SECONDS = 300
+# exp resta stretto: la tolleranza ampia non deve allungare la vita dei token.
+EXP_LEEWAY_SECONDS = 30
+
+
+def _clock_skew_seconds() -> int:
+    raw = os.environ.get("OIDC_CLOCK_SKEW_SECONDS", "").strip()
+    if not raw:
+        return DEFAULT_CLOCK_SKEW_SECONDS
+    try:
+        value = int(raw)
+    except ValueError:
+        log.warning(
+            "[auth] OIDC_CLOCK_SKEW_SECONDS non valido (%r): uso %ss",
+            raw,
+            DEFAULT_CLOCK_SKEW_SECONDS,
+        )
+        return DEFAULT_CLOCK_SKEW_SECONDS
+    return min(max(value, 0), MAX_CLOCK_SKEW_SECONDS)
+
+
+@lru_cache(maxsize=4)
+def _jwk_client(jwks_url: str) -> jwt.PyJWKClient:
+    # Riusato tra le richieste per sfruttare la cache JWKS di PyJWT
+    # (che si riaggiorna da sola se arriva un kid sconosciuto).
+    return jwt.PyJWKClient(jwks_url)
 
 
 def validate_oidc_token(token: str) -> dict:
@@ -11,16 +44,31 @@ def validate_oidc_token(token: str) -> dict:
     algorithm = os.environ.get("OIDC_ALLOWED_ALGORITHM", "RS256")
     if not all((issuer, audience, jwks_url)):
         raise RuntimeError("Configurazione validazione OIDC incompleta")
-    signing_key = jwt.PyJWKClient(jwks_url).get_signing_key_from_jwt(token)
-    return jwt.decode(
-        token,
-        signing_key.key,
-        algorithms=[algorithm],
-        audience=audience,
-        issuer=issuer,
-        leeway=30,
-        options={"require": ["exp", "iss", "aud"]},
-    )
+    skew = _clock_skew_seconds()
+    signing_key = _jwk_client(jwks_url).get_signing_key_from_jwt(token)
+    try:
+        payload = jwt.decode(
+            token,
+            signing_key.key,
+            algorithms=[algorithm],
+            audience=audience,
+            issuer=issuer,
+            leeway=skew,
+            options={"require": ["exp", "iss", "aud"]},
+        )
+    except jwt.ImmatureSignatureError as exc:
+        iat = jwt.decode(token, options={"verify_signature": False}).get("iat")
+        log.warning(
+            "[auth] token OIDC rifiutato (%s): iat-now=%ss, tolleranza=%ss "
+            "(orologio IdP non sincronizzato?)",
+            exc,
+            iat - int(time.time()) if iat is not None else "?",
+            skew,
+        )
+        raise
+    if payload["exp"] < time.time() - EXP_LEEWAY_SECONDS:
+        raise jwt.ExpiredSignatureError("Signature has expired")
+    return payload
 
 def _b64url_decode(s: str) -> bytes:
     s += '=' * (-len(s) % 4)
