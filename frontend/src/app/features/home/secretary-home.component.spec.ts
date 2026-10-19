@@ -46,8 +46,8 @@ describe('SecretaryHomeComponent', () => {
     fixture.detectChanges();
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('Buongiorno, Daniele');
-    expect(text).toContain('2 concorsi non hanno ancora sessioni sincronizzate');
-    expect(text).not.toContain('999.999');
+    expect(text).toContain('2 concorsi sono presenti senza sessioni scaricate nell’app');
+    expect(text).toContain('Concorso 999.999');
     expect(fixture.nativeElement.querySelectorAll('.app-row')).toHaveLength(0);
   });
 });

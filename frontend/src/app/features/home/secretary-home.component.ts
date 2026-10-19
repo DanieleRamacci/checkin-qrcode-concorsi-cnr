@@ -4,11 +4,12 @@ import { AuthService } from '../../core/auth.service';
 import { BandoSummary } from '../../core/models/api.models';
 import { sessionStateAction, sessionStateLabel } from '../../shared/session-states';
 import { competitionLabel } from '../../shared/competition-label';
+import { PagerComponent } from '../../shared/pager.component';
 import { BandiService } from '../bandi/bandi.service';
 
 @Component({
   selector: 'app-secretary-home',
-  imports: [RouterLink],
+  imports: [RouterLink, PagerComponent],
   template: `
     <section class="container my-4" aria-labelledby="secretary-home-title">
       <header class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
@@ -30,16 +31,18 @@ import { BandiService } from '../bandi/bandi.service';
             <a class="btn btn-primary btn-lg" [routerLink]="['/sessioni', next.session.session_id]" [queryParams]="{ mode: 'segretario' }">Apri sessione</a>
           </div>
         </section>
-      } @else if (!loading()) {
+      } @else if (!loading() && !error()) {
         <div class="app-empty card shadow-sm mb-4 p-4">
-          <h2 class="h5">Nessuna sessione in arrivo</h2>
-          <p>Le prossime sessioni compariranno qui quando saranno disponibili.</p>
-          @if (unloadedCount()) { <p>{{ unloadedCount() }} {{ unloadedCount() === 1 ? 'concorso non ha' : 'concorsi non hanno' }} ancora sessioni sincronizzate.</p> }
+          <h2 class="h5">Nessuna prossima sessione tra quelle scaricate</h2>
+          <p>Questa pagina mostra solo le sessioni già salvate nell’app. Non consulta in tempo reale Selezioni Online.</p>
+          @if (unloadedCount()) {
+            <p>{{ unloadedCount() }} {{ unloadedCount() === 1 ? 'concorso è presente' : 'concorsi sono presenti' }} senza sessioni scaricate nell’app. Apri un concorso e seleziona “Scarica sessioni da Selezioni Online” per verificare e importare le sue sessioni.</p>
+          }
           <a class="btn btn-primary" routerLink="/bandi">Vai ai miei concorsi</a>
         </div>
       }
       @if (upcomingSessions().length > 0) {
-        <section aria-labelledby="upcoming-sessions-title">
+        <section class="mb-4" aria-labelledby="upcoming-sessions-title">
           <div class="d-flex flex-wrap justify-content-between align-items-baseline gap-2 mb-2"><h2 id="upcoming-sessions-title" class="h4 mb-0">Prossime sessioni</h2><a routerLink="/bandi" class="fw-semibold">Tutti i miei concorsi</a></div>
           <div class="card card-bg no-after"><ul class="app-rows list-unstyled mb-0">
             @for (entry of upcomingSessions(); track entry.session.session_id) {
@@ -50,6 +53,40 @@ import { BandiService } from '../bandi/bandi.service';
               </a></li>
             }
           </ul></div>
+        </section>
+      }
+      @if (!loading() && !error()) {
+        <section aria-labelledby="my-competitions-title">
+          <div class="d-flex flex-wrap justify-content-between align-items-baseline gap-2 mb-3">
+            <h2 id="my-competitions-title" class="h4 mb-0">I miei concorsi</h2>
+            <a routerLink="/bandi" class="fw-semibold">Apri l’elenco completo</a>
+          </div>
+          @if (bandi().length) {
+            <div class="mb-3" style="max-width: 28rem">
+              <label for="home-competition-search" class="form-label">Cerca concorso</label>
+              <input id="home-competition-search" class="form-control" type="search"
+                placeholder="Nome del concorso" [value]="bandoQuery()" (input)="setBandoQuery($any($event.target).value)" />
+            </div>
+            <div class="table-responsive">
+              <table class="table table-striped table-hover">
+                <thead><tr><th>Concorso</th><th>Sessioni scaricate</th><th>Prossima sessione</th><th><span class="visually-hidden">Azioni</span></th></tr></thead>
+                <tbody>
+                  @for (bando of bandoPageItems(); track bando.commission_id) {
+                    <tr>
+                      <th scope="row">{{ competitionLabel(bando.title, bando.commission_id) }}</th>
+                      <td>{{ bando.session_count }}</td>
+                      <td>@if (bando.next_session) { {{ bando.next_session.date }} · {{ bando.next_session.time }} } @else { <span class="text-muted">—</span> }</td>
+                      <td><a class="btn btn-outline-primary btn-sm" [routerLink]="['/bandi', bando.commission_id, 'sessioni']" [queryParams]="{ mode: 'segretario' }">Vedi sessioni</a></td>
+                    </tr>
+                  } @empty { <tr><td colspan="4">Nessun concorso corrisponde alla ricerca.</td></tr> }
+                </tbody>
+              </table>
+            </div>
+            <app-pager label="Concorsi" [total]="filteredBandi().length" [page]="bandoPage()" [pageSize]="bandoPageSize()"
+              (pageChange)="bandoPage.set($event)" (pageSizeChange)="setBandoPageSize($event)" />
+          } @else {
+            <p>Nessun concorso presente nell’app. Apri “I miei concorsi” per aggiornarli da Selezioni Online.</p>
+          }
         </section>
       }
     </section>
@@ -68,6 +105,18 @@ export class SecretaryHomeComponent {
     .sort((a, b) => `${a.session.date} ${a.session.time}`.localeCompare(`${b.session.date} ${b.session.time}`)));
   readonly nextSession = computed(() => this.upcomingSessions()[0] ?? null);
   readonly unloadedCount = computed(() => this.bandi().filter((bando) => bando.session_count === 0).length);
+  readonly bandoQuery = signal('');
+  readonly bandoPage = signal(0);
+  readonly bandoPageSize = signal(10);
+  readonly filteredBandi = computed(() => {
+    const query = this.bandoQuery().trim().toLocaleLowerCase('it');
+    return this.bandi().filter((bando) => !query || competitionLabel(bando.title, bando.commission_id).toLocaleLowerCase('it').includes(query))
+      .sort((a, b) => competitionLabel(a.title, a.commission_id).localeCompare(competitionLabel(b.title, b.commission_id), 'it'));
+  });
+  readonly bandoPageItems = computed(() => this.filteredBandi().slice(this.bandoPage() * this.bandoPageSize(), (this.bandoPage() + 1) * this.bandoPageSize()));
+
+  setBandoQuery(value: string): void { this.bandoQuery.set(value); this.bandoPage.set(0); }
+  setBandoPageSize(value: number): void { this.bandoPageSize.set(value); this.bandoPage.set(0); }
 
   firstName(): string {
     const first = this.auth.user()?.display_name?.trim().split(/\s+/)[0];

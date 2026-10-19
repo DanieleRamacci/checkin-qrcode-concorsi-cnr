@@ -47,8 +47,9 @@ Regola di primo accesso: se l'utente non è né `segretario` né `referente` nei
 dati locali, entrambi vengono proposti, perché i dati arrivano solo dopo la
 prima sincronizzazione con Selezioni Online.
 
-Con un solo profilo l'interfaccia porta direttamente alla home di quel
-profilo; l'ultimo profilo scelto è una preferenza del singolo browser.
+Anche con un solo profilo la rotta Home mostra la scelta con una tab e i link
+alle pagine disponibili. Il profilo selezionato non viene salvato nel browser
+per evitare che un account successivo erediti la scelta precedente.
 
 ## Fase della sessione (presentazione)
 

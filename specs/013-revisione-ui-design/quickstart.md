@@ -80,10 +80,11 @@ screenshot indicati in [contracts/ui-screens.md](contracts/ui-screens.md).
 6. **Smartphone (SC-007)**: a 390px aprire home, concorsi, sessioni e sessione;
    nessuno scorrimento orizzontale della pagina; schede Sessione / Candidati /
    Messaggi funzionanti.
-7. **Profili ed elenchi (US3)**: utente con un solo profilo entra diretto;
-   utente con più profili vede solo i suoi; home con la prossima sessione;
-   concorso mai aperto mostra "sessioni non ancora scaricate"; elenchi paginati
-   e filtrabili; menu dell'header coerente con il profilo attivo.
+7. **Profili ed elenchi (US3)**: Home mostra le tab dei profili disponibili
+   anche con un solo profilo; i link di ogni tab aprono le rispettive pagine;
+   la home del segretario mostra la prossima sessione e sotto i concorsi paginati;
+   un concorso senza sessioni locali indica come scaricarle; elenchi paginati e
+   filtrabili; menu dell'header coerente con il profilo attivo.
 8. **Viste tecniche e reset (US4, FR-027, FR-032, SC-009)**:
    - informatico ed esperto entrano in "Le mie sessioni" (P15, P16) con la
      sessione di oggi in evidenza e i reset aperti;

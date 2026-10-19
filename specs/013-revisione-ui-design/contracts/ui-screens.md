@@ -8,8 +8,8 @@ dell'applicativo Angular. I codici sono i titoli delle tavole sulla tela.
 | Tavola | Schermata | Prototipo | Rotta | User story | Note |
 | --- | --- | --- | --- | --- | --- |
 | — | Principi e flusso | — | — | tutte | `01-principi.md`, `02-flussi-e-stati.md` |
-| P01a | Scelta profilo | `profili.html` | `/` | US3 | Con un solo profilo reindirizza alla sua home |
-| P01 | Home del segretario | `home.html` | `/segretario` (nuova) | US3 | Prossima sessione e prossime sessioni |
+| P01a | Scelta profilo | `profili.html` | `/` | US3 | Tab dei profili disponibili e link alle loro pagine; resta visibile anche con un solo profilo |
+| P01 | Home del segretario | `home.html` | `/segretario` (nuova) | US3 | Prossima sessione, prossime sessioni ed elenco paginato dei concorsi |
 | P02 | I miei concorsi | `concorsi.html` | `/bandi` | US3 | Paginata, filtri, stato configurazione |
 | P03 | Sessioni del concorso | `sessioni.html` | `/bandi/:commissionId/sessioni` | US3 | Fase, stato, prossimo passo, presenti / totale |
 | P04 | Configura bando | `configura-bando.html` | `/bandi/:commissionId/config` | US5 | Indice sezioni, supporto per sessione, salvataggio unico |

@@ -164,11 +164,12 @@ registrata da un altro dispositivo.
 
 ### User Story 3 - Trovare subito la propria sessione (Priority: P2)
 
-Dopo il login l'utente sceglie il profilo con cui lavorare tra quelli che ha
-davvero (chi ne ha uno solo entra direttamente). Il segretario arriva su una
-home con "La tua prossima sessione" e le prossime sessioni; da "I miei
-concorsi" e dall'elenco delle sessioni capisce a colpo d'occhio a che punto è
-ogni sessione e quanti sono i presenti.
+Dalla Home l'utente sceglie il profilo con cui lavorare tra quelli che ha
+davvero, tramite una tab per profilo, anche quando ne ha uno solo. Il segretario
+arriva su una home con "La tua prossima sessione", le prossime sessioni e sotto
+l'elenco paginato dei propri concorsi. Da ciascun concorso può aprire le
+sessioni e scaricarle da Selezioni Online quando non sono ancora presenti
+nell'app.
 
 **Why this priority**: riduce i passaggi per arrivare in aula, ma il lavoro
 vero resta nella sessione (US1).
@@ -179,14 +180,14 @@ filtri.
 
 **Acceptance Scenarios**:
 
-1. **Given** un utente con un solo profilo, **When** fa login, **Then** entra
-   direttamente nella home di quel profilo.
+1. **Given** un utente con un solo profilo, **When** apre Home, **Then** vede la
+   scelta profilo con una tab e i collegamenti alle pagine disponibili.
 2. **Given** un utente con più profili, **When** fa login, **Then** vede solo le
-   card dei profili che ha e può cambiare profilo in qualunque momento
-   dall'header.
+   tab dei profili che ha, con link espliciti alle pagine di ciascuno, e può
+   cambiare profilo in qualunque momento dall'header.
 3. **Given** un segretario con sessioni in arrivo, **When** apre la home,
    **Then** vede in evidenza la prossima sessione con stato e prossimo passo e
-   un pulsante "Apri sessione".
+   un pulsante "Apri sessione"; sotto vede anche i concorsi paginati.
 4. **Given** molti concorsi o molte sessioni, **When** l'utente apre gli
    elenchi, **Then** sono paginati, ricercabili e filtrabili, e ogni sessione
    mostra fase, stato, prossimo passo e presenti/totale.
@@ -453,11 +454,14 @@ verificare avviso, rientro e dati; fare logout e verificare la pagina di uscita.
 
 #### Navigazione ed elenchi
 
-- **FR-021**: Dopo il login il sistema MUST proporre la scelta tra i soli profili
-  dell'utente; con un solo profilo MUST portare direttamente alla sua home.
+- **FR-021**: La rotta Home MUST proporre la scelta tra i soli profili
+  dell'utente tramite tab e link alle pagine del profilo, anche quando il
+  profilo disponibile è uno solo.
 - **FR-022**: La home del segretario MUST mostrare la prossima sessione tra tutti
   i suoi concorsi, con stato, prossimo passo e "Apri sessione", e l'elenco delle
-  prossime sessioni.
+  prossime sessioni. Sotto MUST mostrare l'elenco paginato dei concorsi; quando
+  non ci sono sessioni future locali MUST distinguere tra sessioni non ancora
+  scaricate nell'app e disponibilità su Selezioni Online.
 - **FR-023**: "I miei concorsi" MUST essere paginato (10, 25 o 50 per pagina),
   ricercabile, filtrabile e mostrare per ogni concorso prossima sessione,
   numero di sessioni e stato della configurazione.
@@ -468,7 +472,10 @@ verificare avviso, rientro e dati; fare logout e verificare la pagina di uscita.
 - **FR-039**: La navigazione dell'header MUST dipendere dal profilo attivo:
   segretario (Home, I miei concorsi, Scanner), informatico in sede ed esperto
   remoto (Home, Le mie sessioni, Scanner per l'informatico), referente (Home,
-  I bandi di cui sei referente), amministratore (Home, Amministrazione).
+  I bandi di cui sei referente), amministratore (Home, Amministrazione). La
+  voce generale Home porta sempre alla scelta profilo; quando l'utente ha più
+  profili viene etichettata "Scegli profilo". L'header offre link espliciti alle
+  pagine dei soli profili disponibili all'account corrente.
 
 #### Profili tecnici
 

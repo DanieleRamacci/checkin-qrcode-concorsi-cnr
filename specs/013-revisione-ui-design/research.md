@@ -150,10 +150,10 @@ aggiornato il 19/10/2026 (schermate P01–P22, P09a–P09e).
   (riga in `bando_referenti`), `sede` (assegnazione in `sessione_config`),
   `esperto` (ruolo esperto informatico), `admin`. Se l'utente non ha ancora dati
   locali come segretario o referente, entrambi i profili vengono proposti (primo
-  accesso: i dati arrivano dalla prima sincronizzazione). Con un solo profilo
-  si entra direttamente nella sua home. L'ultimo profilo usato si ricorda nel
-  browser. Prima versione delle card: descrizione del profilo senza
-  informazioni di contesto ("Oggi: …", conteggi) rimandate.
+  accesso: i dati arrivano dalla prima sincronizzazione). Correzione dopo il
+  collaudo: la rotta Home mostra sempre le tab dei profili disponibili, anche
+  quando il profilo è uno solo; ogni tab contiene i link alle sue pagine.
+  La scelta non viene conservata nel browser fra account diversi.
 - **Motivazione**: evita card inutili senza nascondere i profili a chi non ha
   ancora sincronizzato.
 - **Alternative**: mostrare sempre tutte le card (com'è oggi); calcolare le
