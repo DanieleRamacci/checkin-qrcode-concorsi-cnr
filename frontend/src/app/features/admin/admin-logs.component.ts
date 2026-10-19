@@ -1,7 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { ApiClient } from '../../core/api-client';
+import { sessionStateLabel } from '../../shared/session-states';
 
 type LogRow = Record<string, unknown>;
 
@@ -15,17 +15,18 @@ interface LogsResponse {
 
 @Component({
   selector: 'app-admin-logs',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule],
   template: `
     <section class="container my-5" aria-labelledby="admin-logs-title">
-      <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+      <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3">
         <div>
-          <h1 id="admin-logs-title" class="mb-0">Log sistema</h1>
-          <a routerLink="/admin/permessi">Torna alla gestione permessi</a>
+          <h2 id="admin-logs-title" class="h2 mb-0">Log di sistema</h2>
         </div>
-        <form class="d-flex gap-2" (ngSubmit)="load()">
-          <label class="visually-hidden" for="logs-limit">Numero massimo record</label>
-          <input id="logs-limit" class="form-control" type="number" min="1" max="1000" name="limit" [(ngModel)]="limit" />
+        <form class="d-flex flex-wrap gap-2" (ngSubmit)="load()">
+          <label class="visually-hidden" for="logs-limit">Numero di record</label>
+          <select id="logs-limit" class="form-select" name="limit" [(ngModel)]="limit">
+            <option [ngValue]="200">Ultimi 200</option><option [ngValue]="500">Ultimi 500</option><option [ngValue]="1000">Ultimi 1000</option>
+          </select>
           <button class="btn btn-outline-primary" type="submit" [disabled]="loading()">
             @if (loading()) {
               <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
@@ -34,7 +35,7 @@ interface LogsResponse {
           </button>
         </form>
       </div>
-      <p class="text-muted">Sono mostrati gli ultimi {{ limit }} record per tabella.</p>
+      <div class="mb-4"><label class="form-label" for="logs-search">Cerca nei registri</label><input id="logs-search" class="form-control" type="search" placeholder="Sessione, stato, email o testo" [ngModel]="query()" (ngModelChange)="query.set($event)" name="search" /></div>
 
       @if (error()) { <div class="alert alert-danger" role="alert">{{ error() }}</div> }
       @if (loading()) {
@@ -45,31 +46,28 @@ interface LogsResponse {
       }
 
       @for (section of sections(); track section.title) {
-        <h2 class="h5 mt-4">{{ section.title }}</h2>
-        <div class="table-responsive mb-4">
-          <table class="table table-striped table-sm align-middle">
-            <thead class="table-light">
-              <tr>@for (column of section.columns; track column.key) { <th>{{ column.label }}</th> }</tr>
-            </thead>
-            <tbody>
-              @for (row of section.items; track row['id']) {
-                <tr>
-                  @for (column of section.columns; track column.key) {
-                    <td>
-                      @if (column.code) {
-                        <code>{{ display(row[column.key]) }}</code>
-                      } @else {
-                        {{ display(row[column.key]) }}
-                      }
-                    </td>
-                  }
-                </tr>
-              } @empty {
-                <tr><td [attr.colspan]="section.columns.length">Nessun record registrato.</td></tr>
+        <section class="card mb-4" [attr.aria-labelledby]="section.id">
+          <div class="card-header d-flex justify-content-between align-items-center"><h3 class="h5 mb-0" [id]="section.id">{{ section.title }}</h3><span class="badge text-bg-light">{{ section.items.length }}</span></div>
+          @if (section.items.length) {
+            <div class="list-group list-group-flush">
+              @for (row of section.items; track $index) {
+                <article class="list-group-item">
+                  <div class="d-flex flex-wrap justify-content-between gap-2 mb-2"><strong>{{ section.summary(row) }}</strong><time class="small text-muted">{{ formatDate(section.timestamp(row)) }}</time></div>
+                  <div class="row g-2 small">
+                    @for (field of section.fields(row); track field.key) {
+                      <div class="col-12 col-md-6 col-xl-4"><span class="text-muted">{{ field.label }}:</span>
+                        @if (isStateKey(field.key)) { <span class="ms-1">{{ readableState(field.value) }}</span><code class="d-block text-muted">{{ display(field.value) }}</code> }
+                        @else { <span class="ms-1">{{ display(field.value) }}</span> }
+                      </div>
+                    }
+                  </div>
+                </article>
               }
-            </tbody>
-          </table>
-        </div>
+            </div>
+          } @else {
+            <div class="card-body text-center py-4"><span class="fs-3" aria-hidden="true">✓</span><p class="mb-0">Nessun record registrato.</p></div>
+          }
+        </section>
       }
     </section>
   `,
@@ -79,58 +77,36 @@ export class AdminLogsComponent {
   readonly data = signal<LogsResponse | null>(null);
   readonly loading = signal(true);
   readonly error = signal('');
+  readonly query = signal('');
   limit = 200;
 
   readonly sections = computed(() => {
     const data = this.data();
-    return [
+    const query = this.query().trim().toLocaleLowerCase();
+    const all = [
       {
-        title: 'Errori tecnici raw (system_error_log)',
+        id: 'system-errors', title: 'Errori tecnici',
         items: data?.system_errors ?? [],
-        columns: [
-          { key: 'created_at', label: 'Quando' },
-          { key: 'source', label: 'Sorgente', code: true },
-          { key: 'actor_email', label: 'Utente' },
-          { key: 'error_type', label: 'Tipo' },
-          { key: 'raw_error', label: 'Errore raw', code: true },
-          { key: 'context_json', label: 'Context', code: true },
-        ],
+        summary: (row: LogRow) => this.display(row['error_type'] ?? 'Errore tecnico'),
+        timestamp: (row: LogRow) => row['created_at'],
+        fields: (row: LogRow) => this.fields(row, ['source', 'actor_email', 'raw_error', 'context_json']),
       },
       {
-        title: 'Log invii email prove (prove_emails_log)',
+        id: 'email-logs', title: 'Email inviate',
         items: data?.email_logs ?? [],
-        columns: [
-          { key: 'sent_at', label: 'Quando' },
-          { key: 'prove_id', label: 'Prova' },
-          { key: 'sent_by', label: 'By' },
-          { key: 'to_emails', label: 'To' },
-          { key: 'cc_emails', label: 'CC' },
-          { key: 'smtp_status', label: 'Stato SMTP', code: true },
-        ],
+        summary: (row: LogRow) => `Invio email · ${this.display(row['smtp_status'] ?? 'esito non disponibile')}`,
+        timestamp: (row: LogRow) => row['sent_at'],
+        fields: (row: LogRow) => this.fields(row, ['prove_id', 'sent_by', 'to_emails', 'cc_emails', 'smtp_status']),
       },
       {
-        title: 'Log stati sessione (session_state_log)',
-        items: data?.session_state_logs ?? [],
-        columns: [
-          { key: 'timestamp', label: 'Quando' },
-          { key: 'session_id', label: 'Sessione' },
-          { key: 'stato', label: 'Stato' },
-          { key: 'utente', label: 'Utente' },
-        ],
-      },
-      {
-        title: 'Log stati prove (prove_state_log)',
-        items: data?.exam_state_logs ?? [],
-        columns: [
-          { key: 'timestamp', label: 'Quando' },
-          { key: 'prove_id', label: 'Prova' },
-          { key: 'from_state', label: 'Da' },
-          { key: 'to_state', label: 'A' },
-          { key: 'utente', label: 'Utente' },
-          { key: 'payload_json', label: 'Payload', code: true },
-        ],
+        id: 'state-logs', title: 'Cambi di stato',
+        items: [...(data?.session_state_logs ?? []), ...(data?.exam_state_logs ?? [])],
+        summary: (row: LogRow) => `Sessione ${this.display(row['session_id'] ?? row['prove_id'] ?? '')}`,
+        timestamp: (row: LogRow) => row['timestamp'],
+        fields: (row: LogRow) => this.fields(row, ['session_id', 'prove_id', 'stato', 'from_state', 'to_state', 'utente', 'payload_json']),
       },
     ];
+    return all.map((section) => ({ ...section, items: section.items.filter((row) => !query || Object.values(row).some((value) => this.display(value).toLocaleLowerCase().includes(query))) }));
   });
 
   constructor() { this.load(); }
@@ -148,5 +124,17 @@ export class AdminLogsComponent {
   display(value: unknown): string {
     if (value === null || value === undefined || value === '') return '-';
     return typeof value === 'object' ? JSON.stringify(value) : String(value);
+  }
+
+  formatDate(value: unknown): string {
+    if (!value) return 'Data non disponibile';
+    const date = new Date(String(value));
+    return Number.isNaN(date.getTime()) ? this.display(value) : new Intl.DateTimeFormat('it-IT', { dateStyle: 'short', timeStyle: 'short' }).format(date);
+  }
+  isStateKey(key: string): boolean { return ['stato', 'from_state', 'to_state'].includes(key); }
+  readableState(value: unknown): string { return sessionStateLabel(String(value ?? '')); }
+  private fields(row: LogRow, keys: string[]): Array<{ key: string; label: string; value: unknown }> {
+    const labels: Record<string, string> = { source: 'Sorgente', actor_email: 'Utente', raw_error: 'Dettaglio', context_json: 'Contesto', prove_id: 'Prova', sent_by: 'Inviato da', to_emails: 'Destinatari', cc_emails: 'In copia', smtp_status: 'Esito email', session_id: 'Sessione', stato: 'Stato', from_state: 'Stato precedente', to_state: 'Nuovo stato', utente: 'Utente', payload_json: 'Dettaglio' };
+    return keys.filter((key) => row[key] !== null && row[key] !== undefined && row[key] !== '').map((key) => ({ key, label: labels[key] ?? key, value: row[key] }));
   }
 }

@@ -4,10 +4,12 @@ import { FormsModule } from '@angular/forms';
 import { BandoSummary } from '../../core/models/api.models';
 import { AuthService } from '../../core/auth.service';
 import { BandiService } from './bandi.service';
+import { FilterChipsComponent, FilterChipOption } from '../../shared/filter-chips.component';
+import { PagerComponent } from '../../shared/pager.component';
 
 @Component({
   selector: 'app-bandi',
-  imports: [RouterLink, FormsModule],
+  imports: [RouterLink, FormsModule, FilterChipsComponent, PagerComponent],
   template: `
     @if (auth.user()?.dev_mode) {
       <div class="alert alert-warning d-flex align-items-center gap-2 mb-0 rounded-0 py-2" role="alert">
@@ -30,42 +32,6 @@ import { BandiService } from './bandi.service';
           <span>Aggiorna da Selezioni Online</span>
         </button>
       </div>
-
-      @if (isSecretaryMode()) {
-        <div class="alert alert-info" role="note">
-          <div class="d-flex justify-content-between gap-3 align-items-start">
-            <div>
-              <strong>Permessi Selezioni Online</strong>
-              <p class="mb-0">
-                Per vedere e operare su un bando, il tuo nominativo deve risultare collegato
-                alla commissione e abilitato su Selezioni Online.
-              </p>
-              @if (auth.hasCapability('admin')) {
-                <p class="mb-0 mt-2">
-                  Come admin globale puoi vedere anche bandi gia presenti nel database locale,
-                  anche quando non risultano collegati al tuo utente come membro operativo.
-                </p>
-              }
-              @if (secretaryHelpOpen()) {
-                <div class="mt-2 small">
-                  Se "Scarica candidati" restituisce un errore di autorizzazione, verifica su
-                  Selezioni Online che l'utente sia presente nella commissione e che il nominativo
-                  sia abilitato. Il ruolo di esperto informatico non basta per l'import candidati.
-                </div>
-              }
-            </div>
-            <button
-              type="button"
-              class="btn btn-outline-primary btn-sm text-nowrap"
-              (click)="secretaryHelpOpen.set(!secretaryHelpOpen())"
-              [attr.aria-expanded]="secretaryHelpOpen()"
-            >
-              ?
-              <span class="visually-hidden">Mostra guida permessi Selezioni Online</span>
-            </button>
-          </div>
-        </div>
-      }
 
       @if (isAdminMode()) {
         <div class="alert alert-warning" role="note">
@@ -96,7 +62,7 @@ import { BandiService } from './bandi.service';
         </div>
       }
 
-      @if (loading()) {
+      @if (loading() && !hasLocalItems()) {
         <div class="d-flex align-items-center gap-2 py-3" role="status" aria-live="polite">
           <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
           <span>Caricamento bandi…</span>
@@ -118,6 +84,30 @@ import { BandiService } from './bandi.service';
             }
           </div>
         } @else {
+          @if (isSecretaryMode()) {
+            <p class="small text-muted">Dati da Selezioni Online · <button type="button" class="btn btn-link btn-sm p-0" [disabled]="syncing()" (click)="reload()">Aggiorna ora</button></p>
+            @if (syncing()) { <p class="small" role="status" aria-live="polite"><span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Aggiornamento in corso…</p> }
+            <div class="row g-3 mb-3 align-items-end"><div class="col-12 col-md-8"><label for="filtro-concorso-dashboard" class="form-label">Cerca concorso</label><input id="filtro-concorso-dashboard" type="search" class="form-control" placeholder="Cerca per nome o codice…" [ngModel]="query()" (ngModelChange)="onQueryChange($event)" /></div><div class="col-12 col-md-4"><label for="ordina-concorsi" class="form-label">Ordina</label><select id="ordina-concorsi" class="form-select" [ngModel]="bandoSort()" (ngModelChange)="setBandoSort($event)"><option value="session">Prossima sessione</option><option value="name">Nome concorso</option></select></div></div>
+            <app-filter-chips label="Filtra i concorsi" [options]="bandoFilterOptions()" [selected]="bandoFilter()" (selectedChange)="setBandoFilter($event)" />
+            <div class="table-responsive mt-3"><table class="table table-striped table-hover">
+              <thead><tr><th>Concorso</th><th>Prossima sessione</th><th>Sessioni</th><th>Configurazione</th><th>Azioni</th></tr></thead>
+              <tbody>
+                @for (bando of pageItems(); track bando.commission_id) {
+                  <tr><th scope="row">{{ bando.title }}</th>
+                    <td>@if (bando.next_session) { {{ bando.next_session.date }} · {{ bando.next_session.time }}<br /><span class="small text-muted">{{ bando.next_session.name }}</span> } @else { <span class="text-muted">Nessuna sessione in arrivo</span> }</td>
+                    <td>{{ bando.session_count }}</td>
+                    <td><span class="badge" [class.text-bg-success]="bando.configured && bando.required_data_complete !== false" [class.text-bg-warning]="!bando.configured || bando.required_data_complete === false">{{ bando.configured && bando.required_data_complete !== false ? 'Completa' : 'Da completare' }}</span></td>
+                    <td class="d-flex flex-wrap gap-2">
+                      @if (canConfigureBando()) { <a class="btn btn-sm btn-outline-primary" [routerLink]="['/bandi', bando.commission_id, 'config']" [queryParams]="{ returnUrl: currentUrl() }">Configura bando</a> }
+                      <a class="btn btn-sm btn-primary" [routerLink]="['/bandi', bando.commission_id, 'sessioni']" [queryParams]="{ mode: mode }">Vedi sessioni</a>
+                    </td>
+                  </tr>
+                } @empty { <tr><td colspan="5">Nessun concorso corrisponde ai filtri.</td></tr> }
+              </tbody>
+            </table></div>
+            <app-pager label="Concorsi" [total]="filteredItems().length" [page]="page()" [pageSize]="pageSize()" (pageChange)="page.set($event)" (pageSizeChange)="setPageSize($event)" />
+            <details class="mt-4"><summary>Non trovi un concorso?</summary><p class="mt-2 mb-0">Verifica che la tua utenza sia collegata alla commissione e abilitata su Selezioni Online, poi aggiorna l’elenco.</p>@if (auth.hasCapability('admin')) { <p class="mt-2 mb-0">L’amministratore può consultare i dati locali anche quando non risulta collegato al bando come membro operativo.</p> }</details>
+          } @else {
           <div class="mb-3">
             <label for="filtro-concorso-dashboard" class="form-label">Cerca concorso</label>
             <input
@@ -126,7 +116,7 @@ import { BandiService } from './bandi.service';
               class="form-control"
               placeholder="Scrivi il nome del concorso..."
               [ngModel]="query()"
-              (ngModelChange)="query.set($event)"
+              (ngModelChange)="onQueryChange($event)"
             />
           </div>
 
@@ -165,7 +155,7 @@ import { BandiService } from './bandi.service';
                         [routerLink]="['/bandi', bando.commission_id, 'sessioni']"
                         [queryParams]="{ mode: mode }"
                       >
-                        Visualizza Sessioni
+                        Vedi sessioni
                       </a>
                       @if (canConfigureBando()) {
                         <a
@@ -173,7 +163,7 @@ import { BandiService } from './bandi.service';
                           [routerLink]="['/bandi', bando.commission_id, 'config']"
                           [queryParams]="{ returnUrl: currentUrl() }"
                         >
-                          Configura
+                          Configura bando
                         </a>
                       } @else {
                         <a
@@ -194,11 +184,12 @@ import { BandiService } from './bandi.service';
               </tbody>
             </table>
           </div>
+          }
         }
       }
     </div>
 
-    @if (loading()) {
+    @if (loading() && !hasLocalItems()) {
       <div class="loading-overlay" role="status" aria-live="polite" aria-busy="true">
         <div class="loading-panel text-center">
           <div class="spinner-border text-primary" aria-hidden="true"></div>
@@ -272,11 +263,30 @@ export class BandiComponent {
   readonly mobilePromptOpen = signal(true);
   readonly secretaryHelpOpen = signal(false);
   readonly query = signal('');
+  readonly bandoFilter = signal<'upcoming' | 'incomplete' | 'all'>('all');
+  readonly bandoSort = signal<'session' | 'name'>('session');
+  readonly page = signal(0);
+  readonly pageSize = signal(10);
+  readonly bandoFilterOptions = computed<FilterChipOption[]>(() => [
+    { id: 'upcoming', label: 'Con sessioni in arrivo', count: this.items().filter((b) => !!b.next_session).length },
+    { id: 'incomplete', label: 'Da completare', count: this.items().filter((b) => !b.configured || b.required_data_complete === false).length },
+    { id: 'all', label: 'Tutti', count: this.items().length },
+  ]);
   readonly filteredItems = computed(() => {
     const q = this.query().trim().toLowerCase();
-    if (!q) return this.items();
-    return this.items().filter((bando) => bando.title.toLowerCase().includes(q));
+    return this.items().filter((bando) => {
+      const matchesQuery = !q || `${bando.title} ${bando.commission_id}`.toLowerCase().includes(q);
+      const matchesFilter = this.bandoFilter() === 'all'
+        || (this.bandoFilter() === 'upcoming' ? !!bando.next_session : !bando.configured || bando.required_data_complete === false);
+      return matchesQuery && matchesFilter;
+    }).sort((a, b) => {
+      if (this.bandoSort() === 'name') return a.title.localeCompare(b.title);
+      const aDate = a.next_session ? `${a.next_session.date} ${a.next_session.time}` : '9999-99-99';
+      const bDate = b.next_session ? `${b.next_session.date} ${b.next_session.time}` : '9999-99-99';
+      return aDate.localeCompare(bDate) || a.title.localeCompare(b.title);
+    });
   });
+  readonly pageItems = computed(() => this.filteredItems().slice(this.page() * this.pageSize(), (this.page() + 1) * this.pageSize()));
   readonly hasAdminSupportItems = computed(() =>
     this.items().some((bando) => bando.visibility_reason === 'admin'),
   );
@@ -326,16 +336,15 @@ export class BandiComponent {
   }
 
   dashboardTitle(): string {
-    if (this.mode === 'admin') return 'Dashboard Amministratore';
-    if (this.mode === 'expert' || this.mode === 'esperto') return 'Dashboard Esperto informatico';
-    if (this.mode === 'sede') return 'Dashboard Informatico in sede';
-    if (this.mode === 'referente') return 'Dashboard Referente';
-    return 'Dashboard Segretario';
+    if (this.mode === 'admin') return 'Tutti i bandi';
+    if (this.mode === 'expert' || this.mode === 'esperto' || this.mode === 'sede') return 'Le mie sessioni';
+    if (this.mode === 'referente') return 'I bandi di cui sei referente';
+    return 'I miei concorsi';
   }
 
   dashboardLead(): string {
     if (this.mode === 'expert' || this.mode === 'esperto') {
-      return "Di seguito trovi l'elenco dei concorsi per cui sei assegnato come esperto informatico.";
+      return "Di seguito trovi l'elenco dei concorsi per cui sei assegnato come esperto remoto.";
     }
     if (this.mode === 'sede') {
       return "Di seguito trovi l'elenco dei concorsi per cui sei assegnato come informatico in sede.";
@@ -344,9 +353,9 @@ export class BandiComponent {
       return "Di seguito trovi l'elenco dei concorsi per cui sei autorizzato come referente.";
     }
     if (this.mode === 'admin') {
-      return "Di seguito trovi tutti i concorsi gia presenti nel database locale.";
+      return "Di seguito trovi tutti i concorsi già presenti nel database locale.";
     }
-    return "Di seguito trovi l'elenco dei concorsi per cui sei autorizzato.";
+    return 'Consulta i concorsi assegnati e apri la prossima sessione.';
   }
 
   emptyMessage(): string {
@@ -354,7 +363,7 @@ export class BandiComponent {
       return 'Non ci sono ancora bandi locali per il tuo utente. Per iniziare, sincronizza i bandi da Selezioni Online.';
     }
     if (this.mode === 'admin') {
-      return 'Non ci sono bandi nel database locale. Sincronizza da Selezioni Online o verifica che un utente operativo abbia gia importato i propri bandi.';
+      return 'Non ci sono bandi nel database locale. Sincronizza da Selezioni Online o verifica che un utente operativo abbia già importato i propri bandi.';
     }
     if (this.isExpertMode()) {
       return 'Non risultano bandi assegnati al tuo profilo esperto remoto.';
@@ -386,6 +395,11 @@ export class BandiComponent {
   constructor() {
     this.loadItems();
   }
+
+  onQueryChange(query: string): void { this.query.set(query); this.page.set(0); }
+  setBandoFilter(filter: string): void { this.bandoFilter.set(filter as 'upcoming' | 'incomplete' | 'all'); this.page.set(0); }
+  setBandoSort(sort: string): void { this.bandoSort.set(sort as 'session' | 'name'); this.page.set(0); }
+  setPageSize(size: number): void { this.pageSize.set(size); this.page.set(0); }
 
   reload(): void {
     this.loading.set(true);

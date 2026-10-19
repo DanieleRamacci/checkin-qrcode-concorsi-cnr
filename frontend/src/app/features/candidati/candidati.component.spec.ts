@@ -43,6 +43,38 @@ describe('CandidatiComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Carta identità aggiornata');
   });
 
+  it('shows the reset table inside the candidates section for the in-person profile', async () => {
+    await TestBed.configureTestingModule({
+      imports: [CandidatiComponent],
+      providers: [{
+        provide: ApiClient,
+        useValue: {
+          get: () => of({ items: [{
+            uid: 'candidate-reset', first_name: 'Ada', last_name: 'Lovelace', document_number: 'DOC1',
+            document_expired: false, checkin_effettuato: true, reset_password_richiesto: true,
+            reset_password_effettuato: false, reset_password_richiesto_da: 'sede', reset_password_richiesto_il: '2026-10-19T10:00:00Z',
+          }] }),
+          post: () => of({}),
+          put: () => of({}),
+        },
+      }],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(CandidatiComponent);
+    fixture.componentRef.setInput('sessionId', 'session-1');
+    fixture.componentRef.setInput('viewMode', 'sede');
+    fixture.componentRef.setInput('sectionMode', 'reset-sede');
+    const openCounts: number[] = [];
+    fixture.componentInstance.openResetCountChange.subscribe((count) => openCounts.push(count));
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Reset richiesto');
+    expect(fixture.nativeElement.textContent).not.toContain('Documento');
+    expect(openCounts.at(-1)).toBe(1);
+  });
+
   it('saves candidate notes and updates the row', async () => {
     let putPayload: unknown = null;
     await TestBed.configureTestingModule({

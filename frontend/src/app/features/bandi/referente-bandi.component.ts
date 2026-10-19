@@ -2,17 +2,18 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ReferenteBandoSummary } from '../../core/models/api.models';
-import { BackLinkComponent } from '../../shared/back-link.component';
+import { FilterChipOption, FilterChipsComponent } from '../../shared/filter-chips.component';
+import { PagerComponent } from '../../shared/pager.component';
 import { BandiService } from './bandi.service';
 
 @Component({
   selector: 'app-referente-bandi',
-  imports: [FormsModule, RouterLink, BackLinkComponent],
+  imports: [FormsModule, RouterLink, FilterChipsComponent, PagerComponent],
   template: `
     <div class="container my-5">
-      <app-back-link target="/" label="Torna alla home" />
-      <h1 class="mb-2">Bandi come referente</h1>
-      <p class="lead">Di seguito trovi i bandi per cui Selezioni Online ti indica come RDP o referente.</p>
+      <p class="small text-muted mb-1"><a routerLink="/">Profili</a> / I bandi di cui sei referente</p>
+      <h1 class="mb-2">I bandi di cui sei referente</h1>
+      <p class="lead">Segui la completezza delle configurazioni e degli incarichi per ogni bando.</p>
 
       @if (syncing()) {
         <div class="alert alert-info py-2 d-flex align-items-center gap-2" role="status" aria-live="polite">
@@ -55,26 +56,25 @@ import { BandiService } from './bandi.service';
               class="form-control"
               placeholder="Scrivi il nome del concorso..."
               [ngModel]="query()"
-              (ngModelChange)="query.set($event)"
+              (ngModelChange)="query.set($event); page.set(1)"
             />
           </div>
+          <app-filter-chips label="Filtra bandi" [options]="filterOptions()" [selected]="filter()" (selectedChange)="setFilter($event)" />
 
           <div class="table-responsive">
             <table class="table table-striped table-hover align-middle">
               <thead class="table-light">
                 <tr>
-                  <th>#</th>
-                  <th>Nome Concorso</th>
+                  <th>Concorso</th>
                   <th>RDP</th>
-                  <th>Stato</th>
+                  <th>Configurazione</th>
                   <th>Azioni</th>
                 </tr>
               </thead>
               <tbody>
-                @for (bando of filteredItems(); track bando.commission_id; let i = $index) {
+                @for (bando of pageItems(); track bando.commission_id) {
                   <tr>
-                    <th scope="row">{{ i + 1 }}</th>
-                    <td>{{ bando.title }}</td>
+                    <th scope="row">{{ bando.title }}</th>
                     <td>
                       @if ((bando.rdp_names ?? []).length > 0) {
                         {{ (bando.rdp_names ?? []).join(', ') }}
@@ -83,34 +83,34 @@ import { BandiService } from './bandi.service';
                       }
                     </td>
                     <td>
-                      <span [class]="'badge ' + statusBadgeClass(bando.config_status)">
-                        {{ statusLabel(bando.config_status) }}
+                      <span class="badge" [class.text-bg-success]="isComplete(bando)" [class.text-bg-warning]="!isComplete(bando)">
+                        {{ isComplete(bando) ? 'Completa' : 'Da completare' }}
                       </span>
                       <div class="small text-muted mt-1">
                         Esperto remoto:
                         <strong>{{ expertAssignmentLabel(bando) }}</strong>
                       </div>
                       <div class="small text-muted">
-                        Informatico sede:
+                        Informatico in sede:
                         <strong>{{ assignmentProgress(bando.sede_technician_assigned_count, bando.session_count) }}</strong>
                       </div>
                       <div class="small text-muted">
                         Dati:
                         <strong>{{ bando.required_data_complete ? 'compilati' : 'da completare' }}</strong>
                       </div>
-                      @if ((bando.incomplete_session_names ?? []).length > 0) {
+                      @if (!isComplete(bando)) {
                         <div class="small text-danger mt-1">
-                          Sessioni incomplete: {{ (bando.incomplete_session_names ?? []).join(', ') }}
+                          Manca in: {{ (bando.incomplete_session_names ?? []).length ? (bando.incomplete_session_names ?? []).join(', ') : 'configurazione del bando' }}
                         </div>
                       }
                     </td>
                     <td>
                       <a
-                        class="btn btn-sm btn-outline-primary"
+                        [class]="'btn btn-sm ' + (isComplete(bando) ? 'btn-outline-primary' : 'btn-primary')"
                         [routerLink]="['/bandi', bando.commission_id, 'config']"
                         [queryParams]="{ returnUrl: '/referenti/bandi' }"
                       >
-                        Configura bando
+                        {{ isComplete(bando) ? 'Rivedi' : 'Completa configurazione' }}
                       </a>
                     </td>
                   </tr>
@@ -122,6 +122,7 @@ import { BandiService } from './bandi.service';
               </tbody>
             </table>
           </div>
+          <app-pager label="Bandi" [total]="filteredItems().length" [page]="page()" [pageSize]="pageSize()" (pageChange)="page.set($event)" (pageSizeChange)="setPageSize($event)" />
         }
       }
     </div>
@@ -135,11 +136,23 @@ export class ReferenteBandiComponent {
   readonly syncing = signal(false);
   readonly syncError = signal<string | null>(null);
   readonly query = signal('');
+  readonly filter = signal('incomplete');
+  readonly page = signal(1);
+  readonly pageSize = signal(10);
+  readonly filterOptions = computed<FilterChipOption[]>(() => [
+    { id: 'incomplete', label: 'Da completare', count: this.items().filter((bando) => !this.isComplete(bando)).length },
+    { id: 'complete', label: 'Completi', count: this.items().filter((bando) => this.isComplete(bando)).length },
+    { id: 'all', label: 'Tutti', count: this.items().length },
+  ]);
   readonly filteredItems = computed(() => {
     const q = this.query().trim().toLowerCase();
-    if (!q) return this.items();
-    return this.items().filter((bando) => bando.title.toLowerCase().includes(q));
+    return this.items().filter((bando) => {
+      const matchesFilter = this.filter() === 'all' || (this.filter() === 'complete' ? this.isComplete(bando) : !this.isComplete(bando));
+      const matchesQuery = !q || [bando.title, bando.commission_id, ...(bando.rdp_names ?? []), ...(bando.incomplete_session_names ?? [])].some((value) => value.toLowerCase().includes(q));
+      return matchesFilter && matchesQuery;
+    });
   });
+  readonly pageItems = computed(() => this.filteredItems().slice((this.page() - 1) * this.pageSize(), this.page() * this.pageSize()));
 
   constructor() {
     this.service.listReferente().subscribe({
@@ -181,27 +194,14 @@ export class ReferenteBandiComponent {
     });
   }
 
-  statusLabel(status?: string | null): string {
-    switch (status) {
-      case 'dati_compilati':
-        return 'Dati compilati';
-      case 'esperto_assegnato':
-        return 'Esperto assegnato';
-      default:
-        return 'Da configurare';
-    }
+  isComplete(bando: ReferenteBandoSummary): boolean {
+    const total = Number(bando.session_count || 0);
+    const expertsDone = total === 0 ? Boolean(bando.expert_assigned) : Number(bando.remote_expert_assigned_count || 0) >= total;
+    const sedeDone = total === 0 ? true : Number(bando.sede_technician_assigned_count || 0) >= total;
+    return bando.required_data_complete === true && expertsDone && sedeDone && !(bando.incomplete_session_names ?? []).length;
   }
-
-  statusBadgeClass(status?: string | null): string {
-    switch (status) {
-      case 'dati_compilati':
-        return 'bg-success';
-      case 'esperto_assegnato':
-        return 'bg-primary';
-      default:
-        return 'bg-secondary';
-    }
-  }
+  setFilter(value: string): void { this.filter.set(value); this.page.set(1); }
+  setPageSize(value: number): void { this.pageSize.set(value); this.page.set(1); }
 
   assignmentProgress(count?: number | null, total?: number | null): string {
     const normalizedTotal = Number(total || 0);

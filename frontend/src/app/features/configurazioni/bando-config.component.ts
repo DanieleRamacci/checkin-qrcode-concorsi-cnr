@@ -1,6 +1,6 @@
-import { Component, inject, signal } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
-import { FormsModule } from '@angular/forms';
+import { Component, inject, signal, ViewChild } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
+import { FormsModule, NgForm } from '@angular/forms';
 import { ApiClient } from '../../core/api-client';
 import { BackLinkComponent } from '../../shared/back-link.component';
 import { BandiService } from '../bandi/bandi.service';
@@ -27,12 +27,23 @@ interface SessionAssignment {
 
 @Component({
   selector: 'app-bando-config',
-  imports: [FormsModule, RouterLink, BackLinkComponent],
+  imports: [FormsModule, BackLinkComponent],
   template: `
     <div class="container-xxl my-5">
       <app-back-link [target]="returnUrl()" [label]="returnLabel()" />
-      <h1 class="mb-1">Configura Bando</h1>
+      <h1 class="mb-1">Configura bando</h1>
       <p class="text-muted mb-4">{{ title() }}</p>
+
+      <div class="row g-4">
+        <aside class="col-12 col-lg-3 col-xl-2">
+          <nav class="app-config-index nav nav-pills flex-lg-column gap-2" aria-label="Sezioni configurazione">
+            <a class="nav-link" href="#section-referente">Referente <span class="badge text-bg-light">Facoltativo</span></a>
+            <a class="nav-link" href="#section-segretario">Segretario e prova <span class="badge text-bg-light">Obbligatorio</span></a>
+            <a class="nav-link" href="#section-commissione">Commissione · {{ commissionMembers.length }}</a>
+            <a class="nav-link" href="#section-sessioni">Sessioni · {{ incompleteAssignments() }} da completare</a>
+          </nav>
+        </aside>
+        <div class="col-12 col-lg-9 col-xl-10">
 
       @if (message()) {
         <div [class]="'alert mb-3 ' + (messageIsError() ? 'alert-danger' : 'alert-success')" role="status">
@@ -49,10 +60,10 @@ interface SessionAssignment {
         <div class="alert alert-warning mb-3">{{ syncWarning() }}</div>
       }
 
-      <div class="card mb-4">
+      <div id="section-referente" class="card mb-4">
         <div class="card-header bg-light py-2 d-flex align-items-center gap-2">
           <span class="fw-bold text-uppercase small text-primary">Referente del procedimento</span>
-          <span class="badge bg-warning text-dark small">Consigliato</span>
+          <span class="badge text-bg-light small">Facoltativo</span>
         </div>
         <div class="card-body">
           <label class="form-label small mb-1" for="email_referente">Email referente</label>
@@ -80,83 +91,47 @@ interface SessionAssignment {
         </div>
       </div>
 
-      <form (ngSubmit)="save()">
-        <div class="card mb-3">
+      <form #configForm="ngForm" (ngSubmit)="save()">
+        <div id="section-sessioni" class="card mb-3">
           <div class="card-header bg-light py-2">
-            <span class="fw-bold text-uppercase small text-primary">Assegnazioni tecniche per sessione</span>
+            <span class="fw-bold text-uppercase small text-primary">Supporto tecnico per sessione</span>
           </div>
           <div class="card-body">
             @if (sessionAssignments.length) {
-              @for (assignment of sessionAssignments; track assignment.session_id; let i = $index) {
-                <section class="border rounded p-3 mb-3">
-                  <div class="mb-3">
-                    <h2 class="h5 mb-1">{{ assignment.nome || 'Sessione' }}</h2>
-                    <div class="small text-muted">{{ assignment.giorno }} {{ assignment.ora }} {{ assignment.luogo }}</div>
-                  </div>
-
-                  <div class="mb-4">
-                    <label class="form-label fw-semibold" [for]="'session-expert-' + i">Esperto informatico da remoto</label>
-                    <select class="form-select"
-                            [id]="'session-expert-' + i"
-                            [name]="'session-expert-' + i"
-                            [(ngModel)]="assignment.email_esperto_remoto">
-                      <option value="">Seleziona esperto remoto</option>
-                      @for (email of expertOptions(); track email) {
-                        <option [value]="email">{{ email }}</option>
-                      }
-                    </select>
-                  </div>
-
-                  <div>
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                      <h3 class="h6 mb-0">Informatico in sede di riferimento</h3>
-                      <button type="button" class="btn btn-sm btn-outline-primary" (click)="addSessionSedeTechnician(i)">Aggiungi</button>
-                    </div>
-                    @for (technician of assignment.informatici_sede; track $index; let t = $index) {
-                      <div class="row g-2 align-items-end mb-2">
-                        <div class="col-lg-3 col-md-6">
-                          <label class="form-label small" [for]="'session-sede-name-' + i + '-' + t">Nome e cognome</label>
-                          <input class="form-control"
-                                 [id]="'session-sede-name-' + i + '-' + t"
-                                 [name]="'session-sede-name-' + i + '-' + t"
-                                 [(ngModel)]="technician.nome" />
-                        </div>
-                        <div class="col-lg-3 col-md-6">
-                          <label class="form-label small" [for]="'session-sede-email-' + i + '-' + t">Email</label>
-                          <input class="form-control"
-                                 [id]="'session-sede-email-' + i + '-' + t"
-                                 [name]="'session-sede-email-' + i + '-' + t"
-                                 type="email"
-                                 [(ngModel)]="technician.email" />
-                        </div>
-                        <div class="col-lg-3 col-md-6">
-                          <label class="form-label small" [for]="'session-sede-phone-' + i + '-' + t">Telefono</label>
-                          <input class="form-control"
-                                 [id]="'session-sede-phone-' + i + '-' + t"
-                                 [name]="'session-sede-phone-' + i + '-' + t"
-                                 [(ngModel)]="technician.telefono" />
-                        </div>
-                        <div class="col-lg-2 col-md-3">
-                          <div class="form-check mb-2">
-                            <input class="form-check-input"
-                                   type="radio"
-                                   [name]="'session-sede-primary-' + i"
-                                   [id]="'session-sede-primary-' + i + '-' + t"
-                                   [checked]="technician.principale"
-                                   (change)="setPrimarySessionSedeTechnician(i, t)" />
-                            <label class="form-check-label small" [for]="'session-sede-primary-' + i + '-' + t">Principale</label>
-                          </div>
-                        </div>
-                        <div class="col-lg-1 col-md-3">
-                          <button type="button" class="btn btn-outline-danger w-100" (click)="removeSessionSedeTechnician(i, t)">Rimuovi</button>
-                        </div>
-                      </div>
-                    } @empty {
-                      <p class="text-muted small mb-2">Nessun informatico in sede inserito per questa sessione.</p>
+              <div class="table-responsive">
+                <table class="table align-middle">
+                  <thead><tr><th scope="col">Sessione</th><th scope="col">Esperto remoto</th><th scope="col">Informatico in sede</th><th scope="col">Stato</th></tr></thead>
+                  <tbody>
+                    @for (assignment of sessionAssignments; track assignment.session_id; let i = $index) {
+                      <tr>
+                        <th scope="row"><strong>{{ assignment.nome || 'Sessione' }}</strong><div class="small text-muted">{{ assignment.giorno }} {{ assignment.ora }} · {{ assignment.luogo }}</div></th>
+                        <td class="assignment-cell">
+                          <label class="visually-hidden" [for]="'session-expert-' + i">Esperto remoto</label>
+                          <select class="form-select" [id]="'session-expert-' + i" [name]="'session-expert-' + i" [(ngModel)]="assignment.email_esperto_remoto">
+                            <option value="">Seleziona esperto</option>
+                            @for (email of expertOptions(); track email) { <option [value]="email">{{ email }}</option> }
+                          </select>
+                        </td>
+                        <td class="assignment-cell">
+                          @for (technician of assignment.informatici_sede; track $index; let t = $index) {
+                            <div class="border rounded p-2 mb-2">
+                              <div class="row g-2">
+                                <div class="col-12"><label class="visually-hidden" [for]="'session-sede-name-' + i + '-' + t">Nome informatico in sede</label><input class="form-control form-control-sm" [id]="'session-sede-name-' + i + '-' + t" [name]="'session-sede-name-' + i + '-' + t" [(ngModel)]="technician.nome" placeholder="Nome e cognome" /></div>
+                                <div class="col-12"><label class="visually-hidden" [for]="'session-sede-email-' + i + '-' + t">Email informatico in sede</label><input class="form-control form-control-sm" [id]="'session-sede-email-' + i + '-' + t" [name]="'session-sede-email-' + i + '-' + t" type="email" [(ngModel)]="technician.email" placeholder="Email" /></div>
+                                <div class="col-12"><label class="visually-hidden" [for]="'session-sede-phone-' + i + '-' + t">Telefono informatico in sede</label><input class="form-control form-control-sm" [id]="'session-sede-phone-' + i + '-' + t" [name]="'session-sede-phone-' + i + '-' + t" [(ngModel)]="technician.telefono" placeholder="Telefono" /></div>
+                                <div class="col-auto"><div class="form-check"><input class="form-check-input" type="radio" [name]="'session-sede-primary-' + i" [id]="'session-sede-primary-' + i + '-' + t" [checked]="technician.principale" (change)="setPrimarySessionSedeTechnician(i, t)" /><label class="form-check-label small" [for]="'session-sede-primary-' + i + '-' + t">Principale</label></div></div>
+                                <div class="col-auto ms-auto"><button type="button" class="btn btn-link btn-sm text-danger p-0" (click)="removeSessionSedeTechnician(i, t)">Rimuovi</button></div>
+                              </div>
+                            </div>
+                          } @empty { <span class="small text-muted">Da assegnare</span> }
+                          <button type="button" class="btn btn-outline-primary btn-sm" (click)="addSessionSedeTechnician(i)">Aggiungi informatico</button>
+                        </td>
+                        <td><span [class]="'badge ' + (assignmentComplete(assignment) ? 'app-badge-success' : 'app-badge-warning')">{{ assignmentComplete(assignment) ? 'Completa' : 'Da completare' }}</span></td>
+                      </tr>
                     }
-                  </div>
-                </section>
-              }
+                  </tbody>
+                </table>
+              </div>
             } @else {
               <div class="empty-session-assignments border rounded p-4 text-center">
                 <p class="text-muted mb-3">
@@ -181,9 +156,10 @@ interface SessionAssignment {
           </div>
         </div>
 
-        <div class="card mb-3">
+        <div id="section-segretario" class="card mb-3">
           <div class="card-header bg-light py-2">
             <span class="fw-bold text-uppercase small text-primary">Segretario e durata prova</span>
+            <span class="badge text-bg-light ms-2">Obbligatorio</span>
           </div>
           <div class="card-body row g-3">
             <div class="col-md-6">
@@ -221,7 +197,7 @@ interface SessionAssignment {
           </div>
         </div>
 
-        <div class="card mb-4">
+        <div id="section-commissione" class="card mb-4">
           <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
             <span class="fw-bold text-uppercase small text-primary">Componenti commissione</span>
             <button type="button" class="btn btn-sm btn-outline-primary" (click)="addCommissioner()">Aggiungi</button>
@@ -232,34 +208,42 @@ interface SessionAssignment {
                 Mancano i componenti commissione da Selezioni Online. Verificare la configurazione del bando sulla fonte dati prima di completare la configurazione operativa.
               </div>
             }
-            @for (member of commissionMembers; track $index; let i = $index) {
-              <div class="row g-2 mb-2">
-                <div class="col-md-5">
-                  <label class="visually-hidden" [for]="'member-name-' + i">Nome componente</label>
-                  <input class="form-control" [id]="'member-name-' + i" [name]="'member-name-' + i"
-                         [(ngModel)]="member.nome" placeholder="Nome e cognome" />
-                </div>
-                <div class="col-md-5">
-                  <label class="visually-hidden" [for]="'member-email-' + i">Email componente</label>
-                  <input class="form-control" [id]="'member-email-' + i" [name]="'member-email-' + i" type="email"
-                         [(ngModel)]="member.email" placeholder="Email" />
-                </div>
-                <div class="col-md-2">
-                  <button type="button" class="btn btn-outline-danger w-100" (click)="removeCommissioner(i)">Rimuovi</button>
-                </div>
+            @if (commissionMembers.length) {
+              <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                  <thead><tr><th scope="col">Nome e cognome</th><th scope="col">Email</th><th scope="col"><span class="visually-hidden">Azioni</span></th></tr></thead>
+                  <tbody>
+                    @for (member of commissionMembers; track $index; let i = $index) {
+                      <tr>
+                        <td><label class="visually-hidden" [for]="'member-name-' + i">Nome componente</label><input class="form-control" [id]="'member-name-' + i" [name]="'member-name-' + i" [(ngModel)]="member.nome" placeholder="Nome e cognome" /></td>
+                        <td><label class="visually-hidden" [for]="'member-email-' + i">Email componente</label><input class="form-control" [id]="'member-email-' + i" [name]="'member-email-' + i" type="email" [(ngModel)]="member.email" placeholder="Email" /></td>
+                        <td class="text-end"><button type="button" class="btn btn-link btn-sm text-danger" (click)="removeCommissioner(i)">Rimuovi</button></td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
               </div>
-            } @empty {
+            } @else {
               <p class="text-muted small mb-0">Nessun componente inserito.</p>
             }
           </div>
         </div>
 
-        <div class="d-flex justify-content-end gap-2">
-          <a [routerLink]="returnUrl()" class="btn btn-outline-secondary">Annulla</a>
-          <button class="btn btn-primary" type="submit" [disabled]="busy()">Salva configurazione</button>
+        <div class="app-savebar d-flex flex-wrap align-items-center justify-content-between gap-3" role="region" aria-label="Salvataggio configurazione">
+          <strong>{{ configForm.dirty ? unsavedCount() + ' ' + (unsavedCount() === 1 ? 'modifica non salvata' : 'modifiche non salvate') : 'Nessuna modifica non salvata' }}</strong>
+          <div class="d-flex gap-2"><button type="button" class="btn btn-outline-secondary" [disabled]="busy() || !configForm.dirty" (click)="loadConfig()">Annulla</button><button type="button" class="btn btn-primary" [disabled]="busy() || !configForm.dirty" (click)="save()">Salva configurazione</button></div>
         </div>
       </form>
+        </div>
+      </div>
     </div>
+  `,
+  styles: `
+    .app-config-index { position: sticky; top: 1rem; }
+    .app-config-index .nav-link { display: flex; justify-content: space-between; gap: .5rem; color: #17324d; background: white; border: 1px solid #d9dadb; }
+    .container-xxl { padding-bottom: 6rem; }
+    .app-savebar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 20; padding: 1rem max(1rem, calc((100vw - 1320px) / 2)); background: #fff; border-top: 1px solid #b1b1b3; box-shadow: 0 -4px 12px rgba(0,0,0,.08); }
+    @media (max-width: 991.98px) { .app-config-index { position: static; flex-direction: row !important; overflow: auto; } .app-config-index .nav-link { white-space: nowrap; } }
   `,
 })
 export class BandoConfigComponent {
@@ -284,6 +268,7 @@ export class BandoConfigComponent {
   model: Record<string, any> = {};
   commissionMembers: Array<{ nome: string; email: string }> = [];
   sessionAssignments: SessionAssignment[] = [];
+  @ViewChild('configForm') private configForm?: NgForm;
 
   constructor() {
     this.loadConfig();
@@ -291,7 +276,7 @@ export class BandoConfigComponent {
     this.refreshMetadata();
   }
 
-  private loadConfig(): void {
+  loadConfig(): void {
     this.api.get<Record<string, any>>(`/bandi/${this.id}/config`).subscribe((data) => {
       this.model = { ...data };
       this.expertOptions.set(data['expert_options'] ?? []);
@@ -299,6 +284,7 @@ export class BandoConfigComponent {
       this.secretaryOptions.set(data['secretary_options'] ?? []);
       this.commissionMembers = [...(data['commissione_members'] ?? [])];
       this.sessionAssignments = normalizeSessionAssignments(data['session_assignments'] ?? []);
+      this.configForm?.form.markAsPristine();
     });
   }
 
@@ -358,6 +344,7 @@ export class BandoConfigComponent {
     this.api.put(`/bandi/${this.id}/config`, payload).subscribe({
       next: () => {
         this.busy.set(false);
+        this.configForm?.form.markAsPristine();
         this.messageIsError.set(false);
         this.message.set('Configurazione salvata.');
       },
@@ -424,6 +411,18 @@ export class BandoConfigComponent {
       ...technician,
       principale: index === technicianIndex,
     }));
+  }
+
+  unsavedCount(): number {
+    return Object.values(this.configForm?.controls ?? {}).filter((control) => control.dirty).length || 1;
+  }
+
+  incompleteAssignments(): number {
+    return this.sessionAssignments.filter((item) => !this.assignmentComplete(item)).length;
+  }
+
+  assignmentComplete(item: SessionAssignment): boolean {
+    return !!item.email_esperto_remoto && item.informatici_sede.some((technician) => !!String(technician.email ?? '').trim());
   }
 
   canSendRequest(): boolean {

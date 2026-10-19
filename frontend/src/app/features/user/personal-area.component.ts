@@ -16,7 +16,7 @@ import { AuthService } from '../../core/auth.service';
       @if (user()) {
         <div class="row g-4">
           <div class="col-lg-7">
-            <div class="card h-100">
+            <div class="card card-bg no-after app-cand-card h-100">
               <div class="card-header bg-light">
                 <strong>Dati utente</strong>
               </div>
@@ -40,7 +40,7 @@ import { AuthService } from '../../core/auth.service';
           </div>
 
           <div class="col-lg-5">
-            <div class="card h-100">
+            <div class="card card-bg no-after app-cand-card h-100">
               <div class="card-header bg-light">
                 <strong>Sessione API</strong>
               </div>

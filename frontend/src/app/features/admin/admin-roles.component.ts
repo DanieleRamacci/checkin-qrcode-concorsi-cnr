@@ -1,9 +1,9 @@
 import { DatePipe, NgTemplateOutlet } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { ApiClient } from '../../core/api-client';
 import { ApiList } from '../../core/models/api.models';
+import { roleLabel as readableRoleLabel } from '../../shared/session-states';
 
 interface AdminRole {
   user_email: string;
@@ -14,15 +14,11 @@ interface AdminRole {
 
 @Component({
   selector: 'app-admin-roles',
-  imports: [FormsModule, RouterLink, DatePipe, NgTemplateOutlet],
+  imports: [FormsModule, DatePipe, NgTemplateOutlet],
   template: `
     <section class="container my-5 admin-page" aria-labelledby="admin-roles-title">
       <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 id="admin-roles-title" class="mb-0">Gestione permessi</h1>
-        <div class="d-flex gap-2">
-          <a class="btn btn-outline-primary btn-sm" routerLink="/admin/impostazioni">Impostazioni</a>
-          <a class="btn btn-outline-primary btn-sm" routerLink="/admin/logs">Log sistema</a>
-        </div>
       </div>
 
       @if (error()) { <div class="alert alert-danger" role="alert">{{ error() }}</div> }
@@ -30,7 +26,7 @@ interface AdminRole {
 
       <div class="card mb-4">
         <div class="card-header bg-light py-2">
-          <span class="fw-bold text-uppercase small text-primary">Esperti informatici</span>
+          <span class="fw-bold text-uppercase small text-primary">Esperti remoti</span>
           <span class="text-muted small ms-2">Disponibili come “Esperto remoto” nella configurazione bandi</span>
         </div>
         <div class="card-body">
@@ -49,28 +45,34 @@ interface AdminRole {
               </button>
             </div>
           </form>
-          <ng-container *ngTemplateOutlet="roleTable; context: { $implicit: experts(), empty: 'Nessun esperto informatico registrato.' }" />
+          <ng-container *ngTemplateOutlet="roleTable; context: { $implicit: experts(), empty: 'Nessun esperto remoto registrato.' }" />
         </div>
       </div>
 
       <div class="card mb-4">
         <div class="card-header bg-light py-2">
-          <span class="fw-bold text-uppercase small text-primary">Permessi globali</span>
-          <span class="text-muted small ms-2">Amministratori di sistema</span>
+          <span class="fw-bold text-uppercase small text-primary">Altri ruoli</span>
         </div>
         <div class="card-body">
-          <form class="row g-2 align-items-end mb-3" (ngSubmit)="add(adminEmail, 'admin_globale')">
-            <div class="col-md-8">
+          <form class="row g-2 align-items-end mb-3" (ngSubmit)="add(roleEmail, selectedRole())">
+            <div class="col-md-6">
               <label for="admin-email" class="form-label small mb-1">Email utente</label>
-              <input id="admin-email" class="form-control form-control-sm" type="email" name="adminEmail"
-                placeholder="nome.cognome@cnr.it" [(ngModel)]="adminEmail" required />
+              <input id="admin-email" class="form-control form-control-sm" type="email" name="roleEmail"
+                placeholder="nome.cognome@cnr.it" [(ngModel)]="roleEmail" required />
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
+              <label for="role-select" class="form-label small mb-1">Ruolo</label>
+              <select id="role-select" class="form-select form-select-sm" name="role" [ngModel]="selectedRole()" (ngModelChange)="selectedRole.set($event)">
+                <option value="admin_globale">Amministratore</option>
+                <option value="esperto_informatico">Esperto remoto</option>
+              </select>
+            </div>
+            <div class="col-md-3">
               <button class="btn btn-primary btn-sm w-100" type="submit" [disabled]="busy()">
                 @if (busy()) {
                   <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
                 }
-                <span>Aggiungi amministratore</span>
+                <span>Aggiungi ruolo</span>
               </button>
             </div>
           </form>
@@ -94,11 +96,11 @@ interface AdminRole {
                 @for (row of rows; track row.user_email + row.role) {
                   <tr>
                     <td>{{ row.user_email }}</td>
-                    <td><span class="badge bg-secondary">{{ row.role }}</span></td>
+                    <td><span class="badge text-bg-light">{{ roleLabel(row.role) }}</span></td>
                     <td>{{ row.created_by || '-' }}</td>
                     <td class="text-muted small">{{ row.created_at ? (row.created_at | date:'dd/MM/yyyy') : '-' }}</td>
                     <td class="text-end">
-                      <button class="btn btn-sm btn-outline-danger" type="button" [disabled]="busy()" (click)="remove(row)">Rimuovi</button>
+                      <button class="btn btn-sm btn-link text-danger" type="button" [disabled]="busy()" (click)="pendingRemoval.set(row)">Rimuovi</button>
                     </td>
                   </tr>
                 }
@@ -108,6 +110,15 @@ interface AdminRole {
         }
       </ng-template>
     </section>
+    @if (pendingRemoval(); as row) {
+      <div class="modal d-block" role="dialog" aria-modal="true" aria-labelledby="remove-role-title" style="background:rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+          <div class="modal-header"><h2 id="remove-role-title" class="modal-title h5">Rimuovere questo permesso?</h2></div>
+          <div class="modal-body">Il ruolo <strong>{{ roleLabel(row.role) }}</strong> verrà rimosso da <strong>{{ row.user_email }}</strong>.</div>
+          <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" (click)="pendingRemoval.set(null)">Annulla</button><button class="btn btn-danger" type="button" [disabled]="busy()" (click)="remove(row)">Rimuovi permesso</button></div>
+        </div></div>
+      </div>
+    }
   `,
   styles: `.admin-page { max-width: 900px; }`,
 })
@@ -118,10 +129,12 @@ export class AdminRolesComponent {
   readonly busy = signal(false);
   readonly error = signal('');
   readonly message = signal('');
+  readonly pendingRemoval = signal<AdminRole | null>(null);
   readonly experts = computed(() => this.roles().filter((row) => row.role === 'esperto_informatico'));
   readonly admins = computed(() => this.roles().filter((row) => row.role === 'admin_globale'));
   expertEmail = '';
-  adminEmail = '';
+  roleEmail = '';
+  readonly selectedRole = signal<AdminRole['role']>('admin_globale');
 
   constructor() { this.load(); }
 
@@ -137,17 +150,19 @@ export class AdminRolesComponent {
     this.mutate(
       this.api.post('/admin/roles', { user_email: userEmail, role }),
       'Permesso aggiunto.',
-      () => role === 'esperto_informatico' ? this.expertEmail = '' : this.adminEmail = '',
+      () => this.roleEmail = '',
     );
   }
 
   remove(row: AdminRole): void {
-    if (!window.confirm(`Rimuovere ${row.role} da ${row.user_email}?`)) return;
+    this.pendingRemoval.set(null);
     this.mutate(
       this.api.delete(`/admin/roles/${encodeURIComponent(row.user_email)}/${row.role}`),
       'Permesso rimosso.',
     );
   }
+
+  roleLabel(role: AdminRole['role']): string { return readableRoleLabel(role); }
 
   private mutate(request: ReturnType<ApiClient['post']>, success: string, done?: () => void): void {
     this.busy.set(true);

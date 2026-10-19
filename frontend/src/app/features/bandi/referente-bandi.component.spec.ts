@@ -5,6 +5,33 @@ import { ReferenteBandiComponent } from './referente-bandi.component';
 import { BandiService } from './bandi.service';
 
 describe('ReferenteBandiComponent', () => {
+  it('starts on incomplete bandi and supports complete, all, search and pagination', async () => {
+    await TestBed.configureTestingModule({
+      imports: [ReferenteBandiComponent],
+      providers: [provideRouter([]), {
+        provide: BandiService,
+        useValue: {
+          listReferente: () => of({ items: [
+            { commission_id: 'c1', title: 'Da completare', configured: false, session_count: 1, required_data_complete: false, remote_expert_assigned_count: 0, sede_technician_assigned_count: 0, incomplete_session_names: ['Mattina'], capabilities: [] },
+            { commission_id: 'c2', title: 'Completo', configured: true, session_count: 1, required_data_complete: true, remote_expert_assigned_count: 1, sede_technician_assigned_count: 1, incomplete_session_names: [], capabilities: [] },
+          ] }),
+          syncReferente: () => of({ items: [] }),
+        },
+      }],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(ReferenteBandiComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    expect(component.filteredItems().map((item) => item.commission_id)).toEqual(['c1']);
+    component.setFilter('complete');
+    expect(component.filteredItems().map((item) => item.commission_id)).toEqual(['c2']);
+    component.setFilter('all');
+    component.query.set('Mattina');
+    expect(component.filteredItems().map((item) => item.commission_id)).toEqual(['c1']);
+  });
+
   it('renders RDP bandi and configure action', async () => {
     await TestBed.configureTestingModule({
       imports: [ReferenteBandiComponent],
@@ -47,12 +74,12 @@ describe('ReferenteBandiComponent', () => {
 
     expect(fixture.nativeElement.textContent).toContain('Bando RDP');
     expect(fixture.nativeElement.textContent).toContain('Rita Verdi');
-    expect(fixture.nativeElement.textContent).toContain('Esperto assegnato');
+    expect(fixture.nativeElement.textContent).toContain('Da completare');
     expect(fixture.nativeElement.textContent).toContain('Esperto remoto: 1/1 sessioni');
-    expect(fixture.nativeElement.textContent).toContain('Informatico sede: 0/1 sessioni');
-    expect(fixture.nativeElement.textContent).toContain('Sessioni incomplete: Sessione mattina');
+    expect(fixture.nativeElement.textContent).toContain('Informatico in sede: 0/1 sessioni');
+    expect(fixture.nativeElement.textContent).toContain('Manca in: Sessione mattina');
     expect(fixture.nativeElement.textContent).toContain('da completare');
-    expect(fixture.nativeElement.textContent).toContain('Configura bando');
+    expect(fixture.nativeElement.textContent).toContain('Completa configurazione');
   });
 
   it('does not contradict a bando-level expert_assigned flag when local session counts are zero', async () => {

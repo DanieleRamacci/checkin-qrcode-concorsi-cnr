@@ -37,7 +37,7 @@ describe('AzioniComponent', () => {
     fixture.detectChanges();
 
     const text = fixture.nativeElement.textContent;
-    expect(text).toContain('Configura Informatico in Sede');
+    expect(text).toContain('Configura l’informatico in sede');
     expect(text).not.toContain('Configura il Bando');
     expect(text).not.toContain('Data accesso piattaforma');
   });
@@ -84,7 +84,7 @@ describe('AzioniComponent', () => {
     fixture.componentInstance.saveSessionConfig();
 
     expect(putCalls).toBe(0);
-    expect(fixture.componentInstance.error()).toContain('esperto informatico da remoto');
+    expect(fixture.componentInstance.error()).toContain('esperto remoto');
     expect(fixture.componentInstance.error()).toContain("email dell'informatico in sede");
   });
 
@@ -179,6 +179,70 @@ describe('AzioniComponent', () => {
     expect(text).not.toContain('Invia lista ad esperto informatico');
   });
 
+  it('limits the in-person technician panel during check-in to candidate reset guidance', async () => {
+    await TestBed.configureTestingModule({
+      imports: [AzioniComponent],
+      providers: [
+        provideRouter([]),
+        { provide: ApiClient, useValue: { get: () => of({}), post: () => of({}), put: () => of({}) } },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(AzioniComponent);
+    fixture.componentRef.setInput('sessionId', 'session-1');
+    fixture.componentRef.setInput('commissionId', 'commission-1');
+    fixture.componentRef.setInput('currentState', 'checkin_avviato');
+    fixture.componentRef.setInput('viewMode', 'sede');
+    fixture.componentRef.setInput('openResetCount', 2);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain('Il reset si chiede dalla riga del candidato');
+    expect(text).toContain('2 richieste in attesa');
+    expect(text).toContain('Vai ai candidati');
+    const buttons = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('button')).map((button) => button.textContent);
+    expect(buttons.join(' ')).not.toContain('Concludi check-in');
+    expect(buttons.join(' ')).not.toContain('Genera liste');
+  });
+
+  it('keeps secretary actions closed by default for the in-person profile', async () => {
+    await TestBed.configureTestingModule({
+      imports: [AzioniComponent],
+      providers: [provideRouter([]), { provide: ApiClient, useValue: { get: () => of({ items: [] }), post: () => of({}), put: () => of({}) } }],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(AzioniComponent);
+    fixture.componentRef.setInput('sessionId', 'session-1');
+    fixture.componentRef.setInput('commissionId', 'commission-1');
+    fixture.componentRef.setInput('currentState', 'candidati_scaricati');
+    fixture.componentRef.setInput('viewMode', 'sede');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const details = fixture.nativeElement.querySelector('details') as HTMLDetailsElement;
+    expect(details).not.toBeNull();
+    expect(details.open).toBe(false);
+    fixture.destroy();
+  });
+
+  it('does not show secretary actions to the in-person profile before candidate import', async () => {
+    await TestBed.configureTestingModule({
+      imports: [AzioniComponent],
+      providers: [provideRouter([]), { provide: ApiClient, useValue: { get: () => of({}), post: () => of({}), put: () => of({}) } }],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(AzioniComponent);
+    fixture.componentRef.setInput('sessionId', 'session-1');
+    fixture.componentRef.setInput('commissionId', 'commission-1');
+    fixture.componentRef.setInput('currentState', 'configurata');
+    fixture.componentRef.setInput('viewMode', 'sede');
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Azioni del segretario');
+    expect(fixture.nativeElement.querySelector('details')).toBeNull();
+  });
+
   it('shows generated-but-not-sent state for expert view', async () => {
     await TestBed.configureTestingModule({
       imports: [AzioniComponent],
@@ -218,7 +282,29 @@ describe('AzioniComponent', () => {
     const text = fixture.nativeElement.textContent;
     expect(text).toContain('Liste generate');
     expect(text).toContain('In attesa che il segretario le invii');
-    expect(text).toContain('Lista presenti');
+    expect(text).toContain('Presenti · Excel (XLSX) per la commissione');
+  });
+
+  it('shows pending reset count and includes it in the browser tab title for the remote expert', async () => {
+    const initialTitle = document.title;
+    await TestBed.configureTestingModule({
+      imports: [AzioniComponent],
+      providers: [provideRouter([]), { provide: ApiClient, useValue: { get: () => of(null), post: () => of({}), put: () => of({}) } }],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(AzioniComponent);
+    fixture.componentRef.setInput('sessionId', 'session-1');
+    fixture.componentRef.setInput('commissionId', 'commission-1');
+    fixture.componentRef.setInput('currentState', 'liste_inviate');
+    fixture.componentRef.setInput('viewMode', 'esperto');
+    fixture.componentRef.setInput('openResetCount', 3);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('3 reset password da fare');
+    expect(document.title).toContain('(3)');
+    fixture.destroy();
+    expect(document.title).toBe(initialTitle);
   });
 
   it('disables candidate import when the session is admin-only', async () => {

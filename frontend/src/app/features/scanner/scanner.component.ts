@@ -1,8 +1,11 @@
 import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { Html5Qrcode } from 'html5-qrcode';
+import { FormsModule } from '@angular/forms';
 import { ApiClient } from '../../core/api-client';
-import { CandidateSummary } from '../../core/models/api.models';
+import { CandidateSummary, ScannerSessionSummary } from '../../core/models/api.models';
+import { ManualSearchComponent } from './manual-search.component';
 
 export function parseCandidateQr(decodedText: string): string | null {
   try {
@@ -46,83 +49,64 @@ export function parseSessionQr(decodedText: string): string | null {
 
 @Component({
   selector: 'app-scanner',
+  imports: [DatePipe, FormsModule, ManualSearchComponent],
   template: `
-    <section class="scanner container my-4" aria-labelledby="scanner-title">
-      <h1 id="scanner-title" class="text-center">Scanner Check-in</h1>
-
-      @if (workflowBlocked()) {
-        <div class="alert alert-warning" role="alert">{{ workflowBlocked() }}</div>
+    <main class="scanner-shell" aria-labelledby="scanner-title">
+      <header class="scanner-head">
+        <div><p class="mb-1">CHECK-IN CNR CONCORSI</p><h1 id="scanner-title" class="h4 mb-0">{{ summary()?.name || (associationMode() ? 'Collega telefono' : 'Scanner') }}</h1></div>
+        @if (ready()) { <span class="scanner-count">Scanner collegato · {{ summary()?.checked_in_count ?? 0 }}/{{ summary()?.candidate_count ?? 0 }} presenti</span> }
+        @if (ready()) { <details class="scanner-menu"><summary aria-label="Apri menu scanner">⋮</summary><div class="scanner-menu-items">
+          <button type="button" (click)="toggleManualSearch()">Cerca a mano</button>
+          <button type="button" (click)="clearAssociation()">Scollega questo telefono</button>
+        </div></details> }
+      </header>
+      @if (associationMode()) {
+        <section class="scanner-association"><h2 class="h5">{{ associationStatus() }}</h2><p>Scansiona il QR code della sessione per collegare questo telefono, oppure apri il link che hai ricevuto.</p>
+          @if (associationStatus() === 'Collegamento in corso…') { <p class="small" role="status"><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Registrazione dispositivo…</p> }
+          @if (messageIsError()) { <button class="btn btn-outline-light" type="button" (click)="retryAssociation()">Scansiona di nuovo il QR</button> }
+        </section>
       }
-
-      <div class="mb-3 text-center">
-        @if (associationMode()) {
-          <p class="text-muted">📷 Scansiona il QR code della sessione per iniziare</p>
-        } @else {
-          <p class="text-muted mb-1">
-            Sessione: <strong>{{ sessionId || 'non associata' }}</strong>
-          </p>
-        }
-        @if (ready()) {
-          <span class="badge bg-success">Dispositivo associato</span>
-        }
-      </div>
-
-      @if (ready()) {
-        <button class="btn btn-outline-danger w-100 mb-3" type="button" (click)="clearAssociation()">
-          Elimina sessione
-        </button>
-
-      } @else if (!associationMode() && !message()) {
-        <div class="text-center" role="status">
-          <div class="spinner-border spinner-border-sm me-2" aria-hidden="true"></div>
-          Registrazione dispositivo…
-        </div>
+      @if (ready() && workflowBlocked()) {
+        <section class="scanner-blocked" role="status"><h2 class="h5">{{ workflowBlocked() }}</h2><p>La fotocamera si attiverà quando il check-in sarà pronto.</p></section>
       }
-
       @if (ready() || associationMode()) {
-        <div id="reader-wrapper" [class.d-none]="candidate()">
-          <div id="reader"></div>
-        </div>
+        <div id="reader-wrapper" [class.d-none]="candidate() || workflowBlocked() || manualSearchOpen()"><div id="reader"></div></div>
       }
-
-      <div class="text-center status-message" [class.text-danger]="messageIsError()" [class.text-info]="!messageIsError()" role="status">
-        {{ message() }}
-      </div>
-
+      @if (ready() && manualSearchOpen()) {
+        <app-manual-search [sessionId]="sessionId" [deviceToken]="deviceToken" (candidateSelected)="openCandidate($event)" />
+      }
+      @if (message()) { <p class="scanner-message" [class.is-error]="messageIsError()" role="status">{{ message() }}</p> }
+      @if (candidateNotFound() && ready()) {
+        <div class="d-flex gap-2"><button class="btn btn-outline-light flex-fill" type="button" (click)="resetScanner()">Scansiona di nuovo</button><button class="btn btn-primary flex-fill" type="button" (click)="openManualSearch()">Cerca per cognome</button></div>
+      }
       @if (candidate(); as item) {
-        <div class="card mt-3" id="candidate-card">
-          <div class="card-body">
-            <p><strong>Nome:</strong> {{ item.first_name }}</p>
-            <p><strong>Cognome:</strong> {{ item.last_name }}</p>
-            <p><strong>Numero documento:</strong> {{ item.document_number }}</p>
-            <p><strong>Check-in:</strong> {{ item.checkin_effettuato ? 'Già registrato' : 'Non registrato' }}</p>
-
-            @if (item.document_expired) {
-              <div class="alert alert-danger">Documento scaduto</div>
-            }
-          </div>
-        </div>
-
-        <div class="mt-3">
-          @if (!item.checkin_effettuato && !workflowBlocked()) {
-            <button class="btn btn-success w-100 btn-lg" type="button" (click)="confirmCheckin()" [disabled]="busy()">
-              Conferma Check-in
-            </button>
-          }
-          <button class="btn btn-secondary w-100 btn-lg mt-2" type="button" (click)="resetScanner()" [disabled]="busy()">
-            Nuovo Check-in
-          </button>
-        </div>
+        <section class="candidate-sheet" aria-labelledby="candidate-title">
+          <p class="eyebrow mb-1">CANDIDATO</p><h2 id="candidate-title" class="h3">{{ item.last_name }} {{ item.first_name }}</h2>
+          <p>Documento {{ item.document_number }}</p>
+          @if (item.document_expired) { <p class="alert alert-danger">Documento scaduto. Puoi chiedere conferma prima di procedere.</p> }
+          @if (item.checkin_effettuato) { <p class="alert alert-success">Presente dalle {{ item.checkin_at | date:'HH:mm' }}, registrato {{ item.checkin_source === 'scanner' ? 'dallo scanner' : 'dalla tabella' }}.</p> }
+          @if (!item.checkin_effettuato && !workflowBlocked()) { <button class="btn btn-success w-100 btn-lg" type="button" (click)="confirmCheckin()" [disabled]="busy()">Conferma presenza</button> }
+          <details class="mt-3"><summary>Aggiungi nota</summary><textarea class="form-control mt-2" rows="3" maxlength="2000" [(ngModel)]="noteDraft" name="candidate-note"></textarea><button class="btn btn-outline-primary mt-2" type="button" (click)="saveCandidateNote()" [disabled]="busy()">Salva nota</button></details>
+          @if (item.checkin_effettuato) { <button class="btn btn-primary w-100 btn-lg mt-2" type="button" (click)="resetScanner()">Scansiona il prossimo</button> }
+          @else { <button class="btn btn-outline-secondary w-100 mt-2" type="button" (click)="resetScanner()" [disabled]="busy()">Annulla</button> }
+        </section>
       }
-    </section>
+      @if (ready() && !candidate() && !workflowBlocked() && !manualSearchOpen()) { <p class="text-center text-white mt-3">Inquadra il QR code del candidato</p> }
+    </main>
   `,
   styles: `
-    .scanner { max-width: 42rem; }
-    #reader-wrapper { max-width: 350px; margin: 0 auto 20px; }
+    .scanner-shell { min-height: 100vh; background: #17324d; color: white; padding: 1rem; max-width: 42rem; margin: auto; }
+    .scanner-head { display:flex; align-items:center; justify-content:space-between; gap:.75rem; margin-bottom:1.5rem; }
+    .scanner-count { font-size:.85rem; }
+    .scanner-menu { position:relative; }
+    .scanner-menu summary { cursor:pointer; font-size:1.5rem; padding:.2rem .65rem; }
+    .scanner-menu-items { position:absolute; z-index:5; right:0; background:white; color:#17324d; min-width:13rem; box-shadow:0 4px 16px #0004; }
+    .scanner-menu-items button { display:block; border:0; background:white; color:inherit; width:100%; text-align:left; padding:.75rem; }
+    .scanner-association,.scanner-blocked,.candidate-sheet { background:white; color:#1a1a1a; border-radius:.75rem; padding:1.25rem; margin:1rem auto; }
+    #reader-wrapper { max-width: 350px; margin: 0 auto 20px; background:#2d3945; padding:.5rem; border-radius:.5rem; }
     #reader { width: 100%; min-height: 250px; border: 1px solid #ccc; border-radius: 6px; overflow: hidden; }
-    .status-message { min-height: 1.5rem; font-weight: 600; margin-top: 10px; }
-    #candidate-card p { margin-bottom: 4px; }
-    .btn-lg { font-size: 1rem; padding: 12px 20px; }
+    .scanner-message { text-align:center; font-weight:600; margin-top:10px; }
+    .scanner-message.is-error { color:#ffd5d9; }
   `,
 })
 export class ScannerComponent {
@@ -135,11 +119,10 @@ export class ScannerComponent {
     ?? this.route.snapshot.queryParamMap.get('session_id')
     ?? '';
   private registrationToken = this.route.snapshot.queryParamMap.get('token') ?? '';
-  private deviceToken = this.sessionId
-    ? localStorage.getItem(this.storageKey()) ?? ''
-    : '';
+  deviceToken = '';
   private camera: Html5Qrcode | null = null;
   private heartbeatTimer?: number;
+  private summaryTimer?: number;
 
   readonly ready = signal(false);
   readonly associationMode = signal(false);
@@ -147,17 +130,26 @@ export class ScannerComponent {
   readonly message = signal('');
   readonly messageIsError = signal(false);
   readonly workflowBlocked = signal('');
+  readonly candidateNotFound = signal(false);
   readonly busy = signal(false);
+  readonly summary = signal<ScannerSessionSummary | null>(null);
+  readonly manualSearchOpen = signal(false);
+  readonly associationStatus = signal('Inquadra il QR della sessione');
+  noteDraft = '';
   private currentUid = '';
 
   constructor() {
     this.destroyRef.onDestroy(() => {
       this.stopCamera();
       if (this.heartbeatTimer) window.clearInterval(this.heartbeatTimer);
+      if (this.summaryTimer) window.clearInterval(this.summaryTimer);
     });
 
     window.addEventListener('beforeunload', () => this.disconnectWithBeacon());
 
+    if (this.sessionId) {
+      try { this.deviceToken = localStorage.getItem(this.storageKey()) ?? ''; } catch { this.deviceToken = ''; }
+    }
     if (!this.sessionId) {
       this.startAssociationMode();
       return;
@@ -174,6 +166,8 @@ export class ScannerComponent {
   }
 
   private registerDevice(): void {
+    this.associationMode.set(true);
+    this.associationStatus.set('Collegamento in corso…');
     this.api.post<{ device_token: string }>('/devices/register', {
       session_id: this.sessionId,
       registration_token: this.registrationToken,
@@ -181,11 +175,16 @@ export class ScannerComponent {
     }).subscribe({
       next: ({ device_token }) => {
         this.deviceToken = device_token;
-        localStorage.setItem(this.storageKey(), device_token);
+        try { localStorage.setItem(this.storageKey(), device_token); } catch { /* Scanner remains available for this tab. */ }
+        this.associationStatus.set('Telefono collegato');
         this.verifyDevicesConnected();
         this.activateScanner();
       },
-      error: (error) => this.fail(this.apiError(error, 'Registrazione dispositivo non riuscita.')),
+      error: (error) => {
+        this.associationStatus.set('Collegamento non riuscito');
+        this.fail(this.apiError(error, 'Registrazione dispositivo non riuscita.'));
+        window.setTimeout(() => this.startCamera(), 0);
+      },
     });
   }
 
@@ -197,13 +196,13 @@ export class ScannerComponent {
     this.associationMode.set(false);
     this.ready.set(true);
     this.messageIsError.set(false);
-    this.message.set('📷 In attesa di scansione...');
+    this.summaryTimer = window.setInterval(() => this.refreshSessionSummary(), 5000);
     this.startHeartbeat();
-    window.setTimeout(() => this.startCamera(), 0);
+    this.refreshSessionSummary();
   }
 
   private async startCamera(): Promise<void> {
-    if ((!this.ready() && !this.associationMode()) || this.camera?.isScanning) return;
+    if ((!this.ready() && !this.associationMode()) || (this.ready() && this.workflowBlocked()) || this.camera?.isScanning) return;
     this.camera = this.camera ?? new Html5Qrcode('reader');
     try {
       await this.camera.start(
@@ -255,10 +254,12 @@ export class ScannerComponent {
   private verifyCandidate(): void {
     this.busy.set(true);
     this.workflowBlocked.set('');
+    this.candidateNotFound.set(false);
     this.api.post<CandidateSummary>('/scanner/verify-candidate', this.payload()).subscribe({
       next: (candidate) => {
         this.busy.set(false);
         this.candidate.set(candidate);
+        this.noteDraft = candidate.note ?? '';
         this.messageIsError.set(false);
         this.message.set(
           candidate.checkin_effettuato
@@ -270,7 +271,12 @@ export class ScannerComponent {
         this.busy.set(false);
         this.currentUid = '';
         this.fail(this.apiError(error, 'Candidato non trovato o dispositivo non autorizzato.'));
-        window.setTimeout(() => this.startCamera(), 700);
+        const code = (error as { error?: { error?: { code?: string } } })?.error?.error?.code;
+        if (code === 'candidate_not_found') {
+          this.candidateNotFound.set(true);
+          this.messageIsError.set(true);
+          this.message.set('Candidato non trovato.');
+        } else window.setTimeout(() => this.startCamera(), 700);
       },
     });
   }
@@ -284,11 +290,16 @@ export class ScannerComponent {
         this.candidate.set(candidate);
         this.messageIsError.set(false);
         this.message.set('✅ Check-in registrato!');
+        this.refreshSessionSummary();
       },
       error: (error) => {
         this.busy.set(false);
         const message = this.apiError(error, 'Check-in non consentito.');
-        this.workflowBlocked.set(message);
+        const body = (error as { error?: { error?: { code?: string; details?: { current_state?: string } } } })?.error?.error;
+        if (body?.code === 'checkin_not_active') {
+          this.summary.update((value) => value ? { ...value, current_state: body.details?.current_state ?? value.current_state } : value);
+          this.setWorkflowState(body.details?.current_state ?? '');
+        }
         this.fail(message);
       },
     });
@@ -298,19 +309,53 @@ export class ScannerComponent {
     this.candidate.set(null);
     this.currentUid = '';
     this.workflowBlocked.set('');
+    this.candidateNotFound.set(false);
     this.messageIsError.set(false);
     this.message.set('📷 In attesa di scansione...');
     window.setTimeout(() => this.startCamera(), 0);
   }
 
+  toggleManualSearch(): void { this.manualSearchOpen.update((value) => !value); if (this.manualSearchOpen()) void this.stopCamera(); else window.setTimeout(() => this.startCamera(), 0); }
+
+  openManualSearch(): void {
+    this.manualSearchOpen.set(true);
+    this.candidateNotFound.set(false);
+    this.message.set('');
+    this.messageIsError.set(false);
+    void this.stopCamera();
+  }
+
+  retryAssociation(): void {
+    this.message.set('');
+    this.messageIsError.set(false);
+    this.associationStatus.set('Inquadra il QR della sessione');
+    window.setTimeout(() => this.startCamera(), 0);
+  }
+
+  openCandidate(uid: string): void {
+    this.currentUid = uid;
+    this.manualSearchOpen.set(false);
+    this.verifyCandidate();
+  }
+
+  saveCandidateNote(): void {
+    if (!this.currentUid) return;
+    this.busy.set(true);
+    this.api.post<CandidateSummary>('/scanner/candidate-note', { ...this.payload(), note: this.noteDraft }).subscribe({
+      next: (candidate) => { this.candidate.set(candidate); this.busy.set(false); this.message.set('Nota salvata.'); },
+      error: () => { this.busy.set(false); this.fail('Salvataggio della nota non riuscito.'); },
+    });
+  }
+
   async clearAssociation(): Promise<void> {
     await this.stopCamera();
     if (this.heartbeatTimer) window.clearInterval(this.heartbeatTimer);
+    if (this.summaryTimer) window.clearInterval(this.summaryTimer);
     this.api.post('/devices/disconnect', {
       session_id: this.sessionId,
       device_token: this.deviceToken,
     }).subscribe({ error: () => undefined });
-    localStorage.removeItem(this.storageKey());
+    try { localStorage.removeItem(this.storageKey()); } catch { /* Storage may be unavailable. */ }
     this.deviceToken = '';
     this.ready.set(false);
     this.candidate.set(null);
@@ -318,6 +363,35 @@ export class ScannerComponent {
     this.registrationToken = '';
     window.history.replaceState({}, '', '/scanner');
     this.startAssociationMode();
+  }
+
+  private refreshSessionSummary(): void {
+    if (!this.ready() || !this.deviceToken) return;
+    this.api.post<ScannerSessionSummary>('/scanner/session-summary', { session_id: this.sessionId, device_token: this.deviceToken }).subscribe({
+      next: (summary) => { this.summary.set(summary); this.setWorkflowState(summary.current_state); },
+      error: () => this.fail('Impossibile aggiornare il riepilogo della sessione.'),
+    });
+  }
+
+  private setWorkflowState(state: string): void {
+    if (state === 'checkin_avviato') {
+      if (this.summaryTimer) {
+        window.clearInterval(this.summaryTimer);
+        this.summaryTimer = undefined;
+      }
+      const wasBlocked = !!this.workflowBlocked();
+      this.workflowBlocked.set('');
+      if (wasBlocked) window.setTimeout(() => this.startCamera(), 0);
+      else if (!this.camera?.isScanning) window.setTimeout(() => this.startCamera(), 0);
+    } else {
+      void this.stopCamera();
+      if (!this.summaryTimer && this.ready()) {
+        this.summaryTimer = window.setInterval(() => this.refreshSessionSummary(), 5000);
+      }
+      this.workflowBlocked.set(state === 'checkin_concluso' || state === 'liste_generate' || state === 'liste_inviate' || state.includes('esame')
+        ? 'Il check-in è concluso.'
+        : 'Il check-in non è ancora iniziato.');
+    }
   }
 
   private payload() {

@@ -49,6 +49,13 @@ import { AppSettings } from '../../core/models/api.models';
               <label class="form-label" for="footer-owner">Intestazione footer</label>
               <input id="footer-owner" class="form-control" name="footerOwner" [(ngModel)]="model.footer_owner" required maxlength="160" />
             </div>
+            <div class="col-12 mt-4">
+              <h2 class="h5">Anteprima intestazione</h2>
+              <div class="border rounded overflow-hidden" aria-label="Anteprima dell’intestazione">
+                <header class="app-header px-3 py-3"><strong>{{ model.institution_name || 'Nome ente' }}</strong><span class="mx-2">·</span><span>{{ model.app_title || 'Nome applicazione' }}</span><div class="small text-muted">{{ model.tagline || 'Sottotitolo' }}</div></header>
+                <footer class="app-footer px-3 py-2 small">Realizzato per {{ model.footer_owner || 'Intestazione footer' }}</footer>
+              </div>
+            </div>
           </div>
         </div>
         <div class="card-footer bg-white text-end">

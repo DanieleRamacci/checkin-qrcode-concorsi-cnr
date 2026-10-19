@@ -24,7 +24,7 @@ describe('BandoConfigComponent', () => {
           useValue: {
             get: (path: string) => of(path.endsWith('/config')
               ? {
-                  expert_options: ['expert@cnr.it'],
+                  expert_options: ['expert@cnr.it', 'nuovo@cnr.it'],
                   rdp_options: [{ nome: 'Rita Verdi', email: 'rita.verdi@cnr.it' }],
                   secretary_options: [{ nome: 'Segretaria Uno', email: 'segretaria1@cnr.it' }],
                   email_segretario: 'segretaria1@cnr.it',
@@ -64,11 +64,20 @@ describe('BandoConfigComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('rita.verdi@cnr.it');
     expect(fixture.nativeElement.textContent).toContain('Segretaria Uno');
     expect(fixture.nativeElement.textContent).toContain('segretaria1@cnr.it');
-    expect(fixture.nativeElement.textContent).toContain('Assegnazioni tecniche per sessione');
+    expect(fixture.nativeElement.textContent).toContain('Supporto tecnico per sessione');
     expect(fixture.nativeElement.textContent).toContain('Prova mattina');
     expect(fixture.nativeElement.textContent).not.toContain('Principale richiesto');
     expect((fixture.nativeElement.querySelector('#session-sede-name-0-0') as HTMLInputElement).value).toBe('Tecnico Sede');
     expect((fixture.nativeElement.querySelector('#session-sede-email-0-0') as HTMLInputElement).value).toBe('sede@cnr.it');
+    expect(fixture.nativeElement.textContent).toContain('Nessuna modifica non salvata');
+    expect((fixture.nativeElement.querySelector('.app-savebar .btn-primary') as HTMLButtonElement).disabled).toBe(true);
+    const expertSelect = fixture.nativeElement.querySelector('#session-expert-0') as HTMLSelectElement;
+    expertSelect.value = 'nuovo@cnr.it';
+    expertSelect.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('1 modifica non salvata');
+    expect(fixture.nativeElement.querySelectorAll('.app-savebar button').length).toBe(2);
+    expect([...fixture.nativeElement.querySelectorAll('.app-savebar button')].filter((button) => button.textContent.includes('Salva configurazione'))).toHaveLength(1);
   });
 
   it('saves technical assignments only at session level', async () => {

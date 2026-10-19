@@ -1,8 +1,12 @@
-import { Component, SimpleChanges, computed, inject, input, signal } from '@angular/core';
+import { Component, SimpleChanges, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { DatePipe } from '@angular/common';
 import * as QRCode from 'qrcode';
 import { ApiClient } from '../../core/api-client';
 import { ApiList, CandidateSummary } from '../../core/models/api.models';
+import { FilterChipsComponent } from '../../shared/filter-chips.component';
+import { PagerComponent } from '../../shared/pager.component';
+import { ResetPasswordComponent } from './reset-password.component';
 
 export function candidateQrPayload(uid: string): string {
   return JSON.stringify({ uid });
@@ -10,11 +14,16 @@ export function candidateQrPayload(uid: string): string {
 
 @Component({
   selector: 'app-candidati',
-  imports: [FormsModule],
+  imports: [FormsModule, DatePipe, FilterChipsComponent, PagerComponent, ResetPasswordComponent],
   template: `
+    @if (sectionMode() === 'reset-sede' || sectionMode() === 'reset-esperto') {
+      <app-reset-password [sessionId]="sessionId()" [viewMode]="sectionMode() === 'reset-esperto' ? 'esperto' : 'sede'" (openCountChange)="openResetCountChange.emit($event)" />
+    } @else if (sectionMode() === 'vuota') {
+      <div class="app-empty it-card shadow-sm p-4"><p class="app-eyebrow">Candidati</p><h2 class="h5">L’elenco sarà disponibile al prossimo passaggio</h2><p class="mb-0">Dopo aver scaricato i candidati, l’elenco comparirà qui.</p></div>
+    } @else {
     <div class="it-card-wrapper">
       <div class="it-card shadow-sm p-4">
-        <h5 class="mb-3">Elenco candidati</h5>
+        <h2 id="candidates" class="h5 mb-3">Candidati della sessione</h2>
 
         <div class="d-flex justify-content-end gap-2 mb-2">
           <button class="btn btn-outline-primary btn-sm" type="button" [disabled]="loading()" (click)="load()">
@@ -67,6 +76,9 @@ export function candidateQrPayload(uid: string): string {
             </div>
           </div>
         </form>
+        @if (sectionMode() === 'checkin') {
+          <app-filter-chips label="Filtra i candidati" [options]="filterOptions()" [selected]="selectedFilter()" (selectedChange)="setFilter($event)" />
+        }
 
         @if (error()) {
           <div class="alert alert-danger d-flex justify-content-between align-items-center" role="alert">
@@ -91,13 +103,13 @@ export function candidateQrPayload(uid: string): string {
                   <th>Cognome</th>
                   <th>Documento</th>
                   <th>Validità</th>
-                  <th>Check-in</th>
+                  <th>Presenza</th>
                   <th>Note</th>
                   <th class="text-nowrap">Azioni</th>
                 </tr>
               </thead>
               <tbody>
-                @for (item of filteredItems(); track item.uid; let i = $index) {
+                @for (item of pageItems(); track item.uid; let i = $index) {
                   <tr [class.table-success]="item.checkin_effettuato" [class.table-danger]="!item.checkin_effettuato">
                     <th scope="row">{{ i + 1 }}</th>
                     <td>{{ item.first_name }}</td>
@@ -112,9 +124,9 @@ export function candidateQrPayload(uid: string): string {
                     </td>
                     <td>
                       @if (item.checkin_effettuato) {
-                        <span class="badge bg-success">Effettuato</span>
+                        <span class="badge bg-success">Presente@if (item.checkin_at) { {{ item.checkin_at | date:'HH:mm' }} · da {{ item.checkin_source === 'scanner' ? 'scanner' : 'tabella' }} }</span>
                       } @else {
-                        <span class="badge bg-secondary">Non effettuato</span>
+                        <span class="badge bg-secondary">Assente</span>
                       }
                     </td>
                     <td class="candidate-note-cell">
@@ -138,30 +150,44 @@ export function candidateQrPayload(uid: string): string {
                       >
                         {{ item.note ? 'Modifica note' : 'Note' }}
                       </button>
-                      <button
+                      @if (sectionMode() === 'checkin') { <button
                         [class]="'btn btn-sm text-nowrap ' + (item.checkin_effettuato ? 'btn-outline-danger' : 'btn-outline-success')"
                         style="white-space: nowrap;"
                         type="button"
                         [disabled]="mutationUid() === item.uid"
-                        (click)="toggle(item)"
+                        (click)="requestToggle(item)"
                       >
-                        {{ item.checkin_effettuato ? 'Disabilita' : 'Conferma' }}
-                      </button>
+                        {{ item.checkin_effettuato ? 'Annulla presenza' : 'Segna presente' }}
+                      </button> }
                     </td>
                   </tr>
                 }
               </tbody>
             </table>
           </div>
+          @if (sectionMode() === 'checkin') {
+            <app-pager label="Candidati" [total]="filteredItems().length" [page]="page()" [pageSize]="pageSize()" (pageChange)="page.set($event)" (pageSizeChange)="changePageSize($event)" />
+          }
         }
         @if (message()) { <p role="status">{{ message() }}</p> }
       </div>
     </div>
+    }
+
+    @if (pendingToggle(); as candidate) {
+      <div class="modal d-block" role="dialog" aria-modal="true" aria-labelledby="presence-title" style="background:rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+          <div class="modal-header"><h2 id="presence-title" class="modal-title h5">Annullare la presenza?</h2></div>
+          <div class="modal-body">{{ candidate.last_name }} {{ candidate.first_name }} risulterà assente.</div>
+          <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" (click)="pendingToggle.set(null)">Continua</button><button class="btn btn-danger" type="button" (click)="toggle(candidate)">Annulla presenza</button></div>
+        </div></div>
+      </div>
+    }
 
     @if (selectedCandidate(); as candidate) {
       <div class="modal candidate-qr-modal" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="candidateQrTitle">
         <div class="modal-dialog modal-dialog-centered">
-          <div class="modal-content">
+          <div class="modal-content app-cand-card">
             <div class="modal-header">
               <h2 class="modal-title h5" id="candidateQrTitle">QR candidato</h2>
               <button class="btn-close" type="button" aria-label="Chiudi" (click)="closeQr()"></button>
@@ -189,7 +215,7 @@ export function candidateQrPayload(uid: string): string {
     @if (noteCandidate(); as candidate) {
       <div class="modal candidate-note-modal" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="candidateNoteTitle">
         <div class="modal-dialog modal-dialog-centered">
-          <div class="modal-content">
+          <div class="modal-content app-cand-card">
             <form (ngSubmit)="saveNotes()">
               <div class="modal-header">
                 <h2 class="modal-title h5" id="candidateNoteTitle">Note candidato</h2>
@@ -240,6 +266,8 @@ export class CandidatiComponent {
   readonly sessionId = input.required<string>();
   readonly viewMode = input<'segretario' | 'sede' | 'esperto' | 'admin'>('segretario');
   readonly refreshTick = input(0);
+  readonly sectionMode = input<'vuota' | 'sola-lettura' | 'checkin' | 'finale' | 'reset-sede' | 'reset-esperto'>('checkin');
+  readonly openResetCountChange = output<number>();
   private readonly api = inject(ApiClient);
   readonly items = signal<CandidateSummary[]>([]);
   readonly message = signal('');
@@ -256,11 +284,18 @@ export class CandidatiComponent {
   readonly sort = signal<'alpha' | 'checkin_no' | 'checkin_yes'>('alpha');
   readonly checkin = signal<'all' | 'yes' | 'no'>('all');
   readonly expiredOnly = signal(false);
+  readonly selectedFilter = signal('all');
+  readonly page = signal(0);
+  readonly pageSize = signal(25);
+  readonly pendingToggle = signal<CandidateSummary | null>(null);
   private searchDebounce?: ReturnType<typeof setTimeout>;
   noteDraft = '';
 
   readonly filteredItems = computed(() => {
     let items = this.items();
+    if (this.selectedFilter() === 'yes') items = items.filter((item) => item.checkin_effettuato);
+    if (this.selectedFilter() === 'no') items = items.filter((item) => !item.checkin_effettuato);
+    if (this.selectedFilter() === 'expired') items = items.filter((item) => item.document_expired);
     if (this.expiredOnly()) {
       items = items.filter((item) => item.document_expired);
     }
@@ -272,6 +307,14 @@ export class CandidatiComponent {
     });
     return items;
   });
+
+  readonly pageItems = computed(() => this.filteredItems().slice(this.page() * this.pageSize(), (this.page() + 1) * this.pageSize()));
+  readonly filterOptions = computed(() => [
+    { id: 'no', label: 'Da registrare', count: this.items().filter((item) => !item.checkin_effettuato).length },
+    { id: 'yes', label: 'Presenti', count: this.items().filter((item) => item.checkin_effettuato).length },
+    { id: 'expired', label: 'Documento scaduto', count: this.items().filter((item) => item.document_expired).length },
+    { id: 'all', label: 'Tutti', count: this.items().length },
+  ]);
 
   ngOnInit(): void { this.load(); }
 
@@ -289,7 +332,22 @@ export class CandidatiComponent {
 
   onCheckinChange(value: 'all' | 'yes' | 'no'): void {
     this.checkin.set(value);
+    this.page.set(0);
     this.load();
+  }
+
+  setFilter(value: string): void {
+    this.selectedFilter.set(value);
+    this.page.set(0);
+    this.checkin.set('all');
+    this.expiredOnly.set(false);
+  }
+
+  changePageSize(size: number): void { this.pageSize.set(size); this.page.set(0); }
+
+  requestToggle(item: CandidateSummary): void {
+    if (item.checkin_effettuato) this.pendingToggle.set(item);
+    else this.toggle(item);
   }
 
   load(): void {
@@ -311,6 +369,7 @@ export class CandidatiComponent {
   }
 
   toggle(item: CandidateSummary): void {
+    this.pendingToggle.set(null);
     this.mutationUid.set(item.uid);
     this.message.set('');
     this.api.post<CandidateSummary>(`/sessioni/${this.sessionId()}/candidati/${encodeURIComponent(item.uid)}/toggle-checkin?mode=${encodeURIComponent(this.viewMode())}`).subscribe({

@@ -1,5 +1,7 @@
 import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
+import { inject } from '@angular/core';
 import { catchError, throwError } from 'rxjs';
+import { SessionExpiredService } from './session-expired/session-expired.service';
 
 const REDIRECT_CODES = new Set([
   'authentication_required',
@@ -24,22 +26,15 @@ export function shouldRedirectToLogin(error: unknown): error is HttpErrorRespons
   return !!code && REDIRECT_CODES.has(code);
 }
 
-function currentLocalReturnUrl(
-  location: Pick<Location, 'pathname' | 'search' | 'hash'>,
-): string {
-  const path = `${location.pathname}${location.search}${location.hash}`;
-  return path.startsWith('/') && !path.startsWith('//') ? path : '/';
-}
-
-export const reauthInterceptor: HttpInterceptorFn = (request, next) =>
-  next(request).pipe(
+export const reauthInterceptor: HttpInterceptorFn = (request, next) => {
+  const expired = inject(SessionExpiredService);
+  return next(request).pipe(
     catchError((error) => {
       if (shouldRedirectToLogin(error) && !redirectInProgress) {
         redirectInProgress = true;
-        window.location.assign(
-          `/login?next=${encodeURIComponent(currentLocalReturnUrl(window.location))}`,
-        );
+        expired.show();
       }
       return throwError(() => error);
     }),
   );
+};

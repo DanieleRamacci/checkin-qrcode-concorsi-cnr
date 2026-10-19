@@ -1,7 +1,10 @@
-import { Component, inject, input, signal } from '@angular/core';
+import { Component, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { DatePipe } from '@angular/common';
 import { ApiClient } from '../../core/api-client';
 import { ApiList, CandidateSummary } from '../../core/models/api.models';
+import { FilterChipOption, FilterChipsComponent } from '../../shared/filter-chips.component';
+import { PagerComponent } from '../../shared/pager.component';
 
 type ResetViewMode = 'sede' | 'esperto';
 type ResetFilter = 'all' | 'richiesto' | 'effettuato' | 'da_evade' | 'evasi';
@@ -18,51 +21,28 @@ export function resetFilterForApi(viewMode: ResetViewMode, filter: ResetFilter):
 
 @Component({
   selector: 'app-reset-password',
-  imports: [FormsModule],
+  imports: [FormsModule, DatePipe, FilterChipsComponent, PagerComponent],
   template: `
-    <div class="it-card shadow-sm p-3 bg-white mt-3">
-      <div class="d-flex justify-content-between align-items-center mb-2">
-        <h6 class="mb-0">Reset password richiesti</h6>
-        <span class="badge bg-primary">{{ items().length }}</span>
+    <section id="candidates" class="it-card shadow-sm p-3 bg-white mt-3" aria-labelledby="reset-title">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div><h2 id="reset-title" class="h5 mb-1">Reset password</h2><p class="small text-muted mb-0">Solo candidati presenti</p></div>
+        <span class="badge text-bg-primary" aria-live="polite">{{ filteredItems().length }} presenti</span>
       </div>
 
-      <form class="row g-2 mb-3" (ngSubmit)="load()">
-        <div class="col-12 col-md-6">
-          <label class="visually-hidden" for="reset-search">Cerca nome o documento</label>
-          <input id="reset-search" class="form-control" type="search" name="q"
-            placeholder="Cerca nome o documento" [(ngModel)]="query" />
+      <div class="row g-2 align-items-end mb-3">
+        <div class="col-12 col-md-6"><label class="form-label" for="reset-search">Cerca candidato</label>
+          <input id="reset-search" class="form-control" type="search" name="q" placeholder="Nome o cognome" [(ngModel)]="query" (ngModelChange)="page.set(1); updateView()" />
         </div>
-        <div class="col-8 col-md-4">
-          <label class="visually-hidden" for="reset-filter">Filtro reset</label>
-          <select id="reset-filter" class="form-select" name="filter" [(ngModel)]="filter">
-            @if (viewMode() === 'esperto') {
-              <option value="da_evade">Reset da evadere</option>
-              <option value="evasi">Reset evasi</option>
-              <option value="all">Tutti</option>
-            } @else {
-              <option value="all">Tutti</option>
-              <option value="richiesto">Reset richiesti</option>
-              <option value="effettuato">Reset effettuati</option>
-            }
-          </select>
-        </div>
-        <div class="col-4 col-md-2">
-          <button class="btn btn-outline-primary w-100" type="submit" [disabled]="loading()">
+        <div class="col-12 col-md-6 d-flex justify-content-md-end">
+          <button class="btn btn-outline-secondary" type="button" [disabled]="loading()" (click)="load()">
             @if (loading()) {
               <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
             }
-            <span>Filtra</span>
+            <span>Aggiorna</span>
           </button>
         </div>
-        <div class="col-12 col-md-2">
-          <button class="btn btn-outline-secondary w-100" type="button" [disabled]="loading()" (click)="load()">
-            @if (loading()) {
-              <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
-            }
-            <span>↻ Aggiorna</span>
-          </button>
-        </div>
-      </form>
+      </div>
+      <app-filter-chips label="Filtra i reset" [options]="filterOptions()" [selected]="filter()" (selectedChange)="setFilter($event)" />
 
       @if (error()) {
         <div class="alert alert-danger" role="alert">{{ error() }}</div>
@@ -71,40 +51,41 @@ export function resetFilterForApi(viewMode: ResetViewMode, filter: ResetFilter):
           <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
           <span>Caricamento reset…</span>
         </div>
-      } @else if (items().length === 0) {
-        <div class="text-muted">Nessun candidato trovato.</div>
+      } @else if (filteredItems().length === 0) {
+        <div class="app-empty text-center py-4"><p class="mb-0">{{ query.trim() ? 'Nessun candidato corrisponde alla ricerca.' : 'Nessun reset in questa categoria.' }}</p></div>
       } @else {
         <div class="table-responsive">
           <table class="table table-sm align-middle">
-            <thead>
-              <tr><th>Nome</th><th>Documento</th><th>Reset</th></tr>
-            </thead>
+            <thead><tr><th>Cognome e nome</th><th>Reset password</th><th>Azioni</th></tr></thead>
             <tbody>
-              @for (candidate of items(); track candidate.uid) {
-                <tr>
-                  <td>{{ candidate.last_name }} {{ candidate.first_name }}</td>
-                  <td>{{ candidate.document_number }}</td>
+              @for (candidate of pageItems(); track candidate.uid) {
+                <tr [class.app-row-attn]="candidate.reset_password_richiesto">
+                  <th scope="row">{{ candidate.last_name }} {{ candidate.first_name }}</th>
+                  <td>
+                    @if (candidate.reset_password_richiesto) {
+                      <span class="badge text-bg-warning">Reset richiesto</span>
+                      <span class="small text-muted ms-2">dall’informatico in sede</span>
+                      @if (candidate.reset_password_richiesto_at) { <span class="small text-muted ms-2">alle {{ candidate.reset_password_richiesto_at | date:'HH:mm' }}</span> }
+                    } @else if (candidate.reset_password_effettuato) {
+                      <span class="badge text-bg-success">Reset fatto</span>
+                      @if (candidate.reset_password_effettuato_at) { <span class="small text-muted ms-2">{{ candidate.reset_password_effettuato_at | date:'dd/MM/yyyy HH:mm' }}</span> }
+                    } @else { <span class="text-muted">Nessun reset registrato</span> }
+                  </td>
                   <td class="text-nowrap">
                     @if (viewMode() === 'sede') {
                       <button type="button"
                         [class]="'btn btn-sm ' + (candidate.reset_password_richiesto ? 'btn-outline-danger' : 'btn-outline-primary')"
                         [disabled]="busyUid() === candidate.uid"
                         (click)="mutate(candidate, candidate.reset_password_richiesto ? 'cancel_request' : 'request')">
-                        {{ candidate.reset_password_richiesto ? 'Rimuovi' : 'Segna reset' }}
+                        {{ candidate.reset_password_richiesto ? 'Annulla richiesta' : 'Serve reset password' }}
                       </button>
                     } @else {
                       <button type="button"
                         [class]="'btn btn-sm ' + (!candidate.reset_password_effettuato ? 'btn-outline-success' : 'btn-outline-secondary')"
                         [disabled]="busyUid() === candidate.uid"
                         (click)="mutate(candidate, candidate.reset_password_effettuato ? 'undo_complete' : 'complete')">
-                        {{ candidate.reset_password_effettuato ? 'Annulla eseguito' : 'Segna eseguito' }}
+                        {{ candidate.reset_password_effettuato ? 'Annulla reset fatto' : (candidate.reset_password_richiesto ? 'Segna come fatto' : 'Registra un reset') }}
                       </button>
-                    }
-                    @if (candidate.reset_password_richiesto) {
-                      <span class="badge bg-warning text-dark ms-2">Richiesto</span>
-                    }
-                    @if (candidate.reset_password_effettuato) {
-                      <span class="badge bg-success ms-2">Eseguito</span>
                     }
                   </td>
                 </tr>
@@ -112,24 +93,32 @@ export function resetFilterForApi(viewMode: ResetViewMode, filter: ResetFilter):
             </tbody>
           </table>
         </div>
+        <app-pager label="Candidati presenti" [total]="filteredItems().length" [page]="page()" [pageSize]="pageSize()" (pageChange)="page.set($event)" (pageSizeChange)="setPageSize($event)" />
       }
-    </div>
+    </section>
   `,
 })
 export class ResetPasswordComponent {
   readonly sessionId = input.required<string>();
   readonly viewMode = input.required<ResetViewMode>();
+  readonly openCountChange = output<number>();
   private readonly api = inject(ApiClient);
 
   readonly items = signal<CandidateSummary[]>([]);
   readonly loading = signal(true);
   readonly error = signal('');
   readonly busyUid = signal<string | null>(null);
+  readonly filter = signal<ResetFilter>('all');
+  readonly page = signal(1);
+  readonly pageSize = signal(25);
   query = '';
-  filter: ResetFilter = 'all';
+
+  readonly filterOptions = signal<FilterChipOption[]>([]);
+  readonly filteredItems = signal<CandidateSummary[]>([]);
+  readonly pageItems = signal<CandidateSummary[]>([]);
 
   ngOnInit(): void {
-    this.filter = this.viewMode() === 'esperto' ? 'da_evade' : 'all';
+    this.filter.set(this.viewMode() === 'esperto' ? 'da_evade' : 'richiesto');
     this.load();
   }
 
@@ -138,12 +127,14 @@ export class ResetPasswordComponent {
     this.error.set('');
     const params = new URLSearchParams({
       q: this.query.trim(),
-      reset: resetFilterForApi(this.viewMode(), this.filter),
+      checkin: 'yes',
+      reset: 'all',
       mode: this.viewMode(),
     });
     this.api.get<ApiList<CandidateSummary>>(`/sessioni/${this.sessionId()}/candidati?${params}`).subscribe({
       next: ({ items }) => {
         this.items.set(items);
+        this.updateView();
         this.loading.set(false);
       },
       error: () => {
@@ -151,6 +142,29 @@ export class ResetPasswordComponent {
         this.error.set('Impossibile caricare le richieste di reset.');
       },
     });
+  }
+
+  setFilter(value: string): void { this.filter.set(value as ResetFilter); this.page.set(1); this.updateView(); }
+  setPageSize(value: number): void { this.pageSize.set(value); this.page.set(1); this.updateView(); }
+
+  updateView(): void {
+    const query = this.query.trim().toLocaleLowerCase();
+    const candidates = this.items()
+      .filter((candidate) => {
+        if (this.filter() === 'richiesto' || this.filter() === 'da_evade') return candidate.reset_password_richiesto;
+        if (this.filter() === 'effettuato' || this.filter() === 'evasi') return candidate.reset_password_effettuato;
+        return true;
+      })
+      .filter((candidate) => !query || `${candidate.last_name} ${candidate.first_name}`.toLocaleLowerCase().includes(query))
+      .sort((a, b) => Number(b.reset_password_richiesto) - Number(a.reset_password_richiesto) || a.last_name.localeCompare(b.last_name));
+    this.filteredItems.set(candidates);
+    this.pageItems.set(candidates.slice((this.page() - 1) * this.pageSize(), this.page() * this.pageSize()));
+    const inAttesa = this.items().filter((candidate) => candidate.reset_password_richiesto).length;
+    this.openCountChange.emit(inAttesa);
+    const fatti = this.items().filter((candidate) => candidate.reset_password_effettuato).length;
+    this.filterOptions.set(this.viewMode() === 'esperto'
+      ? [{ id: 'da_evade', label: 'Da fare', count: inAttesa }, { id: 'evasi', label: 'Reset fatti', count: fatti }, { id: 'all', label: 'Tutti i presenti', count: this.items().length }]
+      : [{ id: 'richiesto', label: 'In attesa', count: inAttesa }, { id: 'effettuato', label: 'Reset fatti', count: fatti }, { id: 'all', label: 'Tutti i presenti', count: this.items().length }]);
   }
 
   mutate(candidate: CandidateSummary, operation: string): void {

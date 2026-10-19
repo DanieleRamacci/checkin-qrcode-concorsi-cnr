@@ -2,17 +2,13 @@
 
 /* Importazione libreria SCSS di bootstrap-italia */
 @import '../node_modules/bootstrap-italia/src/scss/bootstrap-italia.scss';
+@import './styles/_app.scss';
 
 html {
   scroll-behavior: smooth;
 }
 
-body {
-  min-height: 100vh;
-  margin: 0;
-  color: #17324d;
-  background: #fff;
-}
+body { min-height: 100vh; margin: 0; }
 
 :focus-visible {
   outline: 3px solid #ffca00;

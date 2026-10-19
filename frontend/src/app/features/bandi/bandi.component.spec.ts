@@ -86,17 +86,35 @@ describe('BandiComponent', () => {
     const fixture = await createComponent();
 
     expect(fixture.nativeElement.textContent).toContain('Concorso CNR');
-    expect(fixture.nativeElement.textContent).toContain('Dashboard Segretario');
+    expect(fixture.nativeElement.textContent).toContain('I miei concorsi');
     expect(fixture.nativeElement.textContent).toContain('Aggiorna da Selezioni Online');
-    expect(fixture.nativeElement.textContent).toContain('nominativo deve risultare collegato');
-    expect(fixture.nativeElement.textContent).toContain('abilitato su Selezioni Online');
-    expect(fixture.nativeElement.textContent).not.toContain('Configura');
+    expect(fixture.nativeElement.textContent).toContain('Non trovi un concorso?');
+    expect(fixture.nativeElement.textContent).toContain('Con sessioni in arrivo');
+    expect(fixture.nativeElement.querySelector('a[href*="/config"]')).toBeNull();
+  });
+
+  it('filters concorsi by upcoming sessions or incomplete configuration and supports pagination', async () => {
+    const fixture = await createComponent('segretario', false, [
+      { commission_id: 'c1', title: 'Concorso in arrivo', configured: true, required_data_complete: true, session_count: 1, next_session: { session_id: 's1', name: 'Sessione 1', date: '2026-10-20', time: '09:00', location: 'Roma', state: 'iniziale' } },
+      { commission_id: 'c2', title: 'Concorso da completare', configured: false, required_data_complete: false, session_count: 0, next_session: null },
+    ]);
+    const component = fixture.componentInstance;
+    component.setBandoFilter('upcoming');
+    expect(component.filteredItems().map((item) => item.commission_id)).toEqual(['c1']);
+    component.setBandoFilter('incomplete');
+    expect(component.filteredItems().map((item) => item.commission_id)).toEqual(['c2']);
+    component.setBandoFilter('all');
+    expect(component.filteredItems().map((item) => item.commission_id)).toEqual(['c1', 'c2']);
+    component.setBandoSort('name');
+    expect(component.filteredItems().map((item) => item.commission_id)).toEqual(['c2', 'c1']);
+    component.setPageSize(10);
+    expect(component.pageItems().length).toBe(2);
   });
 
   it('renders expert dashboard title in expert mode', async () => {
     const fixture = await createComponent('expert');
 
-    expect(fixture.nativeElement.textContent).toContain('Dashboard Esperto informatico');
+    expect(fixture.nativeElement.textContent).toContain('Le mie sessioni');
     expect(fixture.nativeElement.textContent).not.toContain('Dashboard Segretario');
     expect(fixture.nativeElement.textContent).not.toContain('Permessi Selezioni Online');
   });
@@ -131,14 +149,14 @@ describe('BandiComponent', () => {
   it('explains local admin visibility does not grant Selezioni Online permissions', async () => {
     const fixture = await createComponent('segretario', true);
 
-    expect(fixture.nativeElement.textContent).toContain('admin globale');
+    expect(fixture.nativeElement.textContent).toContain('L’amministratore può consultare i dati locali');
     expect(fixture.nativeElement.textContent).toContain('membro operativo');
   });
 
   it('renders the explicit admin dashboard with admin-only badges', async () => {
     const fixture = await createComponent('admin', true);
 
-    expect(fixture.nativeElement.textContent).toContain('Dashboard Amministratore');
+    expect(fixture.nativeElement.textContent).toContain('Tutti i bandi');
     expect(fixture.nativeElement.textContent).toContain('Vista amministratore');
     expect(fixture.nativeElement.textContent).toContain('Solo vista admin');
     expect(fixture.nativeElement.textContent).toContain('Ruolo Selezioni: PRESIDENTE');

@@ -3,6 +3,12 @@ import { adminGuard, authGuard } from './core/auth.guard';
 
 export const routes: Routes = [
   {
+    path: 'scanner',
+    title: 'Scanner — Check-in CNR Concorsi',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/scanner/scanner.component').then((module) => module.ScannerComponent),
+  },
+  {
     path: 'logged-out',
     title: 'Sessione terminata — Check-in CNR Concorsi',
     loadComponent: () =>
@@ -32,6 +38,22 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/bandi/bandi.component').then(
             (module) => module.BandiComponent,
+          ),
+      },
+      {
+        path: 'segretario',
+        title: 'Home segretario — Check-in CNR Concorsi',
+        loadComponent: () =>
+          import('./features/home/secretary-home.component').then(
+            (module) => module.SecretaryHomeComponent,
+          ),
+      },
+      {
+        path: 'le-mie-sessioni',
+        title: 'Le mie sessioni — Check-in CNR Concorsi',
+        loadComponent: () =>
+          import('./features/le-mie-sessioni/my-sessions.component').then(
+            (module) => module.MySessionsComponent,
           ),
       },
       {
@@ -76,46 +98,31 @@ export const routes: Routes = [
       },
       {
         path: 'sessioni/:sessionId/dispositivi',
-        title: 'Dispositivi — Check-in CNR Concorsi',
-        loadComponent: () =>
-          import('./features/dispositivi/dispositivi.component').then(
-            (module) => module.DispositiviComponent,
-          ),
+        redirectTo: (snapshot) => {
+          const sessionId = snapshot.paramMap.get('sessionId') ?? '';
+          const mode = snapshot.queryParamMap.get('mode');
+          return `/sessioni/${encodeURIComponent(sessionId)}${mode ? `?mode=${encodeURIComponent(mode)}` : ''}`;
+        },
       },
       {
-        path: 'admin/permessi',
-        title: 'Gestione permessi — Check-in CNR Concorsi',
+        path: 'admin',
         canActivate: [adminGuard],
-        loadComponent: () =>
-          import('./features/admin/admin-roles.component').then(
-            (module) => module.AdminRolesComponent,
-          ),
-      },
-      {
-        path: 'admin/impostazioni',
-        title: 'Impostazioni applicazione — Check-in CNR Concorsi',
-        canActivate: [adminGuard],
-        loadComponent: () =>
-          import('./features/admin/admin-settings.component').then(
-            (module) => module.AdminSettingsComponent,
-          ),
-      },
-      {
-        path: 'admin/logs',
-        title: 'Log sistema — Check-in CNR Concorsi',
-        canActivate: [adminGuard],
-        loadComponent: () =>
-          import('./features/admin/admin-logs.component').then(
-            (module) => module.AdminLogsComponent,
-          ),
-      },
-      {
-        path: 'scanner',
-        title: 'Scanner — Check-in CNR Concorsi',
-        loadComponent: () =>
-          import('./features/scanner/scanner.component').then(
-            (module) => module.ScannerComponent,
-          ),
+        loadComponent: () => import('./features/admin/admin-layout.component').then((module) => module.AdminLayoutComponent),
+        children: [
+          { path: '', pathMatch: 'full', redirectTo: 'permessi' },
+          {
+            path: 'permessi', title: 'Gestione permessi — Check-in CNR Concorsi',
+            loadComponent: () => import('./features/admin/admin-roles.component').then((module) => module.AdminRolesComponent),
+          },
+          {
+            path: 'impostazioni', title: 'Impostazioni applicazione — Check-in CNR Concorsi',
+            loadComponent: () => import('./features/admin/admin-settings.component').then((module) => module.AdminSettingsComponent),
+          },
+          {
+            path: 'logs', title: 'Log sistema — Check-in CNR Concorsi',
+            loadComponent: () => import('./features/admin/admin-logs.component').then((module) => module.AdminLogsComponent),
+          },
+        ],
       },
       {
         path: 'area-personale',

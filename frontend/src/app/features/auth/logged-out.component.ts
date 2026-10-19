@@ -5,9 +5,9 @@ import { AuthService } from '../../core/auth.service';
   selector: 'app-logged-out',
   template: `
     <main class="container my-5 logged-out" aria-labelledby="logged-out-title">
-      <h1 id="logged-out-title">Sessione terminata</h1>
-      <p class="text-muted">Hai effettuato il logout dall'applicazione.</p>
-      <button class="btn btn-primary" type="button" (click)="auth.login('/')">Effettua il login</button>
+      <h1 id="logged-out-title">Sei uscito dall'applicazione</h1>
+      <p class="text-muted">Per tornare a lavorare accedi con le credenziali CNR.</p>
+      <button class="btn btn-primary" type="button" (click)="auth.login('/')">Accedi</button>
     </main>
   `,
   styles: `.logged-out { max-width: 720px; }`,

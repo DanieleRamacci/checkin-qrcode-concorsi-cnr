@@ -29,7 +29,7 @@ describe('SessioniComponent', () => {
                     session_id: 's1',
                     commission_id: 'c1',
                     name: 'Prova scritta',
-                    date: '02/07/2026',
+                    date: '20/10/2026',
                     time: '10:00',
                     location: 'Roma',
                     current_state: 'iniziale',
@@ -71,7 +71,13 @@ describe('SessioniComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Prova scritta');
+    expect(fixture.nativeElement.textContent).toContain('Concorso c1');
+    expect(fixture.nativeElement.textContent).toContain('Apri sessione');
     expect(fixture.nativeElement.textContent).not.toContain('Modifica config bando');
+    fixture.componentInstance.setDateFilter('upcoming');
+    expect(fixture.componentInstance.filteredItems().map((item) => item.session_id)).toEqual(['s1']);
+    fixture.componentInstance.setQuery('Roma');
+    expect(fixture.componentInstance.pageItems().length).toBe(1);
   });
 
   it('shows a guided download action when no local sessions exist', async () => {

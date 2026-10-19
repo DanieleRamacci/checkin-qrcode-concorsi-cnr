@@ -10,6 +10,7 @@ export interface UserContext {
   email: string;
   display_name: string;
   roles: string[];
+  profiles?: Array<'segretario' | 'referente' | 'sede' | 'esperto' | 'admin'>;
   capabilities: string[];
   csrf_token: string;
   dev_mode?: boolean;
@@ -31,6 +32,14 @@ export interface BandoSummary {
   incomplete_session_names?: string[];
   required_data_complete?: boolean;
   session_count: number;
+  next_session?: {
+    session_id: string;
+    name: string;
+    date: string;
+    time: string;
+    location: string;
+    state: string;
+  } | null;
   last_sync?: string | null;
   visibility_reason?: 'owner' | 'admin' | 'referente' | string;
   source_role?: string | null;
@@ -117,8 +126,12 @@ export interface CandidateSummary {
   document_number: string;
   document_expired: boolean;
   checkin_effettuato: boolean;
+  checkin_at?: string | null;
+  checkin_source?: 'scanner' | 'tabella' | null;
   reset_password_richiesto: boolean;
+  reset_password_richiesto_at?: string | null;
   reset_password_effettuato: boolean;
+  reset_password_effettuato_at?: string | null;
   note?: string;
 }
 
@@ -134,6 +147,37 @@ export interface WorkflowAction {
 export interface WorkflowState {
   current_state: string;
   actions: WorkflowAction[];
+  history?: Array<{ state: string; at: string; actor_role: string }>;
+}
+
+export interface ScannerSessionSummary {
+  session_id: string;
+  name: string;
+  current_state: string;
+  checked_in_count: number;
+  candidate_count: number;
+}
+
+export interface ScannerCandidateSearchResult {
+  uid: string;
+  first_name: string;
+  last_name: string;
+  document_number: string;
+  checkin_effettuato: boolean;
+}
+
+export interface ScannerVerification extends ScannerCandidateSearchResult {
+  document_expired: boolean;
+  checkin_at: string | null;
+  checkin_source: 'scanner' | 'tabella' | null;
+}
+
+export interface AssignedSessionSummary extends SessionSummary {
+  open_reset_count: number;
+}
+
+export interface AssignedSessionsResponse extends ApiList<AssignedSessionSummary> {
+  mode: 'sede' | 'expert';
 }
 
 export interface DeviceSummary {

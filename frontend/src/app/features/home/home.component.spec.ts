@@ -35,14 +35,15 @@ describe('HomeComponent', () => {
     return fixture;
   }
 
-  it('shows expert profile and admin menu from capabilities', async () => {
+  it('shows only profiles allowed by capabilities when the API omits profiles', async () => {
     fixture = await createHome(['expert_workflow', 'admin']);
 
-    expect(fixture.nativeElement.textContent).toContain('Esperto informatico');
+    expect(fixture.nativeElement.textContent).toContain('Esperto remoto');
     expect(fixture.nativeElement.textContent).toContain('Informatico in sede');
-    expect(fixture.nativeElement.textContent).toContain('Referenti');
-    expect(fixture.nativeElement.textContent).toContain('Menu admin');
-    expect(fixture.nativeElement.textContent).not.toContain('LEGACY HTML');
+    expect(fixture.nativeElement.textContent).toContain('Referente');
+    expect(fixture.nativeElement.textContent).toContain('Amministrazione');
+    expect(fixture.nativeElement.textContent).not.toContain('Continua come Amministratore');
+    expect(fixture.nativeElement.textContent).toContain('Ultimo usato');
   });
 
   it('hides sede profile when the user has no assigned sede workflow', async () => {
@@ -50,13 +51,22 @@ describe('HomeComponent', () => {
 
     expect(fixture.nativeElement.textContent).not.toContain('Informatico in sede');
     expect(fixture.nativeElement.textContent).toContain('Segretario');
-    expect(fixture.nativeElement.textContent).toContain('Referenti');
+    expect(fixture.nativeElement.textContent).toContain('Referente');
   });
 
   it('shows sede profile for assigned sede workflow users', async () => {
     fixture = await createHome(['sede_workflow']);
 
     expect(fixture.nativeElement.textContent).toContain('Informatico in sede');
-    expect(fixture.nativeElement.textContent).not.toContain('Menu admin');
+    expect(fixture.nativeElement.textContent).not.toContain('Amministratore');
+  });
+
+  it('uses the profiles returned by the API as the source of available cards', async () => {
+    fixture = await createHome([]);
+    const auth = TestBed.inject(AuthService);
+    auth.user.set({ ...auth.user()!, profiles: ['referente'] });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Referente');
+    expect(fixture.nativeElement.textContent).not.toContain('Segretario');
   });
 });

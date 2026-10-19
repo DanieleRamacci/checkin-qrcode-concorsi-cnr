@@ -1,16 +1,17 @@
 import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import { forkJoin, switchMap, timer } from 'rxjs';
 import { ApiClient } from '../../core/api-client';
 import { SessionSummary, WorkflowState } from '../../core/models/api.models';
-import { BackLinkComponent } from '../../shared/back-link.component';
 import { BandiService } from '../bandi/bandi.service';
 import { CandidatiComponent } from '../candidati/candidati.component';
-import { ResetPasswordComponent } from '../candidati/reset-password.component';
 import { NotificheComponent } from '../notifiche/notifiche.component';
-import { ExamTimelineComponent } from './exam-timeline.component';
+import { SessionHeaderComponent } from './session-header.component';
+import { StateTimelineComponent } from './state-timeline.component';
+import { SessionReferencesComponent } from './session-references.component';
 import { AzioniComponent } from './azioni.component';
+import { MobileSessionComponent } from './mobile-session.component';
 
 interface OperationalConfig {
   email_referente?: string;
@@ -26,152 +27,77 @@ interface OperationalConfig {
 
 @Component({
   selector: 'app-gestione-sessione',
-  imports: [RouterLink, BackLinkComponent, CandidatiComponent, ResetPasswordComponent, NotificheComponent, ExamTimelineComponent, AzioniComponent],
+  imports: [CandidatiComponent, NotificheComponent, StateTimelineComponent, SessionHeaderComponent, SessionReferencesComponent, AzioniComponent, MobileSessionComponent],
   template: `
-    <div class="container-fluid gestione-sessione px-0">
-      <div class="row g-0 session-workspace">
-        <aside class="col-md-2 p-0 sidebar-wrapper d-flex flex-column">
-          @if (detail()) {
-            <div class="p-3 border-bottom bg-light">
-              <span class="text-muted d-block reference-label">BANDO DI CONCORSO</span>
-              <h6 class="mb-1 text-primary fw-bold session-bando-title">{{ detail()!.bando_title || detail()!.commission_id }}</h6>
-              <small class="d-block text-muted text-break">Codice bando: {{ detail()!.commission_id }}</small>
-              <hr class="my-2" />
-              <span class="text-muted d-block reference-label">SESSIONE</span>
-              <strong class="d-block session-name">{{ detail()!.name }}</strong>
-              <small class="d-block">{{ detail()!.location }}</small>
-              <small class="text-muted">{{ detail()!.date }} alle {{ detail()!.time }}</small>
-            </div>
-          }
-          @if (mergedConfig(); as cfg) {
-            <div class="p-3 border-bottom bg-white operational-references">
-              <p class="fw-bold text-uppercase text-muted mb-2 reference-title">Riferimenti operativi</p>
-              @if (cfg.email_referente) {
-                <div class="mb-2">
-                  <span class="text-muted d-block reference-label">REFERENTE</span>
-                  <a [href]="'mailto:' + cfg.email_referente" class="d-block text-break">{{ cfg.email_referente }}</a>
-                </div>
-              }
-              @if (cfg.durata_prova_minuti) {
-                <div class="mb-2">
-                  <span class="text-muted d-block reference-label">DURATA PROVA</span>
-                  <span class="fw-semibold">{{ cfg.durata_prova_minuti }} minuti</span>
-                </div>
-              }
-              @if (cfg.email_esperto_remoto) {
-                <div class="mb-2">
-                  <span class="text-muted d-block reference-label">ESPERTO REMOTO</span>
-                  <a [href]="'mailto:' + cfg.email_esperto_remoto" class="text-break">{{ cfg.email_esperto_remoto }}</a>
-                </div>
-              }
-              @if (cfg.nome_informatico_sede || cfg.email_informatico_sede || cfg.telefono_informatico_sede) {
-                <div class="mb-2">
-                  <span class="text-muted d-block reference-label">INFORMATICO SEDE</span>
-                  @if (cfg.nome_informatico_sede) { <span class="d-block fw-semibold">{{ cfg.nome_informatico_sede }}</span> }
-                  @if (cfg.email_informatico_sede) { <a [href]="'mailto:' + cfg.email_informatico_sede" class="d-block text-break">{{ cfg.email_informatico_sede }}</a> }
-                  @if (cfg.telefono_informatico_sede) { <a [href]="'tel:' + cfg.telefono_informatico_sede" class="d-block">{{ cfg.telefono_informatico_sede }}</a> }
-                </div>
-              }
-              @if (cfg.email_segretario || cfg.telefono_segretario) {
-                <div class="mb-1">
-                  <span class="text-muted d-block reference-label">SEGRETARIO</span>
-                  @if (cfg.email_segretario) { <a [href]="'mailto:' + cfg.email_segretario" class="d-block text-break">{{ cfg.email_segretario }}</a> }
-                  @if (cfg.telefono_segretario) { <a [href]="'tel:' + cfg.telefono_segretario" class="d-block">{{ cfg.telefono_segretario }}</a> }
-                </div>
-              }
-            </div>
-          }
-          <div class="sidebar-linklist-wrapper flex-grow-1 overflow-y-auto">
-            <div class="link-list-wrapper">
-              <ul class="link-list">
-                <li><h3 class="m-3">Navigazione</h3></li>
-                <li><a class="list-item medium active" routerLink="/bandi" [queryParams]="{ mode: viewMode }"><span>Lista Concorsi</span></a></li>
-                <li><a class="list-item medium" [routerLink]="['/sessioni', sessionId, 'dispositivi']" [queryParams]="{ mode: viewMode }"><span>Dispositivi</span></a></li>
-              </ul>
-            </div>
-          </div>
-        </aside>
-
-        <main class="col-md-10 content-area">
-          @if (detail(); as sessionDetail) {
-            <app-back-link
-              [target]="['/bandi', sessionDetail.commission_id, 'sessioni']"
-              [queryParams]="{ mode: viewMode }"
-              label="Torna alle sessioni"
-            />
-          }
+    <main class="container-fluid gestione-sessione content-area">
+      <div class="session-layout mx-auto">
+        @if (detail(); as sessionDetail) {
+          @if (!mobileView()) { <app-session-header [session]="sessionDetail" [state]="workflowState()?.current_state ?? ''" [profile]="viewMode" [adminView]="sessionDetail.visibility_reason === 'admin'" /> }
+        }
           @if (error()) {
             <div class="alert alert-danger mb-3" role="alert">{{ error() }}</div>
           }
-          @if (showPreCheckinWarning()) {
-            <div class="alert alert-danger mb-3" role="alert">
-              <strong>Prima di iniziare a scansionare le domande avviare il check-in.</strong>
-            </div>
-          }
-          @if (detail()?.visibility_reason === 'admin') {
-            <div class="alert alert-warning mb-3" role="alert">
-              <strong>Vista amministratore.</strong>
-              Stai usando un accesso di supporto su una sessione per cui non risulti assegnato al profilo operativo richiesto.
-            </div>
-          }
-          <div class="it-card-wrapper mb-2">
-            <div class="it-card rounded shadow-sm session-card">
-              <div class="row gx-2 gy-2">
-                <div [class]="showTimeline ? 'col-md-8 col-xl-9 action-column' : 'col-12 action-column'">
+          @if (detail(); as sessionDetail) {
+            @if (mobileView()) {
+              <app-mobile-session [session]="sessionDetail" [currentState]="workflowState()?.current_state ?? ''" [mode]="viewMode">
+                <div session-actions>
+                  <app-azioni
+                    [sessionId]="sessionId"
+                    [commissionId]="sessionDetail.commission_id"
+                    [currentState]="workflowState()?.current_state ?? null"
+                    [bandoConfigured]="bandoConfigured()"
+                    [deviceCount]="sessionDetail.device_count"
+                    [candidateCount]="sessionDetail.candidate_count"
+                    [checkedInCount]="sessionDetail.checked_in_count"
+                    [openResetCount]="openResetCount()"
+                    [viewMode]="viewMode"
+                    [adminOnly]="sessionDetail.visibility_reason === 'admin'"
+                    (changed)="load()"
+                  />
+                </div>
+                <div session-candidates>
+                  <app-candidati [sessionId]="sessionId" [viewMode]="viewMode" [refreshTick]="refreshTick()" [sectionMode]="candidateSectionMode()" (openResetCountChange)="openResetCount.set($event)" />
+                </div>
+                <div session-messages><app-notifiche [sessionId]="sessionId" [mode]="viewMode" /></div>
+              </app-mobile-session>
+            } @else {
+          <div class="row g-4">
+            <div class="col-12 col-xl-8 action-column">
+              @if (detail()) {
                   <app-azioni
                     [sessionId]="sessionId"
                     [commissionId]="detail()?.commission_id ?? ''"
                     [currentState]="workflowState()?.current_state ?? null"
                     [bandoConfigured]="bandoConfigured()"
                     [deviceCount]="detail()?.device_count ?? 0"
+                    [candidateCount]="detail()?.candidate_count ?? 0"
+                    [checkedInCount]="detail()?.checked_in_count ?? 0"
+                    [openResetCount]="openResetCount()"
                     [viewMode]="viewMode"
                     [adminOnly]="detail()?.visibility_reason === 'admin'"
                     (changed)="load()"
                   />
                   <div class="mb-3">
-                    <app-candidati [sessionId]="sessionId" [viewMode]="viewMode" [refreshTick]="refreshTick()" />
+                    <app-candidati [sessionId]="sessionId" [viewMode]="viewMode" [refreshTick]="refreshTick()" [sectionMode]="candidateSectionMode()" (openResetCountChange)="openResetCount.set($event)" />
                   </div>
-                  @if (viewMode === 'sede' || viewMode === 'esperto') {
-                    <app-reset-password [sessionId]="sessionId" [viewMode]="viewMode" />
-                  }
-                  @if (!showTimeline) {
-                    <app-notifiche [sessionId]="sessionId" />
-                  }
-                </div>
-                @if (showTimeline) {
-                  <div class="col-md-4 col-xl-3 timeline-column">
-                    <app-exam-timeline [currentState]="workflowState()?.current_state ?? null" />
-                    <app-notifiche [sessionId]="sessionId" />
-                  </div>
-                }
-              </div>
+                  <app-notifiche [sessionId]="sessionId" [mode]="viewMode" />
+              }
             </div>
+            <aside class="col-12 col-xl-4 timeline-column">
+              <app-state-timeline [currentState]="workflowState()?.current_state ?? ''" [history]="workflowState()?.history ?? []" [faseEsameMia]="viewMode === 'esperto'" />
+              @if (mergedConfig(); as cfg) { <app-session-references [references]="cfg" /> }
+            </aside>
           </div>
-        </main>
+            }
+          }
       </div>
-    </div>
+    </main>
   `,
   styles: `
-    .gestione-sessione { background-color: #f5f6f8; }
-    .sidebar-wrapper { background-color: white; min-height: 100vh; border-right: 1px solid #e0e0e0; }
-    .content-area { background-color: #f5f6f8; min-height: 100vh; padding: 0.75rem; }
-    .session-card { background-color: white; padding: 0.75rem; }
+    .gestione-sessione { background-color: var(--app-ground); min-height: 70vh; padding: 1.5rem; }
+    .session-layout { max-width: 1440px; }
     .action-column, .timeline-column { min-width: 0; }
-    .it-card { background-color: white; }
-    .operational-references { font-size: 0.78rem; }
-    .reference-title, .reference-label { font-size: 0.7rem; }
-    .reference-title { letter-spacing: 0.05em; }
-    .session-bando-title { font-size: 0.92rem; line-height: 1.25; }
-    .session-name { font-size: 0.86rem; line-height: 1.25; }
-    @media (min-width: 1200px) {
-      .content-area { padding: 1rem; }
-      .session-card { padding: 1rem; }
-    }
-    @media (max-width: 767.98px) {
-      .sidebar-wrapper { min-height: auto; }
-      .content-area { padding: 0.5rem; }
-      .session-card { padding: 0.5rem; }
-    }
+    @media (max-width: 767.98px) { .gestione-sessione { padding: .75rem; } }
   `,
 })
 export class GestioneSessioneComponent {
@@ -187,9 +113,27 @@ export class GestioneSessioneComponent {
   readonly bandoConfigured = signal(false);
   readonly mergedConfig = signal<OperationalConfig | null>(null);
   readonly refreshTick = signal(0);
+  readonly openResetCount = signal(0);
   readonly error = signal('');
+  readonly mobileView = signal(typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 767.98px)').matches);
+  private readonly onViewportChange = (event: MediaQueryListEvent) => this.mobileView.set(event.matches);
+
+  candidateSectionMode(): 'vuota' | 'sola-lettura' | 'checkin' | 'finale' | 'reset-sede' | 'reset-esperto' {
+    const state = this.workflowState()?.current_state;
+    if (!state || state === 'iniziale' || state === 'configurata') return 'vuota';
+    if (state === 'candidati_scaricati' || state === 'dispositivi_connessi') return 'sola-lettura';
+    if (state === 'checkin_avviato') {
+      if (this.viewMode === 'sede') return 'reset-sede';
+      if (this.viewMode === 'esperto') return 'reset-esperto';
+      return 'checkin';
+    }
+    return 'finale';
+  }
 
   constructor() {
+    const viewport = typeof window.matchMedia === 'function' ? window.matchMedia('(max-width: 767.98px)') : null;
+    viewport?.addEventListener('change', this.onViewportChange);
+    this.destroyRef.onDestroy(() => viewport?.removeEventListener('change', this.onViewportChange));
     this.load();
     // Poll periodico di stato/timeline/azioni. switchMap annulla la richiesta
     // precedente ad ogni nuovo tick e takeUntilDestroyed disiscrive (annullando

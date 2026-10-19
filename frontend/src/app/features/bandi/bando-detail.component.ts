@@ -12,7 +12,7 @@ import { BandiService } from './bandi.service';
     <div class="container my-5" style="max-width: 860px;">
       <app-back-link [target]="['/bandi', commissionId, 'sessioni']" [queryParams]="{ mode: mode }" label="Torna alle sessioni" />
 
-      <h1 class="mb-1">Dettaglio Bando</h1>
+      <h1 class="mb-1">Dettaglio bando</h1>
       <p class="text-muted mb-4">
         Codice: <strong>{{ detail()?.title ?? commissionId }}</strong> &mdash;
         commission_id: <code>{{ commissionId }}</code>
@@ -32,14 +32,14 @@ import { BandiService } from './bandi.service';
       }
 
       @if (rdps().length > 0) {
-        <div class="card mb-4">
+        <div class="card card-bg no-after app-cand-card mb-4">
           <div class="card-header bg-light py-2">
             <span class="fw-bold text-uppercase small text-primary">Responsabili del Procedimento (RDP)</span>
             <span class="badge bg-secondary ms-2">{{ rdps().length }}</span>
           </div>
           <div class="card-body p-0">
             <div class="table-responsive">
-              <table class="table table-sm table-hover mb-0">
+              <table class="table table-sm table-hover app-table mb-0">
                 <thead class="table-light"><tr><th>Nome</th><th>Email</th><th>Email certificata</th><th>Matricola</th></tr></thead>
                 <tbody>
                   @for (person of rdps(); track person.email ?? person.name ?? $index) {
@@ -58,14 +58,14 @@ import { BandiService } from './bandi.service';
       }
 
       @if (commissioners().length > 0) {
-        <div class="card mb-4">
+        <div class="card card-bg no-after app-cand-card mb-4">
           <div class="card-header bg-light py-2">
             <span class="fw-bold text-uppercase small text-primary">Componenti Commissione</span>
             <span class="badge bg-secondary ms-2">{{ commissioners().length }}</span>
           </div>
           <div class="card-body p-0">
             <div class="table-responsive">
-              <table class="table table-sm table-hover mb-0">
+              <table class="table table-sm table-hover app-table mb-0">
                 <thead class="table-light"><tr><th>Nome</th><th>Email</th><th>Ruolo</th></tr></thead>
                 <tbody>
                   @for (person of commissioners(); track person.email ?? person.name ?? $index) {
@@ -89,7 +89,7 @@ import { BandiService } from './bandi.service';
       @if (canConfigureBando()) {
         <div class="text-end">
           <a [routerLink]="['/bandi', commissionId, 'config']" [queryParams]="{ returnUrl: currentUrl() }" class="btn btn-primary btn-sm">
-            Vai a Configura Bando
+            Configura bando
           </a>
         </div>
       }

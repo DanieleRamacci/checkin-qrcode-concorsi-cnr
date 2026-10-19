@@ -62,14 +62,13 @@ describe('GestioneSessioneComponent', () => {
     const fixture = TestBed.createComponent(GestioneSessioneComponent);
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).toContain('Gestione esame');
+    expect(fixture.nativeElement.textContent).toContain('Stai lavorando come Esperto remoto');
     expect(fixture.nativeElement.textContent).toContain('367.222 FA Test - Funzionario di Amministrazione');
-    expect(fixture.nativeElement.textContent).toContain('Codice bando: c1');
-    expect(fixture.nativeElement.textContent).not.toContain('Timeline Esame');
+    expect(fixture.nativeElement.textContent).toContain('Avanzamento della sessione');
     fixture.destroy();
   });
 
-  it('shows the red pre-checkin warning for secretary before check-in starts', async () => {
+  it('keeps the next action in the session panel before check-in starts', async () => {
     await TestBed.configureTestingModule({
       imports: [GestioneSessioneComponent],
       providers: [
@@ -119,7 +118,8 @@ describe('GestioneSessioneComponent', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).toContain('Prima di iniziare a scansionare le domande avviare il check-in');
+    expect(fixture.nativeElement.textContent).toContain('Collega gli smartphone che useranno come scanner');
+    expect(fixture.nativeElement.textContent).not.toContain('Prima di iniziare a scansionare le domande');
     fixture.destroy();
   });
 });
