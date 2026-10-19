@@ -207,6 +207,8 @@ try:
         document_date TEXT,
         document_issued_by TEXT,
         checkin_effettuato BOOLEAN DEFAULT FALSE,
+        checkin_at TIMESTAMP,
+        checkin_source TEXT CHECK (checkin_source IS NULL OR checkin_source IN ('scanner', 'tabella')),
         documento_scaduto BOOLEAN DEFAULT FALSE,
         reset_password_richiesto BOOLEAN DEFAULT FALSE,
         reset_password_richiesto_at TIMESTAMP,

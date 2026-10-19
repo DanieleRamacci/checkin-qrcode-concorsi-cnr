@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, session
 
 from routes.api_v1.csrf import csrf_exempt
 from routes.api_v1.errors import error_response
@@ -7,6 +7,9 @@ from utils.scanner_service import (
     ScannerCandidateNotFound,
     ScannerWorkflowBlocked,
     checkin_candidate,
+    session_summary,
+    search_candidates,
+    update_note_from_device,
     verify_candidate,
 )
 
@@ -45,7 +48,7 @@ def _execute(operation):
     except ScannerCandidateNotFound:
         return error_response("candidate_not_found", "Candidato non trovato.", 404)
     except ScannerWorkflowBlocked as blocked:
-        return error_response("checkin_not_active", str(blocked), 409)
+        return error_response("checkin_not_active", str(blocked), 409, details={"current_state": blocked.current_state or ""})
 
 
 @scanner_api_bp.post("/scanner/verify-candidate")
@@ -58,3 +61,52 @@ def scanner_verify_candidate():
 @csrf_exempt
 def scanner_checkin_candidate():
     return _execute(checkin_candidate)
+
+
+def _device_payload(include_uid=False):
+    data = request.get_json(silent=True) or {}
+    session_id = str(data.get("session_id") or "").strip()
+    token = str(data.get("device_token") or "").strip()
+    uid = str(data.get("uid") or "").strip()
+    if not session_id or not token or (include_uid and not uid):
+        return None, error_response("validation_error", "Parametri scanner mancanti.", 422)
+    return (session_id, token, uid) if include_uid else (session_id, token), None
+
+
+@scanner_api_bp.post("/scanner/session-summary")
+@csrf_exempt
+def scanner_session_summary():
+    values, error = _device_payload()
+    if error: return error
+    try: return jsonify(session_summary(*values))
+    except DeviceUnauthorized: return error_response("device_unauthorized", "Dispositivo non autorizzato.", 403)
+    except ScannerCandidateNotFound: return error_response("session_not_found", "Sessione non trovata.", 404)
+
+
+@scanner_api_bp.post("/scanner/search-candidates")
+@csrf_exempt
+def scanner_search_candidates():
+    values, error = _device_payload()
+    if error: return error
+    data = request.get_json(silent=True) or {}
+    query = str(data.get("q") or "")
+    try: return jsonify(items=search_candidates(values[0], values[1], query))
+    except DeviceUnauthorized: return error_response("device_unauthorized", "Dispositivo non autorizzato.", 403)
+    except ValueError as invalid: return error_response("validation_error", str(invalid), 422)
+
+
+@scanner_api_bp.post("/scanner/candidate-note")
+@csrf_exempt
+def scanner_candidate_note():
+    values, error = _device_payload(include_uid=True)
+    if error: return error
+    data = request.get_json(silent=True) or {}
+    note = data.get("note", "")
+    if not isinstance(note, str) or len(note) > 2000:
+        return error_response("validation_error", "La nota deve essere testuale e non superare 2000 caratteri.", 422)
+    try: return jsonify(update_note_from_device(values[0], values[2], values[1], note, session.get("user_email")))
+    except DeviceUnauthorized: return error_response("device_unauthorized", "Dispositivo non autorizzato.", 403)
+    except Exception as error:
+        from utils.candidati_service import CandidateNotFound
+        if isinstance(error, CandidateNotFound): return error_response("candidate_not_found", "Candidato non trovato.", 404)
+        raise

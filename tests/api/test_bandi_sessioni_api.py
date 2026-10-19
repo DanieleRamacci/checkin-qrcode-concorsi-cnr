@@ -426,6 +426,62 @@ def test_list_bandi_counts_sessions_by_commission_not_original_user(monkeypatch)
     assert "s.user_email = c.user_email" not in executed[0][0]
 
 
+def test_list_bandi_includes_nearest_future_session_or_null(monkeypatch):
+    from routes.api_v1 import bandi
+
+    future_rows = [
+        {"commission_id": "c1", "session_id": "s2", "name": "Sessione prossima", "date": "2026-10-20", "time": "09:00", "location": "Roma", "state": "iniziale"},
+    ]
+    executed = []
+
+    class FakeCursor:
+        def __init__(self):
+            self.calls = 0
+
+        def execute(self, query, params):
+            executed.append((query, params))
+            self.calls += 1
+
+        def fetchall(self):
+            if self.calls == 1:
+                return [{
+                    "commission_id": "c1", "title": "Concorso CNR", "is_owner": True,
+                    "user_source_role": "SEGRETARIO", "user_access_active": True,
+                    "configured": True, "referente_email": None, "esperto_remoto_email": None,
+                    "config_status": "da_configurare", "expert_assigned": False,
+                    "remote_expert_assigned_count": 0, "sede_technician_assigned_count": 0,
+                    "incomplete_session_names": [], "required_data_complete": False,
+                    "session_count": 2, "last_sync": None,
+                }]
+            return future_rows
+
+        def __enter__(self): return self
+        def __exit__(self, *_args): return False
+
+    class FakeConnection:
+        def cursor(self, *args, **kwargs): return FakeCursor()
+        def __enter__(self): return self
+        def __exit__(self, *_args): return False
+
+    @contextmanager
+    def fake_connection():
+        yield FakeConnection()
+
+    monkeypatch.setattr(bandi, "get_db_connection", fake_connection)
+    items = bandi.list_bandi("segretario@cnr.it")
+    assert items[0]["next_session"] == {
+        "session_id": "s2", "name": "Sessione prossima", "date": "2026-10-20",
+        "time": "09:00", "location": "Roma", "state": "iniziale",
+    }
+    assert "data_esame" in executed[1][0]
+    assert "CURRENT_TIMESTAMP" in executed[1][0]
+    assert "ORDER BY commission_id, data_esame, ora" in executed[1][0]
+
+    future_rows.clear()
+    items_without_future = bandi.list_bandi("segretario@cnr.it")
+    assert items_without_future[0]["next_session"] is None
+
+
 def test_bandi_sync_preserves_cache_error_context(monkeypatch):
     from routes.api_v1 import bandi
 

@@ -210,3 +210,16 @@ def disconnect_device(session_id: str, device_token: str) -> None:
             if cursor.rowcount != 1:
                 raise DeviceUnauthorized()
         conn.commit()
+
+
+def disconnect_device_by_id(session_id: str, device_id: int) -> None:
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                "UPDATE dispositivi SET disconnected_at = %s "
+                "WHERE session_id = %s AND id = %s AND disconnected_at IS NULL",
+                (datetime.now(timezone.utc), session_id, device_id),
+            )
+            if cursor.rowcount != 1:
+                raise DeviceNotFound(device_id)
+        conn.commit()

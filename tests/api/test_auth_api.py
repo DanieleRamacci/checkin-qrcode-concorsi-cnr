@@ -22,6 +22,29 @@ def test_me_rejects_anonymous_user():
 def test_me_returns_user_context_and_csrf(monkeypatch):
     from routes.api_v1 import auth
 
+    class CursorStub:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, *_args):
+            pass
+
+        def fetchone(self):
+            return None
+
+    class ConnectionStub:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return CursorStub()
+
     monkeypatch.setattr(
         auth,
         "get_user_roles",
@@ -42,6 +65,7 @@ def test_me_returns_user_context_and_csrf(monkeypatch):
         "get_app_settings",
         lambda: {"institution_name": "CNR", "app_title": "Check-in"},
     )
+    monkeypatch.setattr(auth, "get_db_connection", ConnectionStub)
     app = create_test_app()
     app.config["APP_VERSION"] = "abc1234"
     app.config["APP_BUILD_TIME"] = "2026-07-16T12:00:00Z"
@@ -58,12 +82,55 @@ def test_me_returns_user_context_and_csrf(monkeypatch):
     assert payload["email"] == "expert@cnr.it"
     assert payload["display_name"] == "Esperto CNR"
     assert payload["roles"] == ["esperto_informatico"]
+    assert payload["profiles"] == ["segretario", "referente", "sede", "esperto"]
     assert "expert_workflow" in payload["capabilities"]
     assert "sede_workflow" in payload["capabilities"]
     assert payload["csrf_token"]
     assert payload["app_version"] == "abc1234"
     assert payload["app_build_time"] == "2026-07-16T12:00:00Z"
     assert payload["app_settings"]["institution_name"] == "CNR"
+
+
+def test_profiles_for_user_returns_available_profiles_and_first_access(monkeypatch):
+    from routes.api_v1 import auth
+
+    def profile_result(secretary, referente, *, assigned=False, roles=()):
+        class CursorStub:
+            def __init__(self):
+                self.results = iter([(1,) if secretary else None, (1,) if referente else None])
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def execute(self, *_args):
+                pass
+
+            def fetchone(self):
+                return next(self.results)
+
+        class ConnectionStub:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def cursor(self):
+                return CursorStub()
+
+        monkeypatch.setattr(auth, "get_db_connection", ConnectionStub)
+        monkeypatch.setattr(auth, "has_any_assigned_sede_session", lambda _email: assigned)
+        return auth._profiles_for_user("user@cnr.it", set(roles))
+
+    assert profile_result(True, False) == ["segretario"]
+    assert profile_result(False, True) == ["referente"]
+    assert profile_result(False, False) == ["segretario", "referente"]
+    assert profile_result(True, True, assigned=True, roles={"esperto_informatico", "admin_globale"}) == [
+        "segretario", "referente", "sede", "esperto", "admin",
+    ]
 
 
 def test_session_refresh_returns_new_expiry(monkeypatch):

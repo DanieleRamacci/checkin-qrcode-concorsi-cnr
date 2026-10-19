@@ -8,7 +8,25 @@ from utils.authorization import has_any_assigned_sede_session
 from utils.oidc import ensure_fresh_access_token
 from utils.app_settings import get_app_settings
 from utils.permissions import CAPABILITY_SEDE_WORKFLOW, capabilities_for_roles
-from utils.roles import ROLE_ADMIN, get_user_roles
+from utils.roles import ROLE_ADMIN, ROLE_ESPERTO, get_user_roles
+from db import get_db_connection
+
+
+def _profiles_for_user(email: str, roles: set[str]) -> list[str]:
+    profiles = []
+    with get_db_connection() as conn, conn.cursor() as cursor:
+        cursor.execute("SELECT 1 FROM commissions WHERE LOWER(TRIM(user_email)) = %s AND COALESCE(access_active, TRUE) AND UPPER(COALESCE(source_role, 'SEGRETARIO')) = 'SEGRETARIO' LIMIT 1", (email.strip().lower(),))
+        secretary = cursor.fetchone() is not None
+        cursor.execute("SELECT 1 FROM bando_referenti WHERE LOWER(TRIM(user_email)) = %s LIMIT 1", (email.strip().lower(),))
+        referente = cursor.fetchone() is not None
+    if secretary: profiles.append("segretario")
+    if referente: profiles.append("referente")
+    if not secretary and not referente:
+        profiles.extend(["segretario", "referente"])
+    if has_any_assigned_sede_session(email): profiles.append("sede")
+    if ROLE_ESPERTO in roles: profiles.append("esperto")
+    if ROLE_ADMIN in roles: profiles.append("admin")
+    return profiles
 
 
 auth_api_bp = Blueprint("api_v1_auth", __name__)
@@ -60,6 +78,7 @@ def me():
         email=email,
         display_name=display_name,
         roles=sorted(roles),
+        profiles=_profiles_for_user(email, roles),
         capabilities=sorted(capabilities),
         csrf_token=get_csrf_token(),
         dev_mode=bool(current_app.config.get("DEV_MODE")),

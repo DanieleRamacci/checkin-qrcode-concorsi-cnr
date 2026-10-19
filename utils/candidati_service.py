@@ -42,6 +42,8 @@ def _candidate_dto(row) -> dict:
         "document_number": data.get("document_number"),
         "document_expired": _document_expired(data.get("document_date")),
         "checkin_effettuato": bool(data.get("checkin_effettuato")),
+        "checkin_at": _iso(data.get("checkin_at")),
+        "checkin_source": data.get("checkin_source"),
         "reset_password_richiesto": bool(data.get("reset_password_richiesto")),
         "reset_password_effettuato": bool(data.get("reset_password_effettuato")),
         "note": data.get("note") or "",
@@ -85,6 +87,7 @@ def list_candidates(
                 SELECT uid, first_name, last_name, document_number,
                        document_date, note,
                        COALESCE(checkin_effettuato, FALSE) AS checkin_effettuato,
+                       checkin_at, checkin_source,
                        COALESCE(reset_password_richiesto, FALSE)
                            AS reset_password_richiesto,
                        reset_password_richiesto_at,
@@ -108,6 +111,7 @@ def _get_candidate(session_id: str, uid: str) -> dict:
                 SELECT uid, first_name, last_name, document_number,
                        document_date, note,
                        COALESCE(checkin_effettuato, FALSE) AS checkin_effettuato,
+                       checkin_at, checkin_source,
                        COALESCE(reset_password_richiesto, FALSE)
                            AS reset_password_richiesto,
                        reset_password_richiesto_at,
@@ -137,8 +141,9 @@ def toggle_candidate_checkin(
             cursor.execute(
                 """
                 UPDATE candidati
-                   SET checkin_effettuato =
-                       NOT COALESCE(checkin_effettuato, FALSE)
+                   SET checkin_effettuato = NOT COALESCE(checkin_effettuato, FALSE),
+                       checkin_at = CASE WHEN COALESCE(checkin_effettuato, FALSE) THEN NULL ELSE NOW() END,
+                       checkin_source = CASE WHEN COALESCE(checkin_effettuato, FALSE) THEN NULL ELSE 'tabella' END
                  WHERE session_id = %s AND uid = %s
                 """,
                 (session_id, uid),

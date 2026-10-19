@@ -9,6 +9,7 @@ from utils.devices_service import (
     DeviceUnauthorized,
     create_registration_token,
     disconnect_device,
+    disconnect_device_by_id,
     heartbeat_device,
     list_devices,
     register_device,
@@ -37,6 +38,17 @@ def _device_payload():
 @session_access_required()
 def devices_index(session_id):
     return jsonify(session_id=session_id, items=list_devices(session_id))
+
+
+@devices_api_bp.post("/sessioni/<session_id>/devices/<int:device_id>/disconnect")
+@api_auth_required
+@session_access_required()
+def devices_disconnect_by_id(session_id, device_id):
+    try:
+        disconnect_device_by_id(session_id, device_id)
+    except DeviceNotFound:
+        return error_response("device_not_found", "Dispositivo non trovato o già scollegato.", 404)
+    return jsonify(success=True, session_id=session_id, device_id=device_id)
 
 
 @devices_api_bp.post("/sessioni/<session_id>/devices/registration-token")

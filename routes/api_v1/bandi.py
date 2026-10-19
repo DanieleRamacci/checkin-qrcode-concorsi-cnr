@@ -204,6 +204,25 @@ def list_bandi(
                 ),
             )
             rows = cursor.fetchall()
+            next_sessions = {}
+            commission_ids = [row["commission_id"] for row in rows]
+            if commission_ids:
+                cursor.execute(
+                    """
+                    SELECT DISTINCT ON (commission_id) commission_id, session_id,
+                           nome AS name, giorno AS date, ora AS time, luogo AS location,
+                           stato_corrente AS state
+                      FROM sessioni
+                     WHERE commission_id = ANY(%s)
+                       AND COALESCE(data_esame, '') >= to_char(CURRENT_TIMESTAMP, 'YYYY-MM-DD HH24:MI:SS')
+                  ORDER BY commission_id, data_esame, ora
+                    """,
+                    (commission_ids,),
+                )
+                next_sessions = {
+                    row["commission_id"]: {key: _json_value(value) for key, value in dict(row).items() if key != "commission_id"}
+                    for row in cursor.fetchall()
+                }
 
     items = []
     for row in rows:
@@ -250,6 +269,7 @@ def list_bandi(
                 "source_role": user_source_role,
                 "access_active": bool(user_access_active) if user_access_active is not None else is_owner,
                 "capabilities": ["configure", "view"],
+                "next_session": next_sessions.get(serialized["commission_id"]),
             }
         )
     return items

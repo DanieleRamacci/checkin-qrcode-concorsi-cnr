@@ -10,7 +10,7 @@ from routes.api_v1.errors import error_response
 from utils import authorization
 from utils.authorization import commission_access_required, session_access_required
 from utils.oidc import ensure_fresh_access_token
-from utils.roles import ROLE_ADMIN, get_user_roles
+from utils.roles import ROLE_ADMIN, ROLE_ESPERTO, get_user_roles
 from utils.sessioni import get_sessioni_internamente
 
 
@@ -229,6 +229,41 @@ def sessione_detail(session_id):
             404,
         )
     return jsonify(sessione)
+
+
+@sessioni_api_bp.get("/sessioni/assegnate")
+@api_auth_required
+def sessioni_assegnate():
+    mode = request.args.get("mode")
+    if mode not in {"sede", "expert"}:
+        return error_response("validation_error", "mode deve essere sede o expert.", 422)
+    email = session["user_email"].strip().lower()
+    if mode == "expert" and ROLE_ESPERTO not in get_user_roles(email):
+        return jsonify(mode=mode, items=[])
+    assignment_column = "email_informatico_sede" if mode == "sede" else "email_esperto_remoto"
+    with get_db_connection() as conn, conn.cursor(cursor_factory=RealDictCursor) as cursor:
+        cursor.execute(
+            f"""
+            SELECT s.session_id, s.commission_id, COALESCE(MAX(c.titolo), s.commission_id) AS bando_title,
+                   s.nome AS name, s.giorno AS date, s.ora AS time, s.luogo AS location,
+                   s.stato_corrente AS current_state,
+                   (SELECT COUNT(*) FROM candidati ca WHERE ca.session_id = s.session_id) AS candidate_count,
+                   (SELECT COUNT(*) FROM candidati ca WHERE ca.session_id = s.session_id AND COALESCE(ca.checkin_effettuato, FALSE)) AS checked_in_count,
+                   (SELECT COUNT(*) FROM candidati ca WHERE ca.session_id = s.session_id AND COALESCE(ca.reset_password_richiesto, FALSE)) AS open_reset_count
+              FROM sessioni s
+              JOIN sessione_config sc ON sc.session_id = s.session_id
+         LEFT JOIN commissions c ON c.commission_id = s.commission_id
+             WHERE LOWER(TRIM(COALESCE(sc.{assignment_column}, ''))) = %s
+          GROUP BY s.session_id, s.commission_id, s.nome, s.giorno, s.ora, s.luogo, s.stato_corrente, s.data_esame
+          ORDER BY s.data_esame NULLS LAST, s.ora, s.nome
+            """,
+            (email,),
+        )
+        rows = cursor.fetchall()
+    return jsonify(mode=mode, items=[
+        {key: (value.isoformat() if isinstance(value, (date, datetime)) else value) for key, value in dict(row).items()}
+        for row in rows
+    ])
 
 
 @sessioni_api_bp.post("/bandi/<commission_id>/sessioni/sync")

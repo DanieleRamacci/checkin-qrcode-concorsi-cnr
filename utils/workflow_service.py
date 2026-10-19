@@ -1,4 +1,5 @@
-from utils.stato import AZIONI_PER_STATO, get_stato_corrente, set_stato_corrente
+from utils.stato import AZIONI_PER_STATO, get_storia_stati, get_stato_corrente, set_stato_corrente
+from utils.notifications import _author_role
 
 
 class InvalidTransition(Exception):
@@ -67,7 +68,18 @@ def describe_workflow(session_id: str) -> dict:
                 "requires_confirmation": requires_confirmation,
             }
         )
-    return {"current_state": current_state, "actions": actions}
+    role_labels = {
+        "Inf. sede": "Informatico in sede",
+        "Inf. remoto": "Esperto remoto",
+        "Admin": "Amministratore",
+        "Segretario": "Segretario",
+        "Sistema": "Sistema",
+    }
+    history = [
+        {"state": state, "at": timestamp.isoformat(), "actor_role": role_labels.get(_author_role(session_id, actor), "Sistema")}
+        for state, timestamp, actor in get_storia_stati(session_id)
+    ]
+    return {"current_state": current_state, "actions": actions, "history": history}
 
 
 def execute_workflow_action(

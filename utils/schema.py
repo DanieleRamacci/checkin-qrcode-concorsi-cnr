@@ -36,6 +36,8 @@ SESSIONI_COLUMNS = (
 )
 
 CANDIDATI_COLUMNS = (
+    ("checkin_at", "TIMESTAMP"),
+    ("checkin_source", "TEXT"),
     ("documento_scaduto", "BOOLEAN DEFAULT FALSE"),
     ("reset_password_richiesto", "BOOLEAN DEFAULT FALSE"),
     ("reset_password_richiesto_at", "TIMESTAMP"),
