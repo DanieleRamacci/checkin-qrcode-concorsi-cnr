@@ -5,7 +5,7 @@ import { BandoSummary } from '../../core/models/api.models';
 import { FilterChipsComponent, FilterChipOption } from '../../shared/filter-chips.component';
 import { PagerComponent } from '../../shared/pager.component';
 import { competitionLabel } from '../../shared/competition-label';
-import { sessionWhen } from '../../shared/session-date';
+import { sessionDayBadge, sessionShortDate, sessionSortKey, sessionWhen } from '../../shared/session-date';
 
 type BandoFilter = 'upcoming' | 'incomplete' | 'all';
 
@@ -98,8 +98,8 @@ export class BandiTableComponent {
       return matchesQuery && matchesFilter;
     }).sort((a, b) => {
       if (this.bandoSort() === 'name') return a.title.localeCompare(b.title);
-      const aDate = a.next_session ? `${a.next_session.date} ${a.next_session.time}` : '9999-99-99';
-      const bDate = b.next_session ? `${b.next_session.date} ${b.next_session.time}` : '9999-99-99';
+      const aDate = a.next_session ? sessionSortKey(a.next_session.date, a.next_session.time) : '9999-99-99';
+      const bDate = b.next_session ? sessionSortKey(b.next_session.date, b.next_session.time) : '9999-99-99';
       return aDate.localeCompare(bDate) || a.title.localeCompare(b.title);
     });
   });
@@ -118,18 +118,12 @@ export class BandiTableComponent {
   nextSessionLabel(date: string, time: string): string {
     const when = sessionWhen(date, time);
     if (when.startsWith('Oggi')) return when.replace('Oggi alle', 'oggi');
-    const iso = date.match(/^\d{4}-(\d{2})-(\d{2})/);
-    return iso ? `${iso[2]}/${iso[1]} ${time.slice(0, 5)}` : when;
+    const short = sessionShortDate(date);
+    return short ? `${short} ${(time ?? '').slice(0, 5)}` : when;
   }
 
   /** Avviso per le sessioni imminenti: "Oggi" o "Domani". */
-  dayBadge(date: string, today = new Date()): string {
-    const key = (value: Date) => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
-    const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
-    const day = date.slice(0, 10);
-    if (day === key(today)) return 'Oggi';
-    return day === key(tomorrow) ? 'Domani' : '';
-  }
+  dayBadge(date: string): string { return sessionDayBadge(date); }
 
   /** Un solo messaggio per riga, con la cosa da sistemare (FR-023, prototipo concorsi.html). */
   configBadge(bando: BandoSummary): { label: string; tone: 'success' | 'warning' | 'neutral' } {

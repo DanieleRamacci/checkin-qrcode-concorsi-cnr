@@ -83,7 +83,7 @@ interface OperationalConfig {
     </ng-template>
     <ng-template #candidati>
       <app-candidati [sessionId]="sessionId" [viewMode]="viewMode" [refreshTick]="refreshTick()" [sectionMode]="candidateSectionMode()"
-        [emptyMessage]="candidateEmptyMessage()" [concludedAt]="stateTime('checkin_concluso')" (openResetCountChange)="openResetCount.set($event)" />
+        [emptyMessage]="candidateEmptyMessage()" [concludedAt]="stateTime('checkin_concluso')" (openResetCountChange)="openResetCount.set($event)" (countsChange)="applyCounts($event)" />
     </ng-template>
   `,
 })
@@ -165,6 +165,16 @@ export class GestioneSessioneComponent {
           // Evita alert ripetuti durante brevi problemi di rete: il prossimo polling riprova.
         },
       });
+  }
+
+  /**
+   * Le presenze registrate da uno scanner non cambiano lo stato della sessione:
+   * i contatori seguono l'elenco candidati, che si aggiorna a ogni ciclo.
+   */
+  applyCounts(counts: { total: number; present: number }): void {
+    this.detail.update((detail) => detail && (detail.candidate_count !== counts.total || detail.checked_in_count !== counts.present)
+      ? { ...detail, candidate_count: counts.total, checked_in_count: counts.present }
+      : detail);
   }
 
   load(): void {

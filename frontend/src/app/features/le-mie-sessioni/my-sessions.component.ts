@@ -9,6 +9,7 @@ import { sessionStateLabel } from '../../shared/session-states';
 import { FilterChipOption, FilterChipsComponent } from '../../shared/filter-chips.component';
 import { PagerComponent } from '../../shared/pager.component';
 import { competitionLabel } from '../../shared/competition-label';
+import { isSessionPast, isSessionToday, sessionDateLabel, sessionShortDate, sessionSortKey } from '../../shared/session-date';
 
 type SessionFilter = 'upcoming' | 'past';
 
@@ -118,25 +119,9 @@ export class MySessionsComponent {
   setPageSize(value: number): void { this.pageSize.set(value); this.page.set(0); }
   stateLabel(state: string): string { return sessionStateLabel(state); }
   resetLabel(count: number): string { return `${count} reset ${this.mode() === 'sede' ? 'in attesa' : 'da fare'}`; }
-  shortDate(value: string): string { return this.formatDate(value).slice(0, 5); }
-  formatDate(value: string): string {
-    const parsed = this.dateValue(value);
-    return parsed ? new Intl.DateTimeFormat('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(parsed) : value;
-  }
-  private isUpcoming(item: AssignedSessionSummary): boolean { return this.dateKey(item.date) >= this.todayKey(); }
-  isToday(item: AssignedSessionSummary): boolean { return this.dateKey(item.date) === this.todayKey(); }
-  private sortKey(item: AssignedSessionSummary): string { return `${this.dateKey(item.date)} ${item.time ?? ''}`; }
-  private dateKey(value: string): string {
-    const parsed = this.dateValue(value);
-    return parsed ? `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}` : value.slice(0, 10);
-  }
-  private todayKey(): string {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  }
-  private dateValue(value: string): Date | null {
-    if (!value) return null;
-    const date = new Date(`${value.slice(0, 10)}T00:00:00`);
-    return Number.isNaN(date.getTime()) ? null : date;
-  }
+  shortDate(value: string): string { return sessionShortDate(value); }
+  formatDate(value: string): string { return sessionDateLabel(value); }
+  private isUpcoming(item: AssignedSessionSummary): boolean { return !isSessionPast(item.date); }
+  isToday(item: AssignedSessionSummary): boolean { return isSessionToday(item.date); }
+  private sortKey(item: AssignedSessionSummary): string { return sessionSortKey(item.date, item.time); }
 }

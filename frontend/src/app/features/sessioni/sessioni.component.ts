@@ -9,6 +9,7 @@ import { FilterChipsComponent, FilterChipOption } from '../../shared/filter-chip
 import { PagerComponent } from '../../shared/pager.component';
 import { sessionStateInfo, sessionStateLabel } from '../../shared/session-states';
 import { competitionLabel } from '../../shared/competition-label';
+import { isSessionPast, isSessionToday, sessionDateKey, sessionDateLabel } from '../../shared/session-date';
 
 @Component({
   selector: 'app-sessioni',
@@ -175,24 +176,16 @@ export class SessioniComponent {
   finished(state: string): boolean { return state === 'liste_inviate' || state === 'esame_concluso'; }
   phaseDone(state: string, phase: number): boolean { return phase < this.phaseOf(state) || (this.finished(state) && phase === this.phaseOf(state)); }
   phaseCurrent(state: string, phase: number): boolean { return phase === this.phaseOf(state) && !this.finished(state); }
-  italianDate(value: string): string {
-    const iso = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    return iso ? `${iso[3]}/${iso[2]}/${iso[1]}` : value;
-  }
+  italianDate(value: string): string { return sessionDateLabel(value); }
   /** "— / 4" prima del check-in: i presenti si contano solo da quando è avviato. */
   presentLabel(item: SessionSummary): string {
     const started = this.phaseOf(item.current_state) >= 2;
     return `${started ? item.checked_in_count : '—'} / ${item.candidate_count || '—'}`;
   }
   nextStep(state: string): string { const action = sessionStateInfo(state).actions.segretario?.action; return action ? `prossimo passo: ${action.toLocaleLowerCase()}` : ''; }
-  isToday(value: string): boolean { return this.dateKey(value) === localDateKey(new Date()); }
-  isPast(value: string): boolean { return this.dateKey(value) < localDateKey(new Date()); }
-  private dateKey(value: string): string {
-    const iso = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
-    const italian = value.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
-    return italian ? `${italian[3]}-${italian[2]}-${italian[1]}` : value;
-  }
+  isToday(value: string): boolean { return isSessionToday(value); }
+  isPast(value: string): boolean { return isSessionPast(value); }
+  private dateKey(value: string): string { return sessionDateKey(value); }
 
   constructor() {
     this.bandiService.detail(this.commissionId, this.mode).subscribe({
@@ -260,11 +253,4 @@ function apiErrorText(error: unknown, fallback: string): string {
     apiError?.message ?? '',
     details,
   ].filter(Boolean).join(' - ');
-}
-
-function localDateKey(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
 }

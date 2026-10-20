@@ -5,7 +5,7 @@ import { ApiClient } from '../../core/api-client';
 import { AuthService } from '../../core/auth.service';
 import { AssignedSessionsResponse } from '../../core/models/api.models';
 import { AppProfile, availableProfiles, ProfileService } from '../../core/profile.service';
-import { sessionWhen } from '../../shared/session-date';
+import { sessionSortKey, sessionWhen, sessionDateKey, todayKey } from '../../shared/session-date';
 import { BandiService } from '../bandi/bandi.service';
 import { isBandoComplete } from '../bandi/bando-completeness';
 
@@ -112,7 +112,7 @@ export class HomeComponent {
     if (available.includes('segretario')) {
       this.bandi.list('segretario').subscribe({ next: ({ items }) => {
         const next = (items ?? []).flatMap((bando) => bando.next_session ? [bando.next_session] : [])
-          .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))[0];
+          .sort((a, b) => sessionSortKey(a.date, a.time).localeCompare(sessionSortKey(b.date, b.time)))[0];
         if (next) this.setHint('segretario', sessionHint(next.name, next.date, next.time));
       }, error: () => undefined });
     }
@@ -127,10 +127,8 @@ export class HomeComponent {
       this.api.get<AssignedSessionsResponse>(`/sessioni/assegnate?mode=${profile === 'sede' ? 'sede' : 'expert'}`).subscribe({ next: ({ items }) => {
         const resets = (items ?? []).reduce((total, session) => total + (session.open_reset_count ?? 0), 0);
         if (profile === 'esperto' && resets) { this.setHint(profile, `${resets} ${resets === 1 ? 'richiesta di reset da fare' : 'richieste di reset da fare'}`); return; }
-        const today = new Date();
-        const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-        const next = (items ?? []).filter((session) => session.date >= todayIso)
-          .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))[0];
+        const next = (items ?? []).filter((session) => sessionDateKey(session.date) >= todayKey())
+          .sort((a, b) => sessionSortKey(a.date, a.time).localeCompare(sessionSortKey(b.date, b.time)))[0];
         if (next) this.setHint(profile, sessionHint(next.name, next.date, next.time));
       }, error: () => undefined });
     }

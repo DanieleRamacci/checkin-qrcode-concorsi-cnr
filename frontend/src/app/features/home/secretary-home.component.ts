@@ -7,6 +7,7 @@ import { sessionStateAction, sessionStateLabel } from '../../shared/session-stat
 import { competitionLabel } from '../../shared/competition-label';
 import { BandiService } from '../bandi/bandi.service';
 import { BandiTableComponent, bandiSyncLine } from '../bandi/bandi-table.component';
+import { isSessionToday, sessionShortDate, sessionSortKey } from '../../shared/session-date';
 
 /**
  * P01 Home segretario (docs/design-revisione/prototipo/home.html): la sessione
@@ -94,7 +95,7 @@ export class SecretaryHomeComponent {
   readonly multiProfile = computed(() => availableProfiles(this.auth.user()).length > 1);
   /** La sessione futura più vicina fra le prossime sessioni dei concorsi (una per concorso). */
   readonly nextSession = computed(() => this.bandi().flatMap((bando) => bando.next_session ? [{ bando, session: bando.next_session }] : [])
-    .sort((a, b) => `${a.session.date} ${a.session.time}`.localeCompare(`${b.session.date} ${b.session.time}`))[0] ?? null);
+    .sort((a, b) => sessionSortKey(a.session.date, a.session.time).localeCompare(sessionSortKey(b.session.date, b.session.time)))[0] ?? null);
   readonly syncLine = computed(() => bandiSyncLine(this.bandi()));
 
   constructor() {
@@ -137,14 +138,7 @@ export class SecretaryHomeComponent {
     return normalized.charAt(0).toLocaleUpperCase('it') + normalized.slice(1);
   }
 
-  shortDate(value: string): string {
-    const iso = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    return iso ? `${iso[3]}/${iso[2]}` : value.slice(0, 5);
-  }
+  shortDate(value: string): string { return sessionShortDate(value); }
 
-  isToday(value: string): boolean {
-    const now = new Date();
-    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    return value.startsWith(today);
-  }
+  isToday(value: string): boolean { return isSessionToday(value); }
 }

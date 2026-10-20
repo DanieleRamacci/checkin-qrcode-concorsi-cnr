@@ -240,6 +240,8 @@ export class CandidatiComponent {
   /** Ora di conclusione del check-in (HH:MM), per la modalità finale. */
   readonly concludedAt = input('');
   readonly openResetCountChange = output<number>();
+  /** Totale e presenti dall'elenco completo: tengono allineati i contatori della pagina sessione. */
+  readonly countsChange = output<{ total: number; present: number }>();
   private readonly api = inject(ApiClient);
   readonly items = signal<CandidateSummary[]>([]);
   readonly message = signal('');
@@ -362,6 +364,7 @@ export class CandidatiComponent {
         this.items.set(items ?? []);
         this.loading.set(false);
         if (this.isReset()) this.openResetCountChange.emit(this.pendingResetCount());
+        else this.countsChange.emit({ total: this.items().length, present: this.items().filter((candidate) => candidate.checkin_effettuato).length });
       },
       error: () => {
         this.loading.set(false);
