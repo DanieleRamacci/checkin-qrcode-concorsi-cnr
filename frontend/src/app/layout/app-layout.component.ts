@@ -1,67 +1,81 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { filter, map, startWith } from 'rxjs';
+import { ItIconComponent } from 'design-angular-kit';
 import { AuthService } from '../core/auth.service';
-import { AppProfile, availableProfiles, ProfileService } from '../core/profile.service';
+import { availableProfiles, ProfileService } from '../core/profile.service';
+import { InPageLinkDirective } from '../shared/in-page-link.directive';
 
+/**
+ * Header a una fascia (docs/design-revisione/prototipo, P00 "Header compatto"):
+ * fascia slim Bootstrap Italia con brand, navigazione, profilo attivo e utente.
+ * `it-header` del kit disegna sempre anche fascia centrale e navbar, quindi si
+ * usa il markup del prototipo (research R3).
+ */
 @Component({
   selector: 'app-layout',
-  imports: [RouterLink, RouterLinkActive, RouterOutlet],
+  imports: [RouterLink, RouterLinkActive, RouterOutlet, ItIconComponent, InPageLinkDirective],
   template: `
-    <a class="skip-link" href="#main-content">Vai al contenuto principale</a>
-    <div class="app-shell">
-      <header class="app-header">
-        <div class="app-header-inner">
-          <a class="app-brand" routerLink="/" aria-label="CNR, Check-in Concorsi">CNR <span>·</span> Check-in Concorsi</a>
-          <button class="app-menu-toggle btn btn-outline-primary btn-sm" type="button"
-            [attr.aria-expanded]="menuOpen()" aria-controls="main-navigation" (click)="menuOpen.set(!menuOpen())">Menu</button>
-          <nav id="main-navigation" class="app-navigation" [class.is-open]="menuOpen()" aria-label="Navigazione principale">
-            @for (item of navigationItems(); track item.label) {
-              <a [routerLink]="item.path" [queryParams]="item.queryParams ?? null"
-                routerLinkActive="active" [routerLinkActiveOptions]="{ exact: item.path === '/' }"
-                (click)="menuOpen.set(false)">{{ item.label }}</a>
-            }
-          </nav>
-          <div class="app-profile-zone position-relative">
-            <button class="app-profile-switch btn btn-outline-primary btn-sm" type="button"
-              [attr.aria-expanded]="profileMenuOpen()" aria-controls="profile-menu" (click)="toggleProfileMenu()">
-              @if (isChoosingProfile() || !availableProfiles().includes(profiles.active())) { Scegli profilo } @else { Profilo: {{ profiles.label() }} }
-              <span aria-hidden="true">▾</span>
-            </button>
-            @if (profileMenuOpen()) {
-              <nav id="profile-menu" class="app-profile-menu shadow" aria-label="Pagine dei profili">
-                <a routerLink="/" (click)="profileMenuOpen.set(false)">Scegli il tuo profilo</a>
-                @for (profile of availableProfiles(); track profile) {
-                  <div class="app-profile-menu-group">
-                    <p class="small fw-semibold mb-1">{{ profiles.label(profile) }}</p>
-                    @for (item of profiles.linksFor(profile); track item.label) {
-                      <a [routerLink]="item.path" [queryParams]="item.queryParams ?? null"
-                        (click)="openProfilePage(profile)">{{ item.label }}</a>
-                    }
+    <a class="skip-link" href="#main-content" appInPageLink="main-content">Vai al contenuto principale</a>
+    <div class="app-shell" [class.app-shell--immersive]="immersive()">
+      <header class="it-header-wrapper app-header" [class.app-header--dense]="navigationItems().length > 4">
+        <div class="it-header-slim-wrapper">
+          <div class="container">
+            <div class="it-header-slim-wrapper-content">
+              <a class="navbar-brand app-brand" routerLink="/">{{ brand() }}</a>
+              <div class="nav-mobile">
+                <nav aria-label="Navigazione principale">
+                  <a class="it-opener d-lg-none" href="#menu-principale" role="button"
+                    [attr.aria-expanded]="menuOpen()" aria-controls="menu-principale"
+                    (click)="$event.preventDefault(); menuOpen.set(!menuOpen())">
+                    <span>Menu</span><it-icon name="expand" />
+                  </a>
+                  <div class="link-list-wrapper collapse" id="menu-principale" [class.show]="menuOpen()">
+                    <ul class="link-list">
+                      @for (item of navigationItems(); track item.label) {
+                        <li>
+                          <a class="list-item" [routerLink]="item.path" [queryParams]="item.queryParams ?? null"
+                            routerLinkActive="active" [routerLinkActiveOptions]="{ exact: item.path === '/' }"
+                            [class.active]="item.path === '/' && onProfileHome()" [attr.aria-current]="item.path === '/' && onProfileHome() ? 'page' : null"
+                            ariaCurrentWhenActive="page" (click)="menuOpen.set(false)">{{ item.label }}</a>
+                        </li>
+                      }
+                    </ul>
                   </div>
-                }
-              </nav>
-            }
-          </div>
-          <div class="app-user-zone position-relative">
-            <button class="btn btn-primary btn-sm" type="button" [attr.aria-expanded]="userMenuOpen()"
-              aria-controls="user-menu" (click)="toggleUserMenu()">
-              @if (auth.user()) { {{ auth.user()?.display_name || auth.user()?.email }} } @else { Effettua il login }
-            </button>
-            @if (userMenuOpen()) {
-              <div id="user-menu" class="app-user-menu shadow" role="menu">
-                @if (auth.user()) {
-                  <p class="mb-1 fw-semibold">{{ auth.user()?.display_name || auth.user()?.email }}</p>
-                  <p class="mb-3 text-muted small">{{ auth.user()?.email }}</p>
-                  <a role="menuitem" routerLink="/area-personale" (click)="userMenuOpen.set(false)">Area personale</a>
-                  @if (auth.hasCapability('admin')) {
-                    <a role="menuitem" routerLink="/admin/impostazioni" (click)="userMenuOpen.set(false)">Impostazioni applicazione</a>
-                  }
-                  <button role="menuitem" type="button" (click)="logout()">Logout</button>
-                } @else {
-                  <button role="menuitem" type="button" (click)="login()">Effettua il login</button>
-                }
+                </nav>
               </div>
-            }
+              <div class="it-header-slim-right-zone">
+                @if (auth.user()) {
+                  <a class="btn btn-dropdown app-profile-switch" routerLink="/">
+                    <span class="app-profile-prefix d-none d-md-inline">Profilo:&nbsp;</span><strong>{{ profiles.label() }}</strong>
+                    <it-icon name="exchange-circle" size="xs" color="white" />
+                    <span class="visually-hidden">, cambia profilo</span>
+                  </a>
+                }
+                <div class="it-access-top-wrapper position-relative">
+                  <button class="btn btn-primary btn-sm btn-icon btn-full app-user-button" type="button"
+                    [attr.aria-expanded]="auth.user() ? userMenuOpen() : null" [attr.aria-controls]="auth.user() ? 'user-menu' : null"
+                    (click)="toggleUserMenu()">
+                    <span class="rounded-icon"><it-icon name="user" color="primary" /></span>
+                    <span class="d-none d-lg-block" [attr.title]="auth.user()?.display_name || null">{{ auth.user() ? (auth.user()?.display_name || auth.user()?.email) : 'Accedi' }}</span>
+                  </button>
+                  @if (userMenuOpen()) {
+                    <div id="user-menu" class="app-user-menu shadow">
+                      <p class="mb-0 fw-semibold">{{ auth.user()?.display_name || auth.user()?.email }}</p>
+                      <p class="mb-2 text-secondary small text-break">{{ auth.user()?.email }}</p>
+                      <ul class="link-list mb-0">
+                        <li><a class="list-item" routerLink="/area-personale" (click)="userMenuOpen.set(false)">Area personale</a></li>
+                        @if (auth.hasCapability('admin')) {
+                          <li><a class="list-item" routerLink="/admin/impostazioni" (click)="userMenuOpen.set(false)">Impostazioni</a></li>
+                        }
+                        <li><button class="list-item btn btn-link p-0 text-decoration-none" type="button" (click)="logout()">Esci</button></li>
+                      </ul>
+                    </div>
+                  }
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </header>
@@ -70,90 +84,79 @@ import { AppProfile, availableProfiles, ProfileService } from '../core/profile.s
         <router-outlet />
       </main>
 
-      <footer class="app-footer mt-5">
-        <div class="container-xxl py-4">
-          <div class="row align-items-center">
-            <div class="col-12 col-md-8">
-              <p class="mb-1">Realizzato per {{ settings.footer_owner }}</p>
-              <a href="/privacy-policy">Privacy Policy</a>
-            </div>
-            <div class="col-12 col-md-4 text-md-end mt-3 mt-md-0">
-              <small class="d-block">Versione: {{ appVersion }}</small>
-              <small class="d-block">Aggiornato: {{ appBuildTime }}</small>
-            </div>
+      <footer class="it-footer app-footer">
+        <div class="it-footer-small-prints clearfix">
+          <div class="container">
+            <ul class="it-footer-small-prints-list list-inline mb-0 d-flex flex-column flex-md-row">
+              <li class="list-inline-item">Realizzato per {{ settings.footer_owner }}</li>
+              <li class="list-inline-item"><a href="/privacy-policy" title="Privacy Policy">Privacy policy</a></li>
+              <li class="list-inline-item ms-md-auto" [attr.title]="'Aggiornato: ' + appBuildTime">Versione: {{ appVersion }}</li>
+            </ul>
           </div>
-          <p class="mb-0 mt-3 text-center"><small>&copy; {{ currentYear }} {{ settings.institution_name }} - Tutti i diritti riservati.</small></p>
         </div>
       </footer>
     </div>
   `,
   styles: `
     .app-shell { min-height: 100vh; display: flex; flex-direction: column; }
+    @media (max-width: 767.98px) { .app-shell--immersive > .app-header, .app-shell--immersive > .app-footer { display: none; } }
     .skip-link { position: absolute; left: -10000px; top: auto; }
     .skip-link:focus { left: 1rem; top: 1rem; z-index: 10000; background: white; padding: .75rem; }
-    .app-header { background: white; border-bottom: 1px solid #d9dadb; }
-    .app-header-inner { min-height: 64px; max-width: 1440px; margin: 0 auto; padding: .5rem 1.25rem; display: flex; align-items: center; gap: 1.25rem; }
-    .app-brand { color: #17324d; font-size: 1.1rem; font-weight: 700; text-decoration: none; white-space: nowrap; }
-    .app-brand span { color: #0066cc; }
-    .app-navigation { display: flex; flex: 1; align-items: center; gap: 1rem; }
-    .app-navigation a { color: #17324d; text-decoration: none; padding: .55rem .35rem; border-bottom: 3px solid transparent; }
-    .app-navigation a.active { color: #005cb9; border-color: #0066cc; font-weight: 700; }
-    .app-menu-toggle { display: none; }
-    .app-profile-menu { position: absolute; right: 0; top: calc(100% + .35rem); z-index: 1001; min-width: 17rem; max-height: 70vh; overflow-y: auto; padding: .75rem; border: 1px solid #d9dadb; border-radius: 4px; background: white; color: #17324d; }
-    .app-profile-menu a { display: block; padding: .4rem .5rem; color: inherit; text-decoration: none; border-radius: 4px; }
-    .app-profile-menu a:hover, .app-profile-menu a:focus-visible { background: #f0f6fc; color: #005cb9; }
-    .app-profile-menu-group { margin-top: .5rem; padding-top: .5rem; border-top: 1px solid #d9dadb; }
-    .app-user-zone { text-align: right; }
-    .app-user-menu { position: absolute; right: 0; top: calc(100% + .35rem); z-index: 1000; min-width: 17rem; padding: .75rem; border-radius: 4px; background: white; color: #17324d; text-align: left; }
-    .app-user-menu a, .app-user-menu button { display: block; width: 100%; padding: .45rem .5rem; border: 0; background: transparent; text-align: left; color: inherit; text-decoration: none; }
-    .app-user-menu a:hover, .app-user-menu button:hover { background: #f5f6f8; }
-    .app-footer { background: #17324d; color: white; }
-    .app-footer a { color: white; }
-    @media (max-width: 991.98px) {
-      .app-header-inner { flex-wrap: wrap; gap: .5rem; padding: .65rem .75rem; }
-      .app-brand { flex: 1; font-size: 1rem; }
-      .app-menu-toggle { display: inline-block; }
-      .app-navigation { display: none; flex-basis: 100%; order: 5; flex-direction: column; align-items: stretch; gap: 0; }
-      .app-navigation.is-open { display: flex; }
-      .app-navigation a { padding: .65rem .5rem; border-bottom: 1px solid #d9dadb; }
-      .app-profile-zone { order: 3; }
-      .app-user-zone { order: 4; }
+    .app-user-button { min-height: 44px; white-space: nowrap; }
+    .app-profile-switch { white-space: nowrap; }
+    .app-user-button .d-lg-block { max-width: 14rem; overflow: hidden; text-overflow: ellipsis; }
+    .link-list .list-item { white-space: nowrap; }
+    .app-header--dense .app-profile-prefix { display: none !important; }
+    .app-header--dense .app-user-button .d-lg-block { max-width: 8rem; }
+    @media (min-width: 992px) {
+      .app-header--dense .it-header-slim-wrapper-content { gap: 12px; }
+      .app-header--dense .nav-mobile .link-list { gap: 2px; padding: 0 8px; margin-right: 0; }
     }
+    .app-user-menu {
+      position: absolute; right: 0; top: calc(100% + .25rem); z-index: 1000; min-width: 16rem;
+      padding: .75rem 1rem; border-radius: 4px; background: #fff; color: var(--app-ink); text-align: left;
+    }
+    .app-user-menu .list-item { display: block; padding: .5rem 0; color: var(--app-primary); text-align: left; }
   `,
 })
 export class AppLayoutComponent {
   readonly auth = inject(AuthService);
   readonly profiles = inject(ProfileService);
-  private readonly router = inject(Router);
   readonly availableProfiles = computed(() => availableProfiles(this.auth.user()));
+  readonly navigationItems = computed(() => this.profiles.navigation(this.availableProfiles()));
+  private readonly router = inject(Router);
+  /** La pagina corrente chiede la vista a tutto schermo su smartphone (route data mobileImmersive). */
+  private readonly url = toSignal(this.router.events.pipe(
+    filter((event) => event instanceof NavigationEnd),
+    map((event) => (event as NavigationEnd).urlAfterRedirects),
+  ), { initialValue: this.router.url });
+  /** "Home" resta evidenziata anche nella home del profilo (es. /segretario), dove porta la scelta profilo. */
+  readonly onProfileHome = computed(() => this.url().split('?')[0] === '/segretario');
+  readonly immersive = toSignal(this.router.events.pipe(
+    filter((event) => event instanceof NavigationEnd),
+    startWith(null),
+    map(() => {
+      let snapshot = this.router.routerState.snapshot.root;
+      while (snapshot.firstChild) snapshot = snapshot.firstChild;
+      return !!snapshot.data?.['mobileImmersive'];
+    }),
+  ), { initialValue: false });
   readonly userMenuOpen = signal(false);
-  readonly profileMenuOpen = signal(false);
   readonly menuOpen = signal(false);
-  readonly currentYear = new Date().getFullYear();
 
   get settings() { return this.auth.settings(); }
   get appVersion(): string { return this.auth.user()?.app_version || 'n/d'; }
   get appBuildTime(): string { return this.auth.user()?.app_build_time || 'n/d'; }
-  isChoosingProfile(): boolean { return this.router.url.split('?')[0] === '/'; }
-  navigationItems() {
-    const available = this.availableProfiles();
-    if (this.isChoosingProfile() || !available.includes(this.profiles.active())) return [{ label: 'Scegli profilo', path: '/' }];
-    return this.profiles.navigation(available.length > 1);
+
+  brand(): string {
+    const institution = this.settings.institution_name || 'CNR';
+    return `${institution} · Check-in Concorsi`;
   }
+
   toggleUserMenu(): void {
-    if (!this.auth.user()) { this.login(); return; }
-    this.profileMenuOpen.set(false);
+    if (!this.auth.user()) { this.auth.login(); return; }
     this.userMenuOpen.set(!this.userMenuOpen());
   }
-  toggleProfileMenu(): void {
-    this.userMenuOpen.set(false);
-    this.profileMenuOpen.set(!this.profileMenuOpen());
-  }
-  openProfilePage(profile: AppProfile): void {
-    this.profiles.select(profile);
-    this.profileMenuOpen.set(false);
-    this.menuOpen.set(false);
-  }
-  login(): void { this.auth.login(); }
+
   logout(): void { this.userMenuOpen.set(false); this.auth.logout(); }
 }

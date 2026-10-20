@@ -1,75 +1,32 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { ApiClient } from '../../core/api-client';
 import { AuthService } from '../../core/auth.service';
 import { AppSettings } from '../../core/models/api.models';
 
 @Component({
   selector: 'app-admin-settings',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule],
   template: `
-    <section class="container my-5 admin-settings" aria-labelledby="admin-settings-title">
-      <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-        <div>
-          <h1 id="admin-settings-title" class="mb-0">Impostazioni applicazione</h1>
-          <a routerLink="/admin/permessi">Gestione permessi</a>
-        </div>
-        <a class="btn btn-outline-primary btn-sm" routerLink="/admin/logs">Log sistema</a>
+    <h1 class="mb-3">Impostazioni</h1>
+    @if (error()) { <div class="alert alert-danger" role="alert">{{ error() }}</div> }
+    @if (message()) { <div class="alert alert-success" role="status">{{ message() }}</div> }
+    @if (loading()) { <p class="d-flex align-items-center gap-2" role="status" aria-live="polite"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Carico le impostazioni…</p> }
+    <form class="card card-bg no-after" aria-labelledby="im-id" (ngSubmit)="save()"><div class="card-body">
+      <h2 id="im-id" class="h4 mb-1">Identità dell’app</h2>
+      <p class="text-secondary">Questi testi compaiono nell’intestazione, nel piè di pagina e nelle email.</p>
+      <div class="row g-4">
+        <div class="col-12 col-md-6"><div class="form-group mb-0"><label for="institution-name" class="active">Nome ente</label><input id="institution-name" class="form-control" name="institutionName" [(ngModel)]="model.institution_name" required maxlength="160" /></div></div>
+        <div class="col-12 col-md-6"><div class="form-group mb-0"><label for="app-title" class="active">Nome applicazione</label><input id="app-title" class="form-control" name="appTitle" [(ngModel)]="model.app_title" required maxlength="160" /></div></div>
+        <div class="col-12 col-md-6"><div class="form-group mb-0"><label for="tagline" class="active">Sottotitolo</label><input id="tagline" class="form-control" name="tagline" [(ngModel)]="model.tagline" required maxlength="160" /></div></div>
+        <div class="col-12 col-md-6"><div class="form-group mb-0"><label for="footer-owner" class="active">Intestazione footer</label><input id="footer-owner" class="form-control" name="footerOwner" [(ngModel)]="model.footer_owner" required maxlength="160" /></div></div>
       </div>
-
-      @if (error()) { <div class="alert alert-danger" role="alert">{{ error() }}</div> }
-      @if (message()) { <div class="alert alert-success" role="status">{{ message() }}</div> }
-      @if (loading()) {
-        <div class="d-flex align-items-center gap-2 py-2" role="status" aria-live="polite">
-          <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-          <span>Caricamento impostazioni…</span>
-        </div>
-      }
-
-      <form class="card" (ngSubmit)="save()">
-        <div class="card-header bg-light">
-          <strong>Identità dell'app</strong>
-        </div>
-        <div class="card-body">
-          <div class="row g-3">
-            <div class="col-md-6">
-              <label class="form-label" for="institution-name">Nome ente</label>
-              <input id="institution-name" class="form-control" name="institutionName" [(ngModel)]="model.institution_name" required maxlength="160" />
-            </div>
-            <div class="col-md-6">
-              <label class="form-label" for="app-title">Nome applicazione</label>
-              <input id="app-title" class="form-control" name="appTitle" [(ngModel)]="model.app_title" required maxlength="160" />
-            </div>
-            <div class="col-md-6">
-              <label class="form-label" for="tagline">Sottotitolo</label>
-              <input id="tagline" class="form-control" name="tagline" [(ngModel)]="model.tagline" required maxlength="160" />
-            </div>
-            <div class="col-12">
-              <label class="form-label" for="footer-owner">Intestazione footer</label>
-              <input id="footer-owner" class="form-control" name="footerOwner" [(ngModel)]="model.footer_owner" required maxlength="160" />
-            </div>
-            <div class="col-12 mt-4">
-              <h2 class="h5">Anteprima intestazione</h2>
-              <div class="border rounded overflow-hidden" aria-label="Anteprima dell’intestazione">
-                <header class="app-header px-3 py-3"><strong>{{ model.institution_name || 'Nome ente' }}</strong><span class="mx-2">·</span><span>{{ model.app_title || 'Nome applicazione' }}</span><div class="small text-muted">{{ model.tagline || 'Sottotitolo' }}</div></header>
-                <footer class="app-footer px-3 py-2 small">Realizzato per {{ model.footer_owner || 'Intestazione footer' }}</footer>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="card-footer bg-white text-end">
-          <button class="btn btn-primary" type="submit" [disabled]="busy() || loading()">
-            @if (busy()) {
-              <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
-            }
-            <span>Salva impostazioni</span>
-          </button>
-        </div>
-      </form>
-    </section>
+      <h3 class="h6 mt-4 mb-2">Anteprima intestazione</h3>
+      <div class="app-preview-head" aria-label="Anteprima dell’intestazione"><strong>{{ model.institution_name || 'Nome ente' }} · {{ model.app_title || 'Nome applicazione' }}</strong><span>{{ model.tagline || 'Sottotitolo' }}</span></div>
+      <div class="app-next-footer"><p class="mb-0 text-secondary">Le modifiche valgono per tutti gli utenti.</p>
+        <button class="btn btn-primary" type="submit" [disabled]="busy() || loading()">Salva impostazioni</button></div>
+    </div></form>
   `,
-  styles: `.admin-settings { max-width: 920px; }`,
 })
 export class AdminSettingsComponent {
   private readonly api = inject(ApiClient);

@@ -5,6 +5,7 @@ import { signal } from '@angular/core';
 import { SecretaryHomeComponent } from './secretary-home.component';
 import { AuthService } from '../../core/auth.service';
 import { BandiService } from '../bandi/bandi.service';
+import { provideKitForTests } from '../../../testing/kit';
 
 describe('SecretaryHomeComponent', () => {
   it('shows the closest next session without listing undownloaded competitions as sessions', async () => {
@@ -12,6 +13,7 @@ describe('SecretaryHomeComponent', () => {
       imports: [SecretaryHomeComponent],
       providers: [
         provideRouter([]),
+        ...provideKitForTests(),
         { provide: AuthService, useValue: { user: signal({ display_name: 'Ada Lovelace' }) } },
         { provide: BandiService, useValue: { list: () => of({ items: [
           { commission_id: 'c2', title: 'Concorso futuro', session_count: 2, next_session: { session_id: 's2', name: 'Sessione A', date: '2026-10-22', time: '10:00', location: 'Roma', state: 'configurata' } },
@@ -35,6 +37,7 @@ describe('SecretaryHomeComponent', () => {
       imports: [SecretaryHomeComponent],
       providers: [
         provideRouter([]),
+        ...provideKitForTests(),
         { provide: AuthService, useValue: { user: signal({ display_name: 'DANIELE RAMACCI' }) } },
         { provide: BandiService, useValue: { list: () => of({ items: [
           { commission_id: 'c1', title: '999.999', session_count: 0, next_session: null },
@@ -47,7 +50,8 @@ describe('SecretaryHomeComponent', () => {
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('Buongiorno, Daniele');
     expect(text).toContain('2 concorsi sono presenti senza sessioni scaricate nell’app');
-    expect(text).toContain('Concorso 999.999');
+    expect(text).not.toContain('Concorso 999.999');
     expect(fixture.nativeElement.querySelectorAll('.app-row')).toHaveLength(0);
+    expect(fixture.nativeElement.querySelector('table')).toBeNull();
   });
 });

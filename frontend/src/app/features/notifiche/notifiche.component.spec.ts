@@ -5,6 +5,7 @@ import { vi } from 'vitest';
 import { ApiClient } from '../../core/api-client';
 import { AuthService } from '../../core/auth.service';
 import { NotificheComponent } from './notifiche.component';
+import { provideKitForTests } from '../../../testing/kit';
 
 describe('NotificheComponent', () => {
   it('excludes state events, shows readable messages, sends quick replies and closes on Escape', async () => {
@@ -17,6 +18,7 @@ describe('NotificheComponent', () => {
     await TestBed.configureTestingModule({
       imports: [NotificheComponent],
       providers: [
+        ...provideKitForTests(),
         { provide: ApiClient, useValue: { get: (url: string) => url.includes('/candidati?')
           ? of({ items: [{ uid: 'u1', first_name: 'Ada', last_name: 'Rossi' }] })
           : of({ items: notifications }), post } },

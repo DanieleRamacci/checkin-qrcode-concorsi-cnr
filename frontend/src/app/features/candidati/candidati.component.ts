@@ -1,166 +1,152 @@
 import { Component, SimpleChanges, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { DatePipe } from '@angular/common';
+import { DatePipe, NgTemplateOutlet } from '@angular/common';
 import * as QRCode from 'qrcode';
+import { ItIconComponent } from 'design-angular-kit';
 import { ApiClient } from '../../core/api-client';
 import { ApiList, CandidateSummary } from '../../core/models/api.models';
-import { FilterChipsComponent } from '../../shared/filter-chips.component';
+import { FilterChipOption, FilterChipsComponent } from '../../shared/filter-chips.component';
 import { PagerComponent } from '../../shared/pager.component';
-import { ResetPasswordComponent } from './reset-password.component';
+
+export type CandidateSectionMode = 'vuota' | 'sola-lettura' | 'checkin' | 'finale' | 'reset-sede' | 'reset-esperto';
+type ResetOperation = 'request' | 'cancel_request' | 'complete';
 
 export function candidateQrPayload(uid: string): string {
   return JSON.stringify({ uid });
 }
 
+const REQUESTER: Record<string, string> = {
+  'Informatico in sede': 'dall’informatico in sede', 'Esperto remoto': 'dall’esperto remoto',
+  Segretario: 'dal segretario', Amministratore: 'dall’amministratore',
+};
+
+/**
+ * Sezione Candidati della pagina sessione (prototipi sessione-*.html, sempre
+ * sotto il pannello Azioni). Una sola tabella: la modalità decide colonne,
+ * filtri e azioni; il reset password vive sulla riga del candidato presente.
+ */
 @Component({
   selector: 'app-candidati',
-  imports: [FormsModule, DatePipe, FilterChipsComponent, PagerComponent, ResetPasswordComponent],
+  imports: [FormsModule, DatePipe, NgTemplateOutlet, ItIconComponent, FilterChipsComponent, PagerComponent],
   template: `
-    @if (sectionMode() === 'reset-sede' || sectionMode() === 'reset-esperto') {
-      <app-reset-password [sessionId]="sessionId()" [viewMode]="sectionMode() === 'reset-esperto' ? 'esperto' : 'sede'" (openCountChange)="openResetCountChange.emit($event)" />
-    } @else if (sectionMode() === 'vuota') {
-      <div class="app-empty it-card shadow-sm p-4"><p class="app-eyebrow">Candidati</p><h2 class="h5">L’elenco sarà disponibile al prossimo passaggio</h2><p class="mb-0">Dopo aver scaricato i candidati, l’elenco comparirà qui.</p></div>
-    } @else {
-    <div class="it-card-wrapper">
-      <div class="it-card shadow-sm p-4">
-        <h2 id="candidates" class="h5 mb-3">Candidati della sessione</h2>
-
-        <div class="d-flex justify-content-end gap-2 mb-2">
-          <button class="btn btn-outline-primary btn-sm" type="button" [disabled]="loading()" (click)="load()">
-            @if (loading()) {
-              <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+    <section class="card card-bg no-after app-cand-card" aria-labelledby="cand">
+      <div class="card-body">
+        <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3">
+          <h2 id="cand" class="h4 mb-0" tabindex="-1">{{ heading() }}</h2>
+          @switch (sectionMode()) {
+            @case ('sola-lettura') { @if (expiredCount()) { <span class="text-warning-emphasis fw-semibold">{{ expiredCount() === 1 ? '1 con documento scaduto' : expiredCount() + ' con documento scaduto' }}: verificali in aula</span> } }
+            @case ('finale') { @if (concludedAt()) { <span class="small text-secondary">Check-in concluso alle {{ concludedAt() }}</span> } }
+            @case ('checkin') {
+              <div class="form-group mb-0 app-search"><label for="cand-q" class="active">Cerca per cognome o documento</label>
+                <input type="search" class="form-control" id="cand-q" placeholder="es. Rossi" [ngModel]="query()" (ngModelChange)="setQuery($event)" /></div>
             }
-            <span>Aggiorna</span>
-          </button>
-        </div>
-
-        <form class="row g-2 mb-3" (submit)="$event.preventDefault()">
-          <div class="col-md-4">
-            <label class="visually-hidden" for="candidate-search">Cerca candidato</label>
-            <input
-              id="candidate-search"
-              class="form-control"
-              placeholder="Cerca nome, cognome o documento"
-              [ngModel]="query()"
-              (ngModelChange)="onQueryChange($event)"
-              name="q"
-            />
-          </div>
-          <div class="col-md-3">
-            <label class="visually-hidden" for="candidate-sort">Ordina</label>
-            <select id="candidate-sort" class="form-select" [ngModel]="sort()" (ngModelChange)="sort.set($event)" name="sort">
-              <option value="alpha">Ordina A→Z (Cognome)</option>
-              <option value="checkin_no">Prima non effettuati</option>
-              <option value="checkin_yes">Prima effettuati</option>
-            </select>
-          </div>
-          <div class="col-md-3">
-            <label class="visually-hidden" for="candidate-checkin">Filtro check-in</label>
-            <select id="candidate-checkin" class="form-select" [ngModel]="checkin()" (ngModelChange)="onCheckinChange($event)" name="checkin">
-              <option value="all">Tutti i check-in</option>
-              <option value="yes">Solo effettuati</option>
-              <option value="no">Solo non effettuati</option>
-            </select>
-          </div>
-          <div class="col-md-2 d-flex align-items-center">
-            <div class="form-check">
-              <input
-                class="form-check-input"
-                type="checkbox"
-                id="expired_only"
-                [ngModel]="expiredOnly()"
-                (ngModelChange)="expiredOnly.set($event)"
-                name="expired_only"
-              />
-              <label class="form-check-label" for="expired_only">Documento scaduto</label>
-            </div>
-          </div>
-        </form>
-        @if (sectionMode() === 'checkin') {
-          <app-filter-chips label="Filtra i candidati" [options]="filterOptions()" [selected]="selectedFilter()" (selectedChange)="setFilter($event)" />
-        }
-
-        @if (error()) {
-          <div class="alert alert-danger d-flex justify-content-between align-items-center" role="alert">
-            <span>{{ error() }}</span>
-            <button class="btn btn-sm btn-outline-danger" type="button" (click)="load()">Riprova</button>
-          </div>
-        } @else if (loading()) {
-          <div class="d-flex align-items-center gap-2 py-4" role="status" aria-live="polite">
-            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-            <span>Caricamento candidati…</span>
-          </div>
-        } @else if (filteredItems().length === 0) {
-          <div class="alert alert-warning" role="alert">Nessun candidato presente.</div>
-        } @else {
-          <div class="table-responsive">
-            <table class="table table-striped table-hover align-middle candidate-table">
-              <caption class="visually-hidden">Candidati della sessione</caption>
-              <thead class="table-light">
-                <tr>
-                  <th>Cognome e nome</th>
-                  <th>Documento</th>
-                  <th>Presenza</th>
-                  <th class="text-end">Azioni</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (item of pageItems(); track item.uid) {
-                  <tr [class.table-success]="item.checkin_effettuato" [class.table-danger]="!item.checkin_effettuato">
-                    <th scope="row" class="candidate-name"><strong>{{ item.last_name }}</strong> {{ item.first_name }}
-                      @if (item.note) { <small class="d-block text-muted candidate-note-preview">{{ item.note }}</small> }
-                    </th>
-                    <td><span class="app-mono">{{ item.document_number }}</span><br />
-                      @if (item.document_expired) {
-                        <span class="badge bg-danger">Scaduto</span>
-                      } @else {
-                        <span class="badge bg-success">Valido</span>
-                      }
-                    </td>
-                    <td>
-                      @if (item.checkin_effettuato) {
-                        <span class="text-success fw-semibold">Presente</span>
-                        @if (item.checkin_at) { <br /><small class="text-muted">{{ item.checkin_at | date:'HH:mm' }} · da {{ item.checkin_source === 'scanner' ? 'scanner' : 'tabella' }}</small> }
-                      } @else {
-                        <span class="text-muted">{{ sectionMode() === 'checkin' ? 'Da registrare' : 'Assente' }}</span>
-                      }
-                    </td>
-                    <td><div class="candidate-actions">
-                      <button class="btn btn-sm btn-outline-dark" type="button"
-                        title="Mostra QR candidato" [attr.aria-label]="'Mostra QR candidato ' + item.first_name + ' ' + item.last_name"
-                        (click)="showQr(item)">
-                        QR
-                      </button>
-                      <button
-                        class="btn btn-sm btn-link fw-semibold"
-                        type="button"
-                        [attr.aria-label]="'Apri note candidato ' + item.first_name + ' ' + item.last_name"
-                        (click)="openNotes(item)"
-                      >
-                        {{ item.note ? 'Modifica note' : 'Note' }}
-                      </button>
-                      @if (sectionMode() === 'checkin') { <button
-                        [class]="'btn btn-sm ' + (item.checkin_effettuato ? 'btn-link text-danger' : 'btn-outline-success')"
-                        type="button"
-                        [disabled]="mutationUid() === item.uid"
-                        (click)="requestToggle(item)"
-                      >
-                        {{ item.checkin_effettuato ? 'Annulla presenza' : 'Segna presente' }}
-                      </button> }
-                    </div></td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-          @if (sectionMode() === 'checkin') {
-            <app-pager label="Candidati" [total]="filteredItems().length" [page]="page()" [pageSize]="pageSize()" (pageChange)="page.set($event)" (pageSizeChange)="changePageSize($event)" />
+            @case ('reset-sede') { <ng-container [ngTemplateOutlet]="resetSearch" /> }
+            @case ('reset-esperto') { <ng-container [ngTemplateOutlet]="resetSearch" /> }
           }
+        </div>
+        <ng-template #resetSearch>
+          <div class="form-group mb-0 app-search"><label for="cand-rq" class="active">Cerca candidato</label>
+            <input type="search" class="form-control" id="cand-rq" placeholder="Cognome o nome" [ngModel]="query()" (ngModelChange)="setQuery($event)" /></div>
+        </ng-template>
+
+        @if (sectionMode() === 'vuota') {
+          <div class="app-empty">
+            <it-icon name="inbox" size="lg" />
+            <p class="fw-semibold mb-1">Nessun candidato ancora</p>
+            <p class="mb-0 text-secondary">{{ emptyMessage() }}</p>
+          </div>
+        } @else if (error()) {
+          <div class="alert alert-danger d-flex flex-wrap justify-content-between align-items-center gap-2" role="alert">
+            <span>{{ error() }}</span><button class="btn btn-sm btn-outline-danger" type="button" (click)="load()">Riprova</button>
+          </div>
+        } @else if (loading() && !items().length) {
+          <p class="d-flex align-items-center gap-2 py-3 mb-0" role="status" aria-live="polite"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Carico i candidati…</p>
+        } @else {
+          @if (filterOptions().length) {
+            <div class="mb-3"><app-filter-chips [label]="isReset() ? 'Filtra per reset password' : 'Filtra candidati'" [options]="filterOptions()" [selected]="filter()" (selectedChange)="setFilter($event)" /></div>
+          }
+          <div class="table-responsive"><table class="table align-middle mb-0">
+            <caption class="visually-hidden">Candidati della sessione</caption>
+            <thead><tr>
+              <th scope="col">Cognome e nome</th>
+              @if (isReset()) {
+                <th scope="col">Reset password</th><th scope="col" class="text-end"><span class="visually-hidden">Azioni</span></th>
+              } @else {
+                <th scope="col">Documento</th>
+                @if (sectionMode() !== 'checkin') { <th scope="col">Validità</th> }
+                @if (sectionMode() !== 'sola-lettura') { <th scope="col">Presenza</th> }
+                @if (sectionMode() === 'checkin') { <th scope="col" class="text-end">Azioni</th> }
+              }
+            </tr></thead>
+            <tbody>
+              @for (item of pageItems(); track item.uid) {
+                <tr [class.app-row-attn]="isReset() && item.reset_password_richiesto">
+                  <td><strong>{{ item.last_name }}</strong> {{ item.first_name }}
+                    @if (item.note && !isReset()) { <span class="d-block small text-secondary text-break">{{ item.note }}</span> }</td>
+                  @if (isReset()) {
+                    <td>
+                      @if (item.reset_password_richiesto) {
+                        <span class="badge app-badge-warning">Reset richiesto</span><br><span class="small text-secondary">{{ requestedBy(item) }}</span>
+                      } @else if (item.reset_password_effettuato) {
+                        <span class="badge app-badge-success">Reset fatto</span>@if (item.reset_password_effettuato_at) { <br><span class="small text-secondary">alle {{ item.reset_password_effettuato_at | date:'HH:mm' }}</span> }
+                      } @else { <span class="text-secondary">Nessuna richiesta</span> }
+                    </td>
+                    <td class="text-end">
+                      @if (sectionMode() === 'reset-sede') {
+                        @if (item.reset_password_richiesto) {
+                          <button type="button" class="btn btn-link btn-sm text-danger p-0 fw-semibold" [disabled]="busyUid() === item.uid" (click)="mutateReset(item, 'cancel_request')">Annulla richiesta<span class="visually-hidden"> per {{ item.last_name }}</span></button>
+                        } @else if (!item.reset_password_effettuato) {
+                          <button type="button" class="btn btn-outline-primary btn-sm" [disabled]="busyUid() === item.uid" (click)="mutateReset(item, 'request')">Serve reset password<span class="visually-hidden"> per {{ item.last_name }}</span></button>
+                        }
+                      } @else {
+                        @if (item.reset_password_richiesto) {
+                          <button type="button" class="btn btn-success btn-sm" [disabled]="busyUid() === item.uid" (click)="mutateReset(item, 'complete')">Segna come fatto<span class="visually-hidden"> per {{ item.last_name }}</span></button>
+                        } @else if (!item.reset_password_effettuato) {
+                          <button type="button" class="btn btn-link btn-sm p-0 fw-semibold" [disabled]="busyUid() === item.uid" (click)="mutateReset(item, 'complete')">Registra un reset<span class="visually-hidden"> per {{ item.last_name }}</span></button>
+                        }
+                      }
+                    </td>
+                  } @else {
+                    <td><span class="app-mono">{{ item.document_number }}</span>
+                      @if (sectionMode() === 'checkin' && item.document_expired) { <span class="badge app-badge-danger">Scaduto</span> }</td>
+                    @if (sectionMode() !== 'checkin') {
+                      <td>@if (item.document_expired) { <span class="badge app-badge-danger">Scaduto</span> } @else { <span class="badge app-badge-success">Valido</span> }</td>
+                    }
+                    @if (sectionMode() !== 'sola-lettura') {
+                      <td>
+                        @if (item.checkin_effettuato) {
+                          <span class="text-success fw-semibold">@if (sectionMode() === 'checkin') { <it-icon name="check-circle" size="xs" color="success" /> }Presente</span>
+                          @if (item.checkin_at) { @if (sectionMode() === 'checkin') { <br> } @else { &ngsp; } <span class="small text-secondary">{{ item.checkin_at | date:'HH:mm' }} · {{ item.checkin_source === 'scanner' ? 'da scanner' : 'da tabella' }}</span> }
+                        } @else { <span class="text-secondary">{{ sectionMode() === 'checkin' ? 'Da registrare' : 'Assente' }}</span> }
+                      </td>
+                    }
+                    @if (sectionMode() === 'checkin') {
+                      <td class="text-end app-actions">
+                        @if (item.checkin_effettuato) {
+                          <button type="button" class="btn btn-link btn-sm text-danger fw-semibold" [disabled]="mutationUid() === item.uid" (click)="pendingToggle.set(item)">Annulla presenza<span class="visually-hidden"> {{ item.last_name }}</span></button>
+                        } @else {
+                          <button type="button" class="btn btn-outline-success btn-sm" [disabled]="mutationUid() === item.uid" (click)="toggle(item)">Segna presente<span class="visually-hidden"> {{ item.last_name }}</span></button>
+                        }
+                        <button type="button" class="btn btn-link btn-sm fw-semibold" (click)="openNotes(item)">{{ item.note ? 'Modifica note' : 'Note' }}<span class="visually-hidden"> {{ item.last_name }}</span></button>
+                        <button type="button" class="btn btn-link btn-sm fw-semibold" (click)="showQr(item)">QR<span class="visually-hidden"> candidato {{ item.last_name }}</span></button>
+                      </td>
+                    }
+                  }
+                </tr>
+              } @empty {
+                <tr><td [attr.colspan]="columnCount()" class="text-secondary">{{ query().trim() ? 'Nessun candidato corrisponde alla ricerca.' : emptyFilterMessage() }}</td></tr>
+              }
+            </tbody>
+          </table></div>
+          @if (filteredItems().length > 25) {
+            <div class="mt-3"><app-pager label="Candidati" [total]="filteredItems().length" [page]="page()" [pageSize]="pageSize()" (pageChange)="page.set($event)" (pageSizeChange)="changePageSize($event)" /></div>
+          }
+          @if (sectionMode() === 'sola-lettura') { <p class="small text-secondary mt-2 mb-0">In sola lettura finché il check-in non è avviato.</p> }
+          @if (isReset()) { <p class="small text-secondary mt-3 mb-0">Le richieste da fare restano in cima alla tabella finché non sono risolte.</p> }
         }
-        @if (message()) { <p role="status">{{ message() }}</p> }
+        @if (message()) { <p class="small mt-2 mb-0" role="status">{{ message() }}</p> }
       </div>
-    </div>
-    }
+    </section>
 
     @if (pendingToggle(); as candidate) {
       <div class="modal d-block" role="dialog" aria-modal="true" aria-labelledby="presence-title" style="background:rgba(0,0,0,.45)">
@@ -239,28 +225,28 @@ export function candidateQrPayload(uid: string): string {
     }
   `,
   styles: `
-    .candidate-qr-modal { display: block; background: rgba(0, 0, 0, 0.5); }
-    .candidate-note-modal { display: block; background: rgba(0, 0, 0, 0.5); }
+    .candidate-qr-modal, .candidate-note-modal { display: block; background: rgba(0, 0, 0, 0.5); }
     .candidate-qr { image-rendering: pixelated; }
-    .candidate-table { width: 100%; }
-    .candidate-name { min-width: 10rem; overflow-wrap: anywhere; }
-    .candidate-note-preview { max-width: 18rem; font-weight: 400; overflow-wrap: anywhere; }
-    .candidate-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .35rem; min-width: 12rem; }
-    .candidate-actions .btn { white-space: nowrap; }
+    .app-actions .btn { white-space: nowrap; }
   `,
 })
 export class CandidatiComponent {
   readonly sessionId = input.required<string>();
   readonly viewMode = input<'segretario' | 'sede' | 'esperto' | 'admin'>('segretario');
   readonly refreshTick = input(0);
-  readonly sectionMode = input<'vuota' | 'sola-lettura' | 'checkin' | 'finale' | 'reset-sede' | 'reset-esperto'>('checkin');
+  readonly sectionMode = input<CandidateSectionMode>('checkin');
+  /** Testo dello stato vuoto: cosa fare perché compaiano i candidati. */
+  readonly emptyMessage = input('Compariranno qui dopo lo scaricamento da Selezioni Online.');
+  /** Ora di conclusione del check-in (HH:MM), per la modalità finale. */
+  readonly concludedAt = input('');
   readonly openResetCountChange = output<number>();
   private readonly api = inject(ApiClient);
   readonly items = signal<CandidateSummary[]>([]);
   readonly message = signal('');
-  readonly loading = signal(true);
+  readonly loading = signal(false);
   readonly error = signal('');
   readonly mutationUid = signal<string | null>(null);
+  readonly busyUid = signal<string | null>(null);
   readonly selectedCandidate = signal<CandidateSummary | null>(null);
   readonly noteCandidate = signal<CandidateSummary | null>(null);
   readonly qrDataUrl = signal('');
@@ -268,91 +254,120 @@ export class CandidatiComponent {
   readonly noteSaving = signal(false);
   readonly noteError = signal('');
   readonly query = signal('');
-  readonly sort = signal<'alpha' | 'checkin_no' | 'checkin_yes'>('alpha');
-  readonly checkin = signal<'all' | 'yes' | 'no'>('all');
-  readonly expiredOnly = signal(false);
-  readonly selectedFilter = signal('all');
+  readonly filter = signal('all');
   readonly page = signal(0);
   readonly pageSize = signal(25);
   readonly pendingToggle = signal<CandidateSummary | null>(null);
-  private searchDebounce?: ReturnType<typeof setTimeout>;
   noteDraft = '';
 
-  readonly filteredItems = computed(() => {
-    let items = this.items();
-    if (this.selectedFilter() === 'yes') items = items.filter((item) => item.checkin_effettuato);
-    if (this.selectedFilter() === 'no') items = items.filter((item) => !item.checkin_effettuato);
-    if (this.selectedFilter() === 'expired') items = items.filter((item) => item.document_expired);
-    if (this.expiredOnly()) {
-      items = items.filter((item) => item.document_expired);
+  readonly isReset = computed(() => this.sectionMode() === 'reset-sede' || this.sectionMode() === 'reset-esperto');
+  readonly presentCount = computed(() => this.items().filter((item) => item.checkin_effettuato).length);
+  readonly expiredCount = computed(() => this.items().filter((item) => item.document_expired).length);
+  readonly pendingResetCount = computed(() => this.items().filter((item) => item.reset_password_richiesto).length);
+  readonly doneResetCount = computed(() => this.items().filter((item) => item.reset_password_effettuato).length);
+
+  readonly heading = computed(() => {
+    switch (this.sectionMode()) {
+      case 'vuota': return 'Candidati';
+      case 'finale': return `Candidati · ${this.presentCount()} presenti su ${this.items().length}`;
+      case 'reset-sede': case 'reset-esperto': return `Candidati · ${this.items().length} presenti`;
+      default: return `Candidati · ${this.items().length}`;
     }
-    const sort = this.sort();
-    items = [...items].sort((a, b) => {
-      if (sort === 'checkin_no') return Number(a.checkin_effettuato) - Number(b.checkin_effettuato);
-      if (sort === 'checkin_yes') return Number(b.checkin_effettuato) - Number(a.checkin_effettuato);
-      return a.last_name.localeCompare(b.last_name);
-    });
-    return items;
+  });
+
+  readonly filterOptions = computed<FilterChipOption[]>(() => {
+    switch (this.sectionMode()) {
+      case 'checkin': return [
+        { id: 'daregistrare', label: 'Da registrare', count: this.items().length - this.presentCount() },
+        { id: 'presenti', label: 'Presenti', count: this.presentCount() },
+        { id: 'scaduto', label: 'Documento scaduto', count: this.expiredCount() },
+        { id: 'all', label: 'Tutti', count: this.items().length },
+      ];
+      case 'reset-sede': case 'reset-esperto': return [
+        { id: 'attesa', label: this.sectionMode() === 'reset-esperto' ? 'Reset da fare' : 'In attesa', count: this.pendingResetCount() },
+        { id: 'fatti', label: 'Reset fatti', count: this.doneResetCount() },
+        { id: 'all', label: 'Tutti i presenti', count: this.items().length },
+      ];
+      default: return [];
+    }
+  });
+
+  readonly filteredItems = computed(() => {
+    const query = this.query().trim().toLocaleLowerCase('it');
+    const filter = this.filter();
+    return this.items()
+      .filter((item) => {
+        if (filter === 'daregistrare') return !item.checkin_effettuato;
+        if (filter === 'presenti') return item.checkin_effettuato;
+        if (filter === 'scaduto') return item.document_expired;
+        if (filter === 'attesa') return item.reset_password_richiesto;
+        if (filter === 'fatti') return item.reset_password_effettuato;
+        return true;
+      })
+      .filter((item) => !query || `${item.last_name} ${item.first_name} ${item.first_name} ${item.last_name} ${this.isReset() ? '' : item.document_number}`.toLocaleLowerCase('it').includes(query))
+      .sort((a, b) => (this.isReset() ? Number(b.reset_password_richiesto) - Number(a.reset_password_richiesto) : 0)
+        || a.last_name.localeCompare(b.last_name, 'it') || a.first_name.localeCompare(b.first_name, 'it'));
   });
 
   readonly pageItems = computed(() => this.filteredItems().slice(this.page() * this.pageSize(), (this.page() + 1) * this.pageSize()));
-  readonly filterOptions = computed(() => [
-    { id: 'no', label: 'Da registrare', count: this.items().filter((item) => !item.checkin_effettuato).length },
-    { id: 'yes', label: 'Presenti', count: this.items().filter((item) => item.checkin_effettuato).length },
-    { id: 'expired', label: 'Documento scaduto', count: this.items().filter((item) => item.document_expired).length },
-    { id: 'all', label: 'Tutti', count: this.items().length },
-  ]);
 
-  ngOnInit(): void { this.load(); }
+  readonly columnCount = computed(() => {
+    if (this.isReset()) return 3;
+    return ({ 'sola-lettura': 3, checkin: 4, finale: 4 } as Record<string, number>)[this.sectionMode()] ?? 3;
+  });
+
+  ngOnInit(): void {
+    // Filtro iniziale come nei prototipi: "Da registrare" durante il check-in, tutti i presenti per i reset.
+    this.filter.set(this.sectionMode() === 'checkin' ? 'daregistrare' : 'all');
+    if (this.sectionMode() !== 'vuota') this.load();
+  }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['refreshTick'] && !changes['refreshTick'].firstChange) {
-      this.load();
+    const mode = changes['sectionMode'];
+    if (mode && !mode.firstChange) {
+      this.filter.set(this.sectionMode() === 'checkin' ? 'daregistrare' : 'all');
+      this.page.set(0);
+      // Le viste dei reset caricano solo i presenti: cambiando vista si riparte da zero.
+      if (this.isReset() || isResetMode(mode.previousValue)) this.items.set([]);
+      if (this.sectionMode() !== 'vuota') this.load();
+      return;
     }
+    if (changes['refreshTick'] && !changes['refreshTick'].firstChange && this.sectionMode() !== 'vuota') this.load();
   }
 
-  onQueryChange(value: string): void {
-    this.query.set(value);
-    clearTimeout(this.searchDebounce);
-    this.searchDebounce = setTimeout(() => this.load(), 300);
-  }
-
-  onCheckinChange(value: 'all' | 'yes' | 'no'): void {
-    this.checkin.set(value);
-    this.page.set(0);
-    this.load();
-  }
-
-  setFilter(value: string): void {
-    this.selectedFilter.set(value);
-    this.page.set(0);
-    this.checkin.set('all');
-    this.expiredOnly.set(false);
-  }
-
+  setQuery(value: string): void { this.query.set(value); this.page.set(0); }
+  setFilter(value: string): void { this.filter.set(value); this.page.set(0); }
   changePageSize(size: number): void { this.pageSize.set(size); this.page.set(0); }
 
-  requestToggle(item: CandidateSummary): void {
-    if (item.checkin_effettuato) this.pendingToggle.set(item);
-    else this.toggle(item);
+  emptyFilterMessage(): string {
+    if (this.filter() === 'daregistrare' && this.items().length) return 'Tutti i candidati risultano presenti.';
+    if (this.filter() === 'attesa') return 'Nessuna richiesta di reset in attesa.';
+    if (this.filter() === 'fatti') return 'Nessun reset fatto finora.';
+    return this.isReset() ? 'Nessun candidato presente.' : 'Nessun candidato in questa sessione.';
+  }
+
+  requestedBy(item: CandidateSummary): string {
+    const who = item.reset_password_richiesto_role ? REQUESTER[item.reset_password_richiesto_role] : '';
+    const at = item.reset_password_richiesto_at ? new Date(item.reset_password_richiesto_at) : null;
+    const time = at && !Number.isNaN(at.getTime()) ? at.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : '';
+    return [who, time ? `alle ${time}` : ''].filter(Boolean).join(' ') || 'in attesa';
   }
 
   load(): void {
     this.loading.set(true);
     this.error.set('');
-    const params = new URLSearchParams({ q: this.query(), checkin: this.checkin(), mode: this.viewMode() });
-    this.api
-      .get<ApiList<CandidateSummary>>(`/sessioni/${this.sessionId()}/candidati?${params}`)
-      .subscribe({
-        next: ({ items }) => {
-          this.items.set(items);
-          this.loading.set(false);
-        },
-        error: () => {
-          this.loading.set(false);
-          this.error.set('Impossibile caricare l’elenco dei candidati.');
-        },
-      });
+    const params = new URLSearchParams({ checkin: this.isReset() ? 'yes' : 'all', reset: 'all', mode: this.viewMode() });
+    this.api.get<ApiList<CandidateSummary>>(`/sessioni/${this.sessionId()}/candidati?${params}`).subscribe({
+      next: ({ items }) => {
+        this.items.set(items ?? []);
+        this.loading.set(false);
+        if (this.isReset()) this.openResetCountChange.emit(this.pendingResetCount());
+      },
+      error: () => {
+        this.loading.set(false);
+        this.error.set('Impossibile caricare l’elenco dei candidati.');
+      },
+    });
   }
 
   toggle(item: CandidateSummary): void {
@@ -360,14 +375,20 @@ export class CandidatiComponent {
     this.mutationUid.set(item.uid);
     this.message.set('');
     this.api.post<CandidateSummary>(`/sessioni/${this.sessionId()}/candidati/${encodeURIComponent(item.uid)}/toggle-checkin?mode=${encodeURIComponent(this.viewMode())}`).subscribe({
-      next: () => {
-        this.mutationUid.set(null);
-        this.load();
-      },
-      error: () => {
-        this.mutationUid.set(null);
-        this.message.set('Aggiornamento del check-in non riuscito.');
-      },
+      next: () => { this.mutationUid.set(null); this.load(); },
+      error: () => { this.mutationUid.set(null); this.message.set('Aggiornamento della presenza non riuscito. Riprova.'); },
+    });
+  }
+
+  mutateReset(item: CandidateSummary, operation: ResetOperation): void {
+    this.busyUid.set(item.uid);
+    this.message.set('');
+    this.api.post(
+      `/sessioni/${this.sessionId()}/candidati/${encodeURIComponent(item.uid)}/reset-password?mode=${encodeURIComponent(this.viewMode())}`,
+      { operation },
+    ).subscribe({
+      next: () => { this.busyUid.set(null); this.load(); },
+      error: () => { this.busyUid.set(null); this.message.set('Aggiornamento della richiesta di reset non riuscito. Riprova.'); },
     });
   }
 
@@ -428,4 +449,8 @@ export class CandidatiComponent {
       },
     });
   }
+}
+
+function isResetMode(mode: CandidateSectionMode | undefined): boolean {
+  return mode === 'reset-sede' || mode === 'reset-esperto';
 }

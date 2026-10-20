@@ -7,6 +7,7 @@ import { BandiService } from './bandi.service';
 import { FilterChipsComponent, FilterChipOption } from '../../shared/filter-chips.component';
 import { PagerComponent } from '../../shared/pager.component';
 import { competitionLabel } from '../../shared/competition-label';
+import { sessionWhen } from '../../shared/session-date';
 
 @Component({
   selector: 'app-bandi',
@@ -17,98 +18,107 @@ import { competitionLabel } from '../../shared/competition-label';
         <strong>⚠ DEVELOPER MODE</strong> — Sessioni non attive abilitate, controlli temporali disabilitati.
       </div>
     }
-    <div class="container my-5">
-      <h1 class="mb-4">{{ dashboardTitle() }}</h1>
-      <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
-        <p class="lead mb-0">{{ dashboardLead() }}</p>
-        <button
-          type="button"
-          class="btn btn-outline-primary btn-sm"
-          [disabled]="loading()"
-          (click)="reload()"
-        >
-          @if (loading()) {
-            <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+    @if (isSecretaryMode() || isAdminMode()) {
+      <div class="container py-4 py-lg-5">
+        <nav class="breadcrumb-container" aria-label="Percorso di navigazione"><ol class="breadcrumb p-0 mb-2">
+          @if (isAdminMode()) {
+            <li class="breadcrumb-item"><a routerLink="/admin">Amministrazione</a><span class="separator">/</span></li>
+          } @else {
+            <li class="breadcrumb-item"><a routerLink="/">Home</a><span class="separator">/</span></li>
           }
-          <span>Aggiorna da Selezioni Online</span>
-        </button>
-      </div>
-
-      @if (isAdminMode()) {
-        <div class="alert alert-warning" role="note">
-          <strong>Vista amministratore.</strong>
-          Stai vedendo i bandi presenti nel database locale. I bandi marcati come
-          "Solo vista admin" non risultano collegati al tuo utente come membro operativo nei dati locali.
+          <li class="breadcrumb-item active" aria-current="page">{{ dashboardTitle() }}</li>
+        </ol></nav>
+        <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3">
+          <div>
+            <h1 class="mb-1">{{ dashboardTitle() }}</h1>
+            <p class="mb-0 text-secondary">{{ syncLine() }} ·
+              <button type="button" class="btn btn-link p-0 align-baseline fw-semibold" [disabled]="syncing()" (click)="reload()">Aggiorna ora</button></p>
+          </div>
+          <div class="form-group mb-0 app-search">
+            <label for="cerca" class="active">Cerca concorso</label>
+            <input type="search" class="form-control" id="cerca" placeholder="Codice o titolo" [ngModel]="query()" (ngModelChange)="onQueryChange($event)" />
+          </div>
         </div>
-      }
-
-      @if (isTechnicalMode() && hasAdminSupportItems()) {
-        <div class="alert alert-warning" role="note">
-          <strong>Vista admin di supporto.</strong>
-          I bandi marcati come vista admin non risultano assegnati al profilo operativo selezionato.
-        </div>
-      }
-
-      @if (syncError()) {
-        <div class="alert alert-warning" role="alert">
-          <h2 class="alert-heading h5 mb-2">Sincronizzazione commissioni non riuscita</h2>
-          <div><strong>Motivo:</strong> {{ syncError() }}</div>
-          @if (syncSource() === 'db_cache' || syncSource() === 'db_fallback') {
-            @if (hasLocalItems()) {
-              <div class="mt-1">Stai visualizzando i dati locali in cache.</div>
-            } @else {
-              <div class="mt-1">Non ci sono ancora dati locali da mostrare. Riprova la sincronizzazione quando Selezioni Online risponde.</div>
-            }
-          }
-        </div>
-      }
-
-      @if (loading() && !hasLocalItems()) {
-        <div class="d-flex align-items-center gap-2 py-3" role="status" aria-live="polite">
-          <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-          <span>Caricamento bandi…</span>
-        </div>
-      } @else if (error()) {
-        <div class="alert alert-danger" role="alert">{{ error() }}</div>
-      } @else {
-        @if (items().length === 0) {
-          <div class="empty-state border rounded p-4 p-md-5 text-center" role="status">
-            <h2 class="h4 mb-2">{{ emptyTitle() }}</h2>
-            <p class="text-muted mb-4">{{ emptyMessage() }}</p>
-            <button type="button" class="btn btn-primary" [disabled]="loading()" (click)="reload()">
-              {{ emptyActionLabel() }}
-            </button>
-            @if (isSecretaryMode() || isAdminMode()) {
-              <p class="small text-muted mt-3 mb-0">
-                La prima sincronizzazione puo richiedere fino al timeout configurato per Selezioni Online.
-              </p>
-            }
+        @if (syncing()) {
+          <div class="alert alert-info" role="status">
+            <div class="d-flex align-items-center gap-3">
+              <div class="progress-spinner progress-spinner-active size-sm"><span class="visually-hidden">Caricamento</span></div>
+              <span><strong>Aggiornamento da Selezioni Online…</strong> Puoi continuare a lavorare: l’elenco si aggiorna da solo.</span>
+            </div>
+          </div>
+        }
+        @if (isAdminMode()) {
+          <div class="alert alert-warning" role="note"><strong>Vista amministratore.</strong> Vedi tutti i bandi presenti nell’app; quelli marcati “Solo vista admin” non sono collegati al tuo utente come membro operativo.</div>
+        }
+        @if (syncError()) {
+          <div class="alert alert-warning" role="alert">
+            <strong>Aggiornamento da Selezioni Online non riuscito.</strong> {{ syncError() }}
+            @if (hasLocalItems()) { Stai vedendo i dati già salvati nell’app. } @else { Non ci sono ancora dati salvati: riprova quando Selezioni Online risponde. }
+          </div>
+        }
+        @if (loading() && !hasLocalItems()) {
+          <p class="d-flex align-items-center gap-2 py-3" role="status" aria-live="polite"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Carico i concorsi…</p>
+        } @else if (error()) {
+          <div class="alert alert-danger" role="alert">{{ error() }}</div>
+        } @else if (items().length === 0) {
+          <div class="app-empty bg-white" role="status">
+            <p class="fw-semibold mb-1">{{ emptyTitle() }}</p>
+            <p class="text-secondary mb-3">{{ emptyMessage() }}</p>
+            <button type="button" class="btn btn-primary" [disabled]="syncing()" (click)="reload()">{{ emptyActionLabel() }}</button>
           </div>
         } @else {
-          @if (isSecretaryMode()) {
-            <p class="small text-muted">Dati da Selezioni Online · <button type="button" class="btn btn-link btn-sm p-0" [disabled]="syncing()" (click)="reload()">Aggiorna ora</button></p>
-            @if (syncing()) { <p class="small" role="status" aria-live="polite"><span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Aggiornamento in corso…</p> }
-            <div class="row g-3 mb-3 align-items-end"><div class="col-12 col-md-8"><label for="filtro-concorso-dashboard" class="form-label">Cerca concorso</label><input id="filtro-concorso-dashboard" type="search" class="form-control" placeholder="Cerca per nome o codice…" [ngModel]="query()" (ngModelChange)="onQueryChange($event)" /></div><div class="col-12 col-md-4"><label for="ordina-concorsi" class="form-label">Ordina</label><select id="ordina-concorsi" class="form-select" [ngModel]="bandoSort()" (ngModelChange)="setBandoSort($event)"><option value="session">Prossima sessione</option><option value="name">Nome concorso</option></select></div></div>
-            <app-filter-chips label="Filtra i concorsi" [options]="bandoFilterOptions()" [selected]="bandoFilter()" (selectedChange)="setBandoFilter($event)" />
-            <div class="table-responsive mt-3"><table class="table table-striped table-hover">
-              <thead><tr><th>Concorso</th><th>Prossima sessione</th><th>Sessioni</th><th>Configurazione</th><th>Azioni</th></tr></thead>
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+            <app-filter-chips label="Filtra concorsi" [options]="bandoFilterOptions()" [selected]="bandoFilter()" (selectedChange)="setBandoFilter($event)" />
+            <div class="select-wrapper app-sort"><label for="ord" class="visually-hidden">Ordina</label>
+              <select id="ord" [ngModel]="bandoSort()" (ngModelChange)="setBandoSort($event)">
+                <option value="session">Ordina: prossima sessione</option><option value="name">Ordina: codice</option>
+              </select></div>
+          </div>
+          <div class="card card-bg no-after"><div class="card-body p-0">
+            <div class="table-responsive"><table class="table table-hover align-middle mb-0 app-table">
+              <thead><tr><th scope="col">Concorso</th><th scope="col">Prossima sessione</th><th scope="col">Sessioni</th><th scope="col">Configurazione</th><th scope="col" class="text-end"><span class="visually-hidden">Azioni</span></th></tr></thead>
               <tbody>
                 @for (bando of pageItems(); track bando.commission_id) {
-                  <tr><th scope="row">{{ competitionLabel(bando.title, bando.commission_id) }}</th>
-                    <td>@if (bando.next_session) { {{ bando.next_session.date }} · {{ bando.next_session.time }}<br /><span class="small text-muted">{{ bando.next_session.name }}</span> } @else { <span class="text-muted">Nessuna sessione in arrivo</span> }</td>
-                    <td>{{ bando.session_count }}</td>
-                    <td><span class="badge" [class.text-bg-success]="bando.configured && bando.required_data_complete !== false" [class.text-bg-warning]="!bando.configured || bando.required_data_complete === false">{{ bando.configured && bando.required_data_complete !== false ? 'Completa' : 'Da completare' }}</span></td>
-                    <td class="d-flex flex-wrap gap-2">
-                      @if (canConfigureBando()) { <a class="btn btn-sm btn-outline-primary" [routerLink]="['/bandi', bando.commission_id, 'config']" [queryParams]="{ returnUrl: currentUrl() }">Configura bando</a> }
-                      <a class="btn btn-sm btn-primary" [routerLink]="['/bandi', bando.commission_id, 'sessioni']" [queryParams]="{ mode: mode }">Vedi sessioni</a>
+                  <tr>
+                    <td><a class="fw-semibold" [routerLink]="['/bandi', bando.commission_id, 'sessioni']" [queryParams]="{ mode: mode }">{{ competitionLabel(bando.title, bando.commission_id) }}</a>
+                      @if (isAdminMode() && bando.visibility_reason === 'admin') { <br><span class="badge app-badge-neutral">Solo vista admin</span> }</td>
+                    <td class="app-num-cell">{{ bando.next_session ? nextSessionLabel(bando.next_session.date, bando.next_session.time) : '—' }}</td>
+                    <td class="app-num-cell">{{ bando.session_count }}</td>
+                    <td><span [class]="'badge app-badge-' + configBadge(bando).tone">{{ configBadge(bando).label }}</span></td>
+                    <td class="text-end app-actions">
+                      <a class="me-3 fw-semibold" [routerLink]="['/bandi', bando.commission_id, 'config']" [queryParams]="{ returnUrl: currentUrl() }">Configura</a>
+                      <a class="btn btn-primary btn-sm" [routerLink]="['/bandi', bando.commission_id, 'sessioni']" [queryParams]="{ mode: mode }">Vedi sessioni</a>
                     </td>
                   </tr>
-                } @empty { <tr><td colspan="5">Nessun concorso corrisponde ai filtri.</td></tr> }
+                } @empty { <tr><td colspan="5" class="text-secondary">Nessun concorso corrisponde ai filtri.</td></tr> }
               </tbody>
             </table></div>
-            <app-pager label="Concorsi" [total]="filteredItems().length" [page]="page()" [pageSize]="pageSize()" (pageChange)="page.set($event)" (pageSizeChange)="setPageSize($event)" />
-            <details class="mt-4"><summary>Non trovi un concorso?</summary><p class="mt-2 mb-0">Verifica che la tua utenza sia collegata alla commissione e abilitata su Selezioni Online, poi aggiorna l’elenco.</p>@if (auth.hasCapability('admin')) { <p class="mt-2 mb-0">L’amministratore può consultare i dati locali anche quando non risulta collegato al bando come membro operativo.</p> }</details>
-          } @else {
+          </div></div>
+          <app-pager label="Concorsi" [total]="filteredItems().length" [page]="page()" [pageSize]="pageSize()" (pageChange)="page.set($event)" (pageSizeChange)="setPageSize($event)" />
+          <div class="accordion mt-4">
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="faq-h"><button class="accordion-button" [class.collapsed]="!helpOpen()" type="button" [attr.aria-expanded]="helpOpen()" aria-controls="faq-c" (click)="helpOpen.set(!helpOpen())">Non trovi un concorso?</button></h2>
+              <div id="faq-c" class="accordion-collapse collapse" [class.show]="helpOpen()" role="region" aria-labelledby="faq-h">
+                <div class="accordion-body">Per vedere un bando il tuo nominativo deve essere collegato alla commissione e abilitato su Selezioni Online. Se l’hai appena ottenuto usa “Aggiorna ora” in alto, altrimenti contatta il referente del procedimento.
+                  @if (auth.hasCapability('admin')) { L’amministratore può consultare i dati locali da “Tutti i bandi” anche quando non è collegato al bando come membro operativo. }</div>
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+    } @else {
+      <!-- Vecchie viste per modalità tecniche e referente: le home di questi profili sono altrove (Le mie sessioni, Bandi da referente). -->
+      <div class="container my-5">
+        <h1 class="mb-4">{{ dashboardTitle() }}</h1>
+        <p class="lead">{{ dashboardLead() }}</p>
+        @if (isTechnicalMode() && hasAdminSupportItems()) {
+          <div class="alert alert-warning" role="note"><strong>Vista admin di supporto.</strong> I bandi marcati come vista admin non risultano assegnati al profilo operativo selezionato.</div>
+        }
+        @if (loading() && !hasLocalItems()) {
+          <p role="status" aria-live="polite">Carico i bandi…</p>
+        } @else if (error()) {
+          <div class="alert alert-danger" role="alert">{{ error() }}</div>
+        } @else {
           <div class="mb-3">
             <label for="filtro-concorso-dashboard" class="form-label">Cerca concorso</label>
             <input
@@ -185,20 +195,7 @@ import { competitionLabel } from '../../shared/competition-label';
               </tbody>
             </table>
           </div>
-          }
         }
-      }
-    </div>
-
-    @if (loading() && !hasLocalItems()) {
-      <div class="loading-overlay" role="status" aria-live="polite" aria-busy="true">
-        <div class="loading-panel text-center">
-          <div class="spinner-border text-primary" aria-hidden="true"></div>
-          <div class="fw-semibold mt-3">
-            {{ syncing() ? 'Aggiornamento bandi da Selezioni Online…' : 'Caricamento bandi…' }}
-          </div>
-          <div class="small text-muted mt-1">Attendi il completamento dell'operazione.</div>
-        </div>
       </div>
     }
 
@@ -224,29 +221,6 @@ import { competitionLabel } from '../../shared/competition-label';
       display: block;
       background: rgba(0, 0, 0, 0.45);
     }
-    .empty-state {
-      max-width: 760px;
-      margin: 2rem auto;
-      background: #fff;
-    }
-    .loading-overlay {
-      position: fixed;
-      inset: 0;
-      z-index: 2050;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 1rem;
-      background: rgba(255, 255, 255, 0.72);
-    }
-    .loading-panel {
-      width: min(92vw, 420px);
-      border: 1px solid #d8e2ec;
-      border-radius: 8px;
-      background: #fff;
-      box-shadow: 0 1rem 2.5rem rgba(23, 50, 77, 0.18);
-      padding: 1.5rem;
-    }
   `,
 })
 export class BandiComponent {
@@ -263,7 +237,7 @@ export class BandiComponent {
   readonly syncError = signal<string | null>(null);
   readonly syncSource = signal<string | null>(null);
   readonly mobilePromptOpen = signal(true);
-  readonly secretaryHelpOpen = signal(false);
+  readonly helpOpen = signal(false);
   readonly query = signal('');
   readonly bandoFilter = signal<'upcoming' | 'incomplete' | 'all'>('all');
   readonly bandoSort = signal<'session' | 'name'>('session');
@@ -271,7 +245,7 @@ export class BandiComponent {
   readonly pageSize = signal(10);
   readonly bandoFilterOptions = computed<FilterChipOption[]>(() => [
     { id: 'upcoming', label: 'Con sessioni in arrivo', count: this.items().filter((b) => !!b.next_session).length },
-    { id: 'incomplete', label: 'Da completare', count: this.items().filter((b) => !b.configured || b.required_data_complete === false).length },
+    { id: 'incomplete', label: 'Da completare', count: this.items().filter((b) => this.configBadge(b).tone === 'warning').length },
     { id: 'all', label: 'Tutti', count: this.items().length },
   ]);
   readonly filteredItems = computed(() => {
@@ -279,7 +253,7 @@ export class BandiComponent {
     return this.items().filter((bando) => {
       const matchesQuery = !q || `${bando.title} ${bando.commission_id}`.toLowerCase().includes(q);
       const matchesFilter = this.bandoFilter() === 'all'
-        || (this.bandoFilter() === 'upcoming' ? !!bando.next_session : !bando.configured || bando.required_data_complete === false);
+        || (this.bandoFilter() === 'upcoming' ? !!bando.next_session : this.configBadge(bando).tone === 'warning');
       return matchesQuery && matchesFilter;
     }).sort((a, b) => {
       if (this.bandoSort() === 'name') return a.title.localeCompare(b.title);
@@ -388,6 +362,36 @@ export class BandiComponent {
     if (this.mode === 'segretario') return 'Sincronizza bandi da Selezioni Online';
     if (this.mode === 'admin') return 'Aggiorna bandi da Selezioni Online';
     return 'Ricarica elenco';
+  }
+
+  /** "Dati da Selezioni Online aggiornati oggi alle 10:19" dal più recente aggiornamento dei concorsi. */
+  syncLine(): string {
+    const latest = this.items().map((bando) => bando.last_sync).filter((value): value is string => !!value).sort().at(-1);
+    const date = latest ? new Date(latest) : null;
+    if (!date || Number.isNaN(date.getTime())) return 'Dati da Selezioni Online';
+    const time = date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+    const today = new Date().toDateString() === date.toDateString();
+    return `Dati da Selezioni Online aggiornati ${today ? 'oggi' : 'il ' + date.toLocaleDateString('it-IT')} alle ${time}`;
+  }
+
+  /** "oggi 14:17" oppure "30/09 15:52" (prototipo concorsi.html). */
+  nextSessionLabel(date: string, time: string): string {
+    const when = sessionWhen(date, time);
+    if (when.startsWith('Oggi')) return when.replace('Oggi alle', 'oggi');
+    const iso = date.match(/^\d{4}-(\d{2})-(\d{2})/);
+    return iso ? `${iso[2]}/${iso[1]} ${time.slice(0, 5)}` : when;
+  }
+
+  /** Un solo messaggio per riga, con la cosa da sistemare (FR-023, prototipo concorsi.html). */
+  configBadge(bando: BandoSummary): { label: string; tone: 'success' | 'warning' | 'neutral' } {
+    const sessions = Number(bando.session_count || 0);
+    if (!sessions) return { label: 'Nessuna sessione pianificata', tone: 'neutral' };
+    const missingExperts = sessions - Number(bando.remote_expert_assigned_count || 0);
+    if (missingExperts > 0) return { label: `Manca l’esperto remoto in ${missingExperts} ${missingExperts === 1 ? 'sessione' : 'sessioni'}`, tone: 'warning' };
+    if (!bando.referente_email) return { label: 'Referente non indicato', tone: 'warning' };
+    if (bando.required_data_complete === false) return { label: 'Dati del bando da completare', tone: 'warning' };
+    if (!bando.next_session) return { label: 'Tutte le sessioni concluse', tone: 'neutral' };
+    return { label: 'Configurazione completa', tone: 'success' };
   }
 
   currentUrl(): string {

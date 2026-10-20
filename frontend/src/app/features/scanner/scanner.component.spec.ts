@@ -1,9 +1,10 @@
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 import { ApiClient } from '../../core/api-client';
 import { ScannerComponent, parseCandidateQr, parseSessionQr } from './scanner.component';
+import { provideKitForTests } from '../../../testing/kit';
 
 describe('parseCandidateQr', () => {
   it('extracts the candidate uid from the legacy QR payload', () => {
@@ -38,6 +39,8 @@ describe('ScannerComponent', () => {
     await TestBed.configureTestingModule({
       imports: [ScannerComponent],
       providers: [
+        provideRouter([]),
+        ...provideKitForTests(),
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { queryParamMap: new Map() } },
@@ -71,6 +74,8 @@ describe('ScannerComponent', () => {
     await TestBed.configureTestingModule({
       imports: [ScannerComponent],
       providers: [
+        provideRouter([]),
+        ...provideKitForTests(),
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: new Map([['sessionId', 's1']]) } } },
         { provide: ApiClient, useValue: { post } },
       ],
@@ -94,6 +99,8 @@ describe('ScannerComponent', () => {
     await TestBed.configureTestingModule({
       imports: [ScannerComponent],
       providers: [
+        provideRouter([]),
+        ...provideKitForTests(),
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: new Map([['sessionId', 's1'], ['token', 'invalid']]) } } },
         { provide: ApiClient, useValue: { post: () => throwError(() => ({ error: { error: { message: 'Token non valido' } } })) } },
       ],
@@ -120,6 +127,8 @@ describe('ScannerComponent', () => {
     await TestBed.configureTestingModule({
       imports: [ScannerComponent],
       providers: [
+        provideRouter([]),
+        ...provideKitForTests(),
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: new Map([['sessionId', 's1'], ['token', 'registration']]) } } },
         { provide: ApiClient, useValue: { post } },
       ],
@@ -146,6 +155,8 @@ describe('ScannerComponent', () => {
     await TestBed.configureTestingModule({
       imports: [ScannerComponent],
       providers: [
+        provideRouter([]),
+        ...provideKitForTests(),
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: new Map([['sessionId', 's1']]) } } },
         { provide: ApiClient, useValue: { post } },
       ],
@@ -153,7 +164,6 @@ describe('ScannerComponent', () => {
     const fixture = TestBed.createComponent(ScannerComponent);
     fixture.detectChanges();
     fixture.componentInstance.openCandidate('missing');
-    await fixture.whenStable();
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Candidato non trovato.');
@@ -176,6 +186,8 @@ describe('ScannerComponent', () => {
     await TestBed.configureTestingModule({
       imports: [ScannerComponent],
       providers: [
+        provideRouter([]),
+        ...provideKitForTests(),
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: new Map([['sessionId', 's1']]) } } },
         { provide: ApiClient, useValue: { post } },
       ],
@@ -183,7 +195,6 @@ describe('ScannerComponent', () => {
     const fixture = TestBed.createComponent(ScannerComponent);
     fixture.detectChanges();
     fixture.componentInstance.openCandidate('c1');
-    await fixture.whenStable();
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Presente dalle 14:07, registrato dallo scanner.');

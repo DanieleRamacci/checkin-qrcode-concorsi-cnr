@@ -1,8 +1,9 @@
 import { Component, inject, signal, ViewChild } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ItIconComponent } from 'design-angular-kit';
 import { FormsModule, NgForm } from '@angular/forms';
 import { ApiClient } from '../../core/api-client';
-import { BackLinkComponent } from '../../shared/back-link.component';
+import { InPageLinkDirective } from '../../shared/in-page-link.directive';
 import { BandiService } from '../bandi/bandi.service';
 import { competitionLabel } from '../../shared/competition-label';
 
@@ -28,223 +29,176 @@ interface SessionAssignment {
 
 @Component({
   selector: 'app-bando-config',
-  imports: [FormsModule, BackLinkComponent],
+  imports: [FormsModule, RouterLink, ItIconComponent, InPageLinkDirective],
   template: `
-    <div class="container-xxl my-5">
-      <app-back-link [target]="returnUrl()" [label]="returnLabel()" />
-      <h1 class="mb-1">Configura bando</h1>
-      <p class="text-muted mb-4">{{ competitionLabel(title(), id) }}</p>
+    <div class="container py-4 py-lg-5">
+      <nav class="breadcrumb-container" aria-label="Percorso di navigazione"><ol class="breadcrumb p-0 mb-2">
+        @if (fromReferente()) {
+          <li class="breadcrumb-item"><a routerLink="/referenti/bandi">Bandi da referente</a><span class="separator">/</span></li>
+        } @else {
+          <li class="breadcrumb-item"><a routerLink="/bandi" [queryParams]="{ mode: 'segretario' }">I miei concorsi</a><span class="separator">/</span></li>
+          <li class="breadcrumb-item"><a [routerLink]="['/bandi', id, 'sessioni']" [queryParams]="{ mode: 'segretario' }">{{ competitionLabel(title(), id) }}</a><span class="separator">/</span></li>
+        }
+        <li class="breadcrumb-item active" aria-current="page">Configura bando</li>
+      </ol></nav>
+      <h1 class="mb-1">Configura bando {{ code() }}</h1>
+      <p class="text-secondary mb-4">Chi lavora alle sessioni di questo concorso. Ciò che è facoltativo puoi lasciarlo vuoto: il segretario lo indicherà all’apertura della sessione.</p>
 
-      <div class="row g-4">
-        <aside class="col-12 col-lg-3 col-xl-2">
-          <nav class="app-config-index nav nav-pills flex-lg-column gap-2" aria-label="Sezioni configurazione">
-            <a class="nav-link" href="#section-referente">Referente <span class="badge text-bg-light">Facoltativo</span></a>
-            <a class="nav-link" href="#section-segretario">Segretario e prova <span class="badge text-bg-light">Obbligatorio</span></a>
-            <a class="nav-link" href="#section-commissione">Commissione · {{ commissionMembers.length }}</a>
-            <a class="nav-link" href="#section-sessioni">Sessioni · {{ incompleteAssignments() }} da completare</a>
-          </nav>
-        </aside>
-        <div class="col-12 col-lg-9 col-xl-10">
-
-      @if (message()) {
-        <div [class]="'alert mb-3 ' + (messageIsError() ? 'alert-danger' : 'alert-success')" role="status">
-          {{ message() }}
-        </div>
-      }
+      @if (message()) { <div [class]="'alert ' + (messageIsError() ? 'alert-danger' : 'alert-success')" role="status">{{ message() }}</div> }
       @if (syncing()) {
-        <div class="d-flex align-items-center mb-3" role="status">
-          <div class="spinner-border spinner-border-sm me-2" aria-hidden="true"></div>
-          Aggiornamento dati da Selezioni Online…
-        </div>
+        <div class="alert alert-info" role="status"><div class="d-flex align-items-center gap-3">
+          <div class="progress-spinner progress-spinner-active size-sm"><span class="visually-hidden">Caricamento</span></div>
+          <span>Aggiorno commissione, RDP e segretario da Selezioni Online…</span></div></div>
       }
-      @if (syncWarning()) {
-        <div class="alert alert-warning mb-3">{{ syncWarning() }}</div>
-      }
-
-      <div id="section-referente" class="card mb-4">
-        <div class="card-header bg-light py-2 d-flex align-items-center gap-2">
-          <span class="fw-bold text-uppercase small text-primary">Referente del procedimento</span>
-          <span class="badge text-bg-light small">Facoltativo</span>
-        </div>
-        <div class="card-body">
-          <label class="form-label small mb-1" for="email_referente">Email referente</label>
-          <div class="input-group input-group-sm">
-            @if (rdpOptions().length) {
-              <select class="form-select" id="email_referente" name="email_referente"
-                      [(ngModel)]="model['email_referente']">
-                <option value="">Seleziona referente</option>
-                @for (rdp of rdpOptions(); track rdp.email) {
-                  <option [value]="rdp.email">{{ rdp.nome || rdp.email }} — {{ rdp.email }}</option>
-                }
-              </select>
-            } @else {
-              <div class="form-control form-control-sm text-muted" id="email_referente">
-                Nessun RDP disponibile da Selezioni Online
-              </div>
-            }
-            <button type="button" class="btn btn-outline-primary" [disabled]="busy() || !canSendRequest()" (click)="requestConfiguration()">
-              Salva &amp; invia richiesta
-            </button>
-          </div>
-          <div class="form-text">
-            Il referente può essere scelto solo tra gli RDP restituiti da Selezioni Online.
-          </div>
-        </div>
-      </div>
+      @if (syncWarning()) { <div class="alert alert-warning" role="status">{{ syncWarning() }}</div> }
 
       <form #configForm="ngForm" (ngSubmit)="save()">
-        <div id="section-sessioni" class="card mb-3">
-          <div class="card-header bg-light py-2">
-            <span class="fw-bold text-uppercase small text-primary">Supporto tecnico per sessione</span>
+        <div class="row g-4">
+          <div class="col-12 col-lg-3">
+            <nav class="card card-bg no-after app-toc" aria-label="Sezioni della configurazione">
+              <div class="card-body">
+                <p class="app-eyebrow mb-2">Sezioni</p>
+                <ul class="list-unstyled mb-0">
+                  @for (entry of toc(); track entry.id) {
+                    <li><a [href]="'#' + entry.id" [appInPageLink]="entry.id" [class.app-toc-todo]="!entry.done">
+                      <it-icon [name]="entry.done ? 'check' : 'warning-circle'" size="xs" [color]="entry.done ? 'success' : 'warning'" />{{ entry.label }}</a></li>
+                  }
+                </ul>
+              </div>
+            </nav>
           </div>
-          <div class="card-body">
-            @if (sessionAssignments.length) {
-              <div class="table-responsive">
-                <table class="table align-middle">
+          <div class="col-12 col-lg-9 d-flex flex-column gap-4">
+            <section id="s-referente" class="card card-bg no-after"><div class="card-body">
+              <h2 class="h4 d-flex align-items-center gap-2 mb-4">Referente del procedimento <span class="badge app-badge-neutral app-badge-sm">Facoltativo</span></h2>
+              <div class="row g-3 align-items-end">
+                <div class="col-12 col-md-8">
+                  @if (rdpOptions().length) {
+                    <div class="select-wrapper"><label for="ref">Referente</label>
+                      <select id="ref" name="email_referente" [(ngModel)]="model['email_referente']">
+                        <option value="">Nessun referente</option>
+                        @for (rdp of rdpOptions(); track rdp.email) { <option [value]="rdp.email">{{ rdp.nome || rdp.email }} — {{ rdp.email }}</option> }
+                      </select></div>
+                  } @else {
+                    <p class="mb-0 text-secondary">Nessun RDP disponibile da Selezioni Online.</p>
+                  }
+                </div>
+                <div class="col-12 col-md-4"><button type="button" class="btn btn-outline-primary w-100" [disabled]="busy() || !canSendRequest()" (click)="requestConfiguration()">Invia richiesta al referente</button></div>
+              </div>
+              <p class="small text-secondary mt-2 mb-0">Solo tra gli RDP di Selezioni Online. La richiesta parte via email; il resto della pagina si salva con il pulsante in basso.</p>
+            </div></section>
+
+            <section id="s-segretario" class="card card-bg no-after"><div class="card-body">
+              <h2 class="h4 mb-4">Segretario e prova</h2>
+              <div class="row g-4">
+                <div class="col-12 col-md-6">
+                  @if (secretaryOptions().length) {
+                    <div class="select-wrapper"><label for="seg">Segretario</label>
+                      <select id="seg" name="email_segretario" [(ngModel)]="model['email_segretario']">
+                        <option value="">Scegli…</option>
+                        @for (secretary of secretaryOptions(); track secretary.email) { <option [value]="secretary.email">{{ secretary.nome || secretary.email }} — {{ secretary.email }}</option> }
+                      </select></div>
+                  } @else { <p class="mb-0 text-secondary">Nessun segretario disponibile da Selezioni Online.</p> }
+                  <p class="small text-secondary mt-1 mb-0">Solo tra i componenti con ruolo SEGRETARIO su Selezioni Online.</p>
+                </div>
+                <div class="col-12 col-md-6"><div class="form-group mb-0"><label for="tel" class="active">Telefono segretario</label><input type="tel" class="form-control" id="tel" name="telefono_segretario" [(ngModel)]="model['telefono_segretario']" /></div></div>
+                <div class="col-12 col-md-6"><div class="form-group mb-0"><label for="dur" class="active">Durata prova (minuti)</label><input type="number" min="1" class="form-control" id="dur" name="durata_prova_minuti" [(ngModel)]="model['durata_prova_minuti']" /></div></div>
+                <div class="col-12 col-md-6"><div class="form-group mb-0"><label for="dat" class="active">Data accesso piattaforma</label><input type="date" class="form-control" id="dat" name="data_accesso_piattaforma" [(ngModel)]="model['data_accesso_piattaforma']" /></div></div>
+              </div>
+            </div></section>
+
+            <section id="s-commissione" class="card card-bg no-after"><div class="card-body">
+              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                <h2 class="h4 mb-0">Commissione</h2>
+                <button type="button" class="btn btn-outline-primary btn-sm btn-icon gap-1" (click)="addCommissioner()"><it-icon name="plus" size="xs" color="primary" /><span>Aggiungi componente</span></button>
+              </div>
+              @if (!commissionMembers.length) {
+                <div class="alert alert-warning mb-0">Mancano i componenti della commissione da Selezioni Online. Verifica il bando sulla fonte dati o aggiungili qui.</div>
+              } @else {
+                <div class="table-responsive"><table class="table mb-0">
+                  <thead><tr><th scope="col">Nome</th><th scope="col">Email</th><th scope="col"><span class="visually-hidden">Azioni</span></th></tr></thead>
+                  <tbody>
+                    @for (member of commissionMembers; track $index; let i = $index) {
+                      <tr>
+                        @if (isNewMember(member)) {
+                          <td><label class="visually-hidden" [for]="'member-name-' + i">Nome componente</label><input class="form-control" [id]="'member-name-' + i" [name]="'member-name-' + i" [(ngModel)]="member.nome" placeholder="Nome e cognome" /></td>
+                          <td><label class="visually-hidden" [for]="'member-email-' + i">Email componente</label><input class="form-control" type="email" [id]="'member-email-' + i" [name]="'member-email-' + i" [(ngModel)]="member.email" placeholder="Email" /></td>
+                        } @else {
+                          <td>{{ member.nome || '—' }}</td><td class="text-break">{{ member.email || '—' }}</td>
+                        }
+                        <td class="text-end"><button type="button" class="btn btn-link text-danger p-0 fw-semibold" (click)="removeCommissioner(i)">Rimuovi<span class="visually-hidden"> {{ member.nome || 'componente ' + (i + 1) }}</span></button></td>
+                      </tr>
+                    }
+                  </tbody>
+                </table></div>
+              }
+            </div></section>
+
+            <section id="s-sessioni" class="card card-bg no-after"><div class="card-body">
+              <h2 class="h4">Supporto tecnico per sessione</h2>
+              <p class="text-secondary">Esperto remoto e informatico in sede servono per avviare ogni sessione. Se li indichi qui, il segretario li trova già compilati.</p>
+              @if (sessionAssignments.length) {
+                <div class="table-responsive"><table class="table align-middle mb-0">
                   <thead><tr><th scope="col">Sessione</th><th scope="col">Esperto remoto</th><th scope="col">Informatico in sede</th><th scope="col">Stato</th></tr></thead>
                   <tbody>
                     @for (assignment of sessionAssignments; track assignment.session_id; let i = $index) {
                       <tr>
-                        <th scope="row"><strong>{{ assignment.nome || 'Sessione' }}</strong><div class="small text-muted">{{ assignment.giorno }} {{ assignment.ora }} · {{ assignment.luogo }}</div></th>
-                        <td class="assignment-cell">
-                          <label class="visually-hidden" [for]="'session-expert-' + i">Esperto remoto</label>
-                          <select class="form-select" [id]="'session-expert-' + i" [name]="'session-expert-' + i" [(ngModel)]="assignment.email_esperto_remoto">
-                            <option value="">Seleziona esperto</option>
+                        <td><strong>{{ assignment.nome || 'Sessione' }}</strong><br><span class="small text-secondary">{{ assignment.giorno }} · {{ assignment.ora }}@if (assignment.luogo) { · {{ assignment.luogo }} }</span></td>
+                        <td><div class="select-wrapper app-select-inline"><label class="visually-hidden" [for]="'esp' + i">Esperto remoto per {{ assignment.nome || 'la sessione' }}</label>
+                          <select [id]="'esp' + i" [name]="'session-expert-' + i" [(ngModel)]="assignment.email_esperto_remoto">
+                            <option value="">Scegli…</option>
                             @for (email of expertOptions(); track email) { <option [value]="email">{{ email }}</option> }
-                          </select>
-                        </td>
+                          </select></div></td>
                         <td class="assignment-cell">
-                          @for (technician of assignment.informatici_sede; track $index; let t = $index) {
-                            <div class="border rounded p-2 mb-2">
-                              <div class="row g-2">
-                                <div class="col-12"><label class="visually-hidden" [for]="'session-sede-name-' + i + '-' + t">Nome informatico in sede</label><input class="form-control form-control-sm" [id]="'session-sede-name-' + i + '-' + t" [name]="'session-sede-name-' + i + '-' + t" [(ngModel)]="technician.nome" placeholder="Nome e cognome" /></div>
-                                <div class="col-12"><label class="visually-hidden" [for]="'session-sede-email-' + i + '-' + t">Email informatico in sede</label><input class="form-control form-control-sm" [id]="'session-sede-email-' + i + '-' + t" [name]="'session-sede-email-' + i + '-' + t" type="email" [(ngModel)]="technician.email" placeholder="Email" /></div>
-                                <div class="col-12"><label class="visually-hidden" [for]="'session-sede-phone-' + i + '-' + t">Telefono informatico in sede</label><input class="form-control form-control-sm" [id]="'session-sede-phone-' + i + '-' + t" [name]="'session-sede-phone-' + i + '-' + t" [(ngModel)]="technician.telefono" placeholder="Telefono" /></div>
-                                <div class="col-auto"><div class="form-check"><input class="form-check-input" type="radio" [name]="'session-sede-primary-' + i" [id]="'session-sede-primary-' + i + '-' + t" [checked]="technician.principale" (change)="setPrimarySessionSedeTechnician(i, t)" /><label class="form-check-label small" [for]="'session-sede-primary-' + i + '-' + t">Principale</label></div></div>
-                                <div class="col-auto ms-auto"><button type="button" class="btn btn-link btn-sm text-danger p-0" (click)="removeSessionSedeTechnician(i, t)">Rimuovi</button></div>
+                          @if (editingSede().has(i) || hasEmptyTechnician(assignment)) {
+                            @for (technician of assignment.informatici_sede; track $index; let t = $index) {
+                              <div class="border rounded p-2 mb-2">
+                                <input class="form-control form-control-sm mb-1" [id]="'session-sede-name-' + i + '-' + t" [name]="'session-sede-name-' + i + '-' + t" [(ngModel)]="technician.nome" placeholder="Nome e cognome" aria-label="Nome informatico in sede" />
+                                <input class="form-control form-control-sm mb-1" type="email" [id]="'session-sede-email-' + i + '-' + t" [name]="'session-sede-email-' + i + '-' + t" [(ngModel)]="technician.email" placeholder="Email (obbligatoria)" aria-label="Email informatico in sede" />
+                                <input class="form-control form-control-sm mb-1" [id]="'session-sede-phone-' + i + '-' + t" [name]="'session-sede-phone-' + i + '-' + t" [(ngModel)]="technician.telefono" placeholder="Telefono" aria-label="Telefono informatico in sede" />
+                                <div class="d-flex justify-content-between align-items-center">
+                                  @if (assignment.informatici_sede.length > 1) {
+                                    <div class="form-check mb-0"><input class="form-check-input" type="radio" [name]="'session-sede-primary-' + i" [id]="'session-sede-primary-' + i + '-' + t" [checked]="technician.principale" (change)="setPrimarySessionSedeTechnician(i, t)" /><label class="form-check-label small" [for]="'session-sede-primary-' + i + '-' + t">Principale</label></div>
+                                  } @else { <span></span> }
+                                  <button type="button" class="btn btn-link btn-sm text-danger p-0" (click)="removeSessionSedeTechnician(i, t)">Rimuovi</button>
+                                </div>
                               </div>
-                            </div>
-                          } @empty { <span class="small text-muted">Da assegnare</span> }
-                          <button type="button" class="btn btn-outline-primary btn-sm" (click)="addSessionSedeTechnician(i)">Aggiungi informatico</button>
+                            }
+                          } @else {
+                            @for (technician of assignment.informatici_sede; track $index) {
+                              <span class="d-block">{{ technician.nome || technician.email }}@if (technician.principale && assignment.informatici_sede.length > 1) { <span class="small text-secondary"> (principale)</span> }</span>
+                            }
+                            @if (assignment.informatici_sede.length) { <button type="button" class="btn btn-link p-0 fw-semibold" (click)="editSede(i)">Modifica</button> }
+                          }
+                          <button type="button" class="btn btn-link p-0 fw-semibold d-block" (click)="addSessionSedeTechnician(i)">+ Aggiungi informatico</button>
                         </td>
                         <td><span [class]="'badge ' + (assignmentComplete(assignment) ? 'app-badge-success' : 'app-badge-warning')">{{ assignmentComplete(assignment) ? 'Completa' : 'Da completare' }}</span></td>
                       </tr>
                     }
                   </tbody>
-                </table>
-              </div>
-            } @else {
-              <div class="empty-session-assignments border rounded p-4 text-center">
-                <p class="text-muted mb-3">
-                  Nessuna sessione locale disponibile per questo bando.
-                </p>
-                <button
-                  type="button"
-                  class="btn btn-primary"
-                  [disabled]="busy() || syncingSessions()"
-                  (click)="syncSessions()"
-                >
-                  @if (syncingSessions()) {
-                    <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
-                  }
-                  <span>Scarica sessioni da Selezioni Online</span>
-                </button>
-                <p class="small text-muted mt-3 mb-0">
-                  Serve per assegnare l'esperto remoto e l'informatico in sede alle singole sessioni del bando.
-                </p>
-              </div>
-            }
-          </div>
-        </div>
-
-        <div id="section-segretario" class="card mb-3">
-          <div class="card-header bg-light py-2">
-            <span class="fw-bold text-uppercase small text-primary">Segretario e durata prova</span>
-            <span class="badge text-bg-light ms-2">Obbligatorio</span>
-          </div>
-          <div class="card-body row g-3">
-            <div class="col-md-6">
-              <label class="form-label" for="email_segretario">Email segretario</label>
-              @if (secretaryOptions().length) {
-                <select class="form-select" id="email_segretario" name="email_segretario"
-                        [(ngModel)]="model['email_segretario']">
-                  <option value="">Seleziona segretario</option>
-                  @for (secretary of secretaryOptions(); track secretary.email) {
-                    <option [value]="secretary.email">{{ secretary.nome || secretary.email }} — {{ secretary.email }}</option>
-                  }
-                </select>
+                </table></div>
               } @else {
-                <div class="form-control text-muted" id="email_segretario">
-                  Nessun segretario disponibile da Selezioni Online
+                <div class="app-empty">
+                  <p class="fw-semibold mb-1">Nessuna sessione nell’app per questo bando</p>
+                  <p class="text-secondary">Scaricale per indicare esperto remoto e informatico in sede per ogni sessione.</p>
+                  <button type="button" class="btn btn-primary" [disabled]="busy() || syncingSessions()" (click)="syncSessions()">{{ syncingSessions() ? 'Scarico le sessioni…' : 'Scarica sessioni da Selezioni Online' }}</button>
                 </div>
               }
-              <div class="form-text">Il segretario puo essere scelto solo tra i componenti con ruolo SEGRETARIO restituiti da Selezioni Online.</div>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label" for="telefono_segretario">Telefono segretario</label>
-              <input class="form-control" id="telefono_segretario" name="telefono_segretario"
-                     [(ngModel)]="model['telefono_segretario']" />
-            </div>
-            <div class="col-md-6">
-              <label class="form-label" for="durata_prova_minuti">Durata prova in minuti</label>
-              <input class="form-control" id="durata_prova_minuti" name="durata_prova_minuti" type="number" min="1"
-                     [(ngModel)]="model['durata_prova_minuti']" />
-            </div>
-            <div class="col-md-6">
-              <label class="form-label" for="data_accesso_piattaforma">Data accesso piattaforma</label>
-              <input class="form-control" id="data_accesso_piattaforma" name="data_accesso_piattaforma" type="date"
-                     [(ngModel)]="model['data_accesso_piattaforma']" />
-            </div>
+            </div></section>
           </div>
-        </div>
-
-        <div id="section-commissione" class="card mb-4">
-          <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
-            <span class="fw-bold text-uppercase small text-primary">Componenti commissione</span>
-            <button type="button" class="btn btn-sm btn-outline-primary" (click)="addCommissioner()">Aggiungi</button>
-          </div>
-          <div class="card-body">
-            @if (!commissionMembers.length) {
-              <div class="alert alert-warning">
-                Mancano i componenti commissione da Selezioni Online. Verificare la configurazione del bando sulla fonte dati prima di completare la configurazione operativa.
-              </div>
-            }
-            @if (commissionMembers.length) {
-              <div class="table-responsive">
-                <table class="table align-middle mb-0">
-                  <thead><tr><th scope="col">Nome e cognome</th><th scope="col">Email</th><th scope="col"><span class="visually-hidden">Azioni</span></th></tr></thead>
-                  <tbody>
-                    @for (member of commissionMembers; track $index; let i = $index) {
-                      <tr>
-                        <td><label class="visually-hidden" [for]="'member-name-' + i">Nome componente</label><input class="form-control" [id]="'member-name-' + i" [name]="'member-name-' + i" [(ngModel)]="member.nome" placeholder="Nome e cognome" /></td>
-                        <td><label class="visually-hidden" [for]="'member-email-' + i">Email componente</label><input class="form-control" [id]="'member-email-' + i" [name]="'member-email-' + i" type="email" [(ngModel)]="member.email" placeholder="Email" /></td>
-                        <td class="text-end"><button type="button" class="btn btn-link btn-sm text-danger" (click)="removeCommissioner(i)">Rimuovi</button></td>
-                      </tr>
-                    }
-                  </tbody>
-                </table>
-              </div>
-            } @else {
-              <p class="text-muted small mb-0">Nessun componente inserito.</p>
-            }
-          </div>
-        </div>
-
-        <div class="app-savebar d-flex flex-wrap align-items-center justify-content-between gap-3" role="region" aria-label="Salvataggio configurazione">
-          <strong>{{ configForm.dirty ? unsavedCount() + ' ' + (unsavedCount() === 1 ? 'modifica non salvata' : 'modifiche non salvate') : 'Nessuna modifica non salvata' }}</strong>
-          <div class="d-flex gap-2"><button type="button" class="btn btn-outline-secondary" [disabled]="busy() || !configForm.dirty" (click)="loadConfig()">Annulla</button><button type="button" class="btn btn-primary" [disabled]="busy() || !configForm.dirty" (click)="save()">Salva configurazione</button></div>
         </div>
       </form>
-        </div>
+    </div>
+    <div class="app-savebar" [class.is-dirty]="dirty()">
+      <div class="container d-flex flex-wrap align-items-center justify-content-end gap-3">
+        <span class="flex-grow-1 text-secondary" id="savebar-text" role="status">{{ dirty() ? (unsavedCount() === 1 ? '1 modifica non salvata' : unsavedCount() + ' modifiche non salvate') : 'Nessuna modifica da salvare' }}</span>
+        <button type="button" class="btn btn-link fw-semibold" [disabled]="busy() || !dirty()" (click)="cancel()">Annulla</button>
+        <button type="button" class="btn btn-primary" [disabled]="busy() || !dirty()" (click)="save()">Salva configurazione</button>
       </div>
     </div>
   `,
   styles: `
-    .app-config-index { position: sticky; top: 1rem; }
-    .app-config-index .nav-link { display: flex; justify-content: space-between; gap: .5rem; color: #17324d; background: white; border: 1px solid #d9dadb; }
-    .container-xxl { padding-bottom: 6rem; }
-    .app-savebar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 20; padding: 1rem max(1rem, calc((100vw - 1320px) / 2)); background: #fff; border-top: 1px solid #b1b1b3; box-shadow: 0 -4px 12px rgba(0,0,0,.08); }
-    @media (max-width: 991.98px) { .app-config-index { position: static; flex-direction: row !important; overflow: auto; } .app-config-index .nav-link { white-space: nowrap; } }
+    .assignment-cell { min-width: 14rem; }
+    .app-badge-sm { font-size: .8rem; }
   `,
 })
 export class BandoConfigComponent {
@@ -269,6 +223,11 @@ export class BandoConfigComponent {
   readonly secretaryOptions = signal<Array<{ nome: string; email: string }>>([]);
   model: Record<string, any> = {};
   commissionMembers: Array<{ nome: string; email: string }> = [];
+  /** Componenti aggiunti a mano in questa visita: solo loro hanno i campi modificabili. */
+  private newMembers = new WeakSet<object>();
+  /** Modifiche fatte con pulsanti (aggiungi/rimuovi), che il form non vede come "dirty". */
+  readonly manualChanges = signal(0);
+  readonly editingSede = signal(new Set<number>());
   sessionAssignments: SessionAssignment[] = [];
   @ViewChild('configForm') private configForm?: NgForm;
 
@@ -286,6 +245,9 @@ export class BandoConfigComponent {
       this.secretaryOptions.set(data['secretary_options'] ?? []);
       this.commissionMembers = [...(data['commissione_members'] ?? [])];
       this.sessionAssignments = normalizeSessionAssignments(data['session_assignments'] ?? []);
+      this.newMembers = new WeakSet<object>();
+      this.manualChanges.set(0);
+      this.editingSede.set(new Set<number>());
       this.configForm?.form.markAsPristine();
     });
   }
@@ -347,6 +309,8 @@ export class BandoConfigComponent {
       next: () => {
         this.busy.set(false);
         this.configForm?.form.markAsPristine();
+        this.manualChanges.set(0);
+        this.editingSede.set(new Set<number>());
         this.messageIsError.set(false);
         this.message.set('Configurazione salvata.');
       },
@@ -378,12 +342,52 @@ export class BandoConfigComponent {
   }
 
   addCommissioner(): void {
-    this.commissionMembers.push({ nome: '', email: '' });
+    const member = { nome: '', email: '' };
+    this.newMembers.add(member);
+    this.commissionMembers.push(member);
+    this.changed();
   }
 
   removeCommissioner(index: number): void {
     this.commissionMembers.splice(index, 1);
+    this.changed();
   }
+
+  isNewMember(member: object): boolean { return this.newMembers.has(member); }
+
+  editSede(index: number): void { this.editingSede.update((set) => new Set(set).add(index)); }
+
+  hasEmptyTechnician(assignment: SessionAssignment): boolean {
+    return assignment.informatici_sede.some((technician) => !String(technician.email ?? '').trim() && !String(technician.nome ?? '').trim());
+  }
+
+  dirty(): boolean { return this.manualChanges() > 0 || !!this.configForm?.dirty; }
+
+  cancel(): void {
+    this.message.set('');
+    this.loadConfig();
+  }
+
+  fromReferente(): boolean { return this.returnUrl().startsWith('/referenti'); }
+
+  /** "999.999" dal titolo del bando, altrimenti il titolo leggibile. */
+  code(): string {
+    const label = competitionLabel(this.title(), this.id);
+    return label.startsWith('Concorso ') ? label.slice('Concorso '.length) : label === 'Concorso' ? '' : label;
+  }
+
+  /** Indice della pagina con lo stato di ogni sezione (FR-028). */
+  toc(): Array<{ id: string; label: string; done: boolean }> {
+    const todo = this.incompleteAssignments();
+    return [
+      { id: 's-referente', label: 'Referente', done: true },
+      { id: 's-segretario', label: 'Segretario e prova', done: !!this.model['email_segretario'] && !!this.model['durata_prova_minuti'] },
+      { id: 's-commissione', label: `Commissione · ${this.commissionMembers.length}`, done: this.commissionMembers.length > 0 },
+      { id: 's-sessioni', label: this.sessionAssignments.length ? `Sessioni · ${todo ? todo + ' da completare' : 'complete'}` : 'Sessioni · da scaricare', done: this.sessionAssignments.length > 0 && !todo },
+    ];
+  }
+
+  private changed(): void { this.manualChanges.update((count) => count + 1); }
 
   addSessionSedeTechnician(sessionIndex: number): void {
     const assignment = this.sessionAssignments[sessionIndex];
@@ -394,6 +398,8 @@ export class BandoConfigComponent {
       telefono: '',
       principale: assignment.informatici_sede.length === 0,
     });
+    this.editSede(sessionIndex);
+    this.changed();
   }
 
   removeSessionSedeTechnician(sessionIndex: number, technicianIndex: number): void {
@@ -404,6 +410,7 @@ export class BandoConfigComponent {
     if (removedPrimary && assignment.informatici_sede.length) {
       assignment.informatici_sede[0].principale = true;
     }
+    this.changed();
   }
 
   setPrimarySessionSedeTechnician(sessionIndex: number, technicianIndex: number): void {
@@ -413,10 +420,11 @@ export class BandoConfigComponent {
       ...technician,
       principale: index === technicianIndex,
     }));
+    this.changed();
   }
 
   unsavedCount(): number {
-    return Object.values(this.configForm?.controls ?? {}).filter((control) => control.dirty).length || 1;
+    return (Object.values(this.configForm?.controls ?? {}).filter((control) => control.dirty).length + this.manualChanges()) || 1;
   }
 
   incompleteAssignments(): number {
@@ -431,12 +439,6 @@ export class BandoConfigComponent {
     return this.rdpOptions().length > 0 && !!this.model['email_referente'];
   }
 
-  returnLabel(): string {
-    if (this.returnUrl().startsWith('/referenti/bandi')) return 'Torna ai bandi referente';
-    if (this.returnUrl().includes('/detail')) return 'Torna al dettaglio bando';
-    if (this.returnUrl().includes('/bandi?')) return 'Torna alla lista concorsi';
-    return 'Torna alla pagina precedente';
-  }
 
   private extractError(err: unknown, fallback = 'Salvataggio non riuscito.'): string {
     const body = (err as { error?: { error?: { message?: string; details?: Record<string, string> } } })?.error?.error;

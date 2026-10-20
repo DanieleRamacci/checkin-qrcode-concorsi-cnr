@@ -132,6 +132,8 @@ export interface CandidateSummary {
   reset_password_richiesto_at?: string | null;
   reset_password_effettuato: boolean;
   reset_password_effettuato_at?: string | null;
+  /** Ruolo di chi ha chiesto il reset ancora aperto (mai l'email). */
+  reset_password_richiesto_role?: string | null;
   note?: string;
 }
 

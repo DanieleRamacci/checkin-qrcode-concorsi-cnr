@@ -75,8 +75,8 @@ describe('ReferenteBandiComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Bando RDP');
     expect(fixture.nativeElement.textContent).toContain('Rita Verdi');
     expect(fixture.nativeElement.textContent).toContain('Da completare');
-    expect(fixture.nativeElement.textContent).toContain('Esperto remoto: 1/1 sessioni');
-    expect(fixture.nativeElement.textContent).toContain('Informatico in sede: 0/1 sessioni');
+    expect(fixture.nativeElement.textContent).toContain('Esperto remoto: 1 su 1 sessioni');
+    expect(fixture.nativeElement.textContent).toContain('Informatico in sede: 0 su 1 sessioni');
     expect(fixture.nativeElement.textContent).toContain('Manca in: Sessione mattina');
     expect(fixture.nativeElement.textContent).toContain('da completare');
     expect(fixture.nativeElement.textContent).toContain('Completa configurazione');
@@ -141,7 +141,7 @@ describe('ReferenteBandiComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Esperto remoto: assegnato');
     // session_count > 0 ma conteggio locale 0/N: il rapporto resta visibile,
     // ma senza contraddire il flag di bando gia' noto come assegnato.
-    expect(fixture.nativeElement.textContent).toContain('Esperto remoto: 0/2 sessioni (assegnato a livello bando)');
+    expect(fixture.nativeElement.textContent).toContain('Esperto remoto: 0 su 2 sessioni (assegnato a livello di bando)');
   });
 
   it('renders the empty state when the user has no assigned bandi', async () => {
@@ -170,7 +170,7 @@ describe('ReferenteBandiComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain(
-      'Non risultano bandi per cui la tua utenza e indicata come RDP o referente.',
+      'Non risultano bandi per cui la tua utenza è indicata come RDP o referente.',
     );
   });
 

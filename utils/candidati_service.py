@@ -4,7 +4,7 @@ from psycopg2.extras import RealDictCursor
 
 from db import get_db_connection
 from utils.candidati import importa_candidati_da_api
-from utils.notifications import add_notification
+from utils.notifications import _author_role, add_notification
 from utils.stato import get_stato_corrente, set_stato_corrente
 
 
@@ -33,7 +33,17 @@ def _document_expired(value) -> bool:
     return parsed < date.today()
 
 
-def _candidate_dto(row) -> dict:
+# Ruolo di chi ha chiesto il reset, mostrato sulla riga del candidato
+# (spec 013 FR-027): si espone il ruolo, mai l'email.
+_RESET_REQUESTER_LABELS = {
+    "Inf. sede": "Informatico in sede",
+    "Inf. remoto": "Esperto remoto",
+    "Admin": "Amministratore",
+    "Segretario": "Segretario",
+}
+
+
+def _candidate_dto(row, requester_role: str | None = None) -> dict:
     data = dict(row)
     return {
         "uid": data["uid"],
@@ -53,7 +63,15 @@ def _candidate_dto(row) -> dict:
         "reset_password_effettuato_at": _iso(
             data.get("reset_password_effettuato_at")
         ),
+        "reset_password_richiesto_role": requester_role,
     }
+
+
+def _requester_role(session_id: str, row) -> str | None:
+    requester = row.get("reset_password_richiesto_by")
+    if not row.get("reset_password_richiesto") or not requester:
+        return None
+    return _RESET_REQUESTER_LABELS.get(_author_role(session_id, requester))
 
 
 def list_candidates(
@@ -90,7 +108,7 @@ def list_candidates(
                        checkin_at, checkin_source,
                        COALESCE(reset_password_richiesto, FALSE)
                            AS reset_password_richiesto,
-                       reset_password_richiesto_at,
+                       reset_password_richiesto_at, reset_password_richiesto_by,
                        COALESCE(reset_password_effettuato, FALSE)
                            AS reset_password_effettuato,
                        reset_password_effettuato_at
@@ -100,7 +118,8 @@ def list_candidates(
                 """,
                 params,
             )
-            return [_candidate_dto(row) for row in cursor.fetchall()]
+            rows = cursor.fetchall()
+    return [_candidate_dto(row, _requester_role(session_id, row)) for row in rows]
 
 
 def _get_candidate(session_id: str, uid: str) -> dict:

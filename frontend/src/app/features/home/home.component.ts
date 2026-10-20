@@ -1,79 +1,143 @@
-import { Component, computed, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Component, computed, effect, inject, signal } from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
+import { IconName, ItIconComponent } from 'design-angular-kit';
+import { ApiClient } from '../../core/api-client';
 import { AuthService } from '../../core/auth.service';
+import { AssignedSessionsResponse } from '../../core/models/api.models';
 import { AppProfile, availableProfiles, ProfileService } from '../../core/profile.service';
+import { sessionWhen } from '../../shared/session-date';
+import { BandiService } from '../bandi/bandi.service';
+import { isBandoComplete } from '../bandi/bando-completeness';
 
-interface ProfileCard { id: AppProfile; label: string; description: string; }
+interface ProfileCard { id: AppProfile; label: string; description: string; icon: IconName; }
 
 const PROFILE_CARDS: ProfileCard[] = [
-  { id: 'segretario', label: 'Segretario', description: 'Gestisci i tuoi concorsi e le sessioni fino all’invio delle liste.' },
-  { id: 'referente', label: 'Referente', description: 'Completa la configurazione dei bandi che ti sono assegnati.' },
-  { id: 'sede', label: 'Informatico in sede', description: 'Segui le sessioni assegnate e gestisci le richieste di reset.' },
-  { id: 'esperto', label: 'Esperto remoto', description: 'Prepara l’ambiente d’esame e gestisci i reset assegnati.' },
-  { id: 'admin', label: 'Amministrazione', description: 'Gestisci utenti, impostazioni e log di sistema.' },
+  { id: 'segretario', label: 'Segretario', description: 'Prepari le sessioni, registri le presenze e invii le liste.', icon: 'pa' },
+  { id: 'referente', label: 'Referente', description: 'Configuri i bandi di cui sei RDP o referente.', icon: 'folder' },
+  { id: 'sede', label: 'Informatico in sede', description: 'Colleghi i dispositivi in aula e segnali i reset password.', icon: 'tool' },
+  { id: 'esperto', label: 'Esperto remoto', description: 'Ricevi le liste, aggiorni Moodle e avanzi le fasi dell’esame.', icon: 'software' },
 ];
 
+/**
+ * P01a Scelta profilo (docs/design-revisione/prototipo/profili.html): una card
+ * per profilo operativo dell'utente, amministrazione in una sezione a parte.
+ * Con un solo profilo si entra direttamente nella sua home.
+ */
 @Component({
   selector: 'app-home',
-  imports: [RouterLink],
+  imports: [RouterLink, ItIconComponent],
   template: `
-    <section class="container my-5" aria-labelledby="page-title">
-      <h1 id="page-title" class="mb-2">Scegli il tuo profilo</h1>
-      <p class="text-muted mb-4">Scegli un profilo, poi la pagina che vuoi aprire.</p>
-      <div class="nav nav-tabs flex-wrap" role="tablist" aria-label="Profili disponibili">
-        @for (profile of profileCards(); track profile.id) {
-          <button class="nav-link" [class.active]="currentProfile()?.id === profile.id" type="button"
-            role="tab" [id]="'profile-tab-' + profile.id" [attr.aria-controls]="'profile-panel-' + profile.id"
-            [attr.aria-selected]="currentProfile()?.id === profile.id"
-            [attr.tabindex]="currentProfile()?.id === profile.id ? 0 : -1"
-            (click)="selectedProfile.set(profile.id)" (keydown)="onTabKeydown($event, profile.id)">{{ profile.label }}</button>
-        }
-      </div>
-      @if (profileCards().length) {
-        @for (profile of profileCards(); track profile.id) {
-          <section class="profile-panel p-4 border border-top-0" role="tabpanel"
-            [id]="'profile-panel-' + profile.id" [attr.aria-labelledby]="'profile-tab-' + profile.id"
-            [hidden]="currentProfile()?.id !== profile.id" tabindex="0">
-            <h2 class="h4">{{ profile.label }}</h2>
-            <p class="text-muted">{{ profile.description }}</p>
-            <nav class="d-flex flex-wrap gap-2" [attr.aria-label]="'Pagine del profilo ' + profile.label">
-              @for (item of profiles.linksFor(profile.id); track item.label) {
-                <a class="btn btn-outline-primary" [routerLink]="item.path" [queryParams]="item.queryParams ?? null"
-                  (click)="profiles.select(profile.id)">{{ item.label }}</a>
-              }
-            </nav>
-          </section>
-        }
-      } @else {
-        <div class="alert alert-info mt-4" role="status">Non ci sono profili disponibili per questo account.</div>
+    <div class="container py-4 py-lg-5">
+      <h1 class="mb-1">Con quale profilo vuoi lavorare?</h1>
+      <p class="lead text-secondary mb-4">Vedi solo i profili assegnati al tuo utente. Chi ne ha uno solo entra direttamente nella sua home.</p>
+      @if (cards().length) {
+        <div class="app-role-grid">
+          @for (card of cards(); track card.id) {
+            <article class="card card-bg no-after app-role" [class.app-role--last]="card.id === highlighted()">
+              <div class="card-body d-flex flex-column gap-2">
+                <div class="d-flex align-items-center gap-2">
+                  <it-icon [name]="card.icon" color="primary" />
+                  <h2 class="h4 mb-0">{{ card.label }}</h2>
+                  @if (card.id === lastUsed()) { <span class="badge app-badge-neutral ms-2">Ultimo usato</span> }
+                </div>
+                <p class="mb-0">{{ card.description }}</p>
+                @if (hints()[card.id]; as hint) { <p class="small fw-semibold text-secondary mb-0">{{ hint }}</p> }
+                <div class="mt-auto pt-2">
+                  <a [class]="card.id === highlighted() ? 'btn btn-primary' : 'btn btn-outline-primary'"
+                    [routerLink]="profiles.home(card.id).path" [queryParams]="profiles.home(card.id).queryParams ?? null"
+                    (click)="choose(card.id)">Entra come {{ card.label }}</a>
+                </div>
+              </div>
+            </article>
+          }
+        </div>
+      } @else if (!isAdmin()) {
+        <div class="alert alert-info" role="status">Non risultano profili assegnati al tuo utente. Contatta il referente del procedimento o l’amministratore.</div>
       }
-    </section>
+      @if (isAdmin()) {
+        <section class="mt-4" aria-labelledby="admin-title">
+          <h2 id="admin-title" class="h6 text-secondary mb-2">Amministrazione <span class="fw-normal">· visibile solo agli amministratori</span></h2>
+          <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-outline-secondary btn-sm" routerLink="/bandi" [queryParams]="{ mode: 'admin' }" (click)="choose('admin')">Tutti i bandi</a>
+            <a class="btn btn-outline-secondary btn-sm" routerLink="/admin/permessi" (click)="choose('admin')">Permessi</a>
+            <a class="btn btn-outline-secondary btn-sm" routerLink="/admin/impostazioni" (click)="choose('admin')">Impostazioni</a>
+            <a class="btn btn-outline-secondary btn-sm" routerLink="/admin/logs" (click)="choose('admin')">Log di sistema</a>
+          </div>
+        </section>
+      }
+    </div>
   `,
-  styles: `.profile-panel { background: #fff; border-radius: 0 0 4px 4px; }`,
 })
 export class HomeComponent {
   readonly auth = inject(AuthService);
   readonly profiles = inject(ProfileService);
-  readonly selectedProfile = signal<AppProfile | null>(null);
-  readonly profileCards = computed(() => {
-    const available = availableProfiles(this.auth.user());
-    return PROFILE_CARDS.filter((profile) => available.includes(profile.id));
+  private readonly router = inject(Router);
+  private readonly api = inject(ApiClient);
+  private readonly bandi = inject(BandiService);
+  /** Riga di stato sotto ogni card (prototipo profili.html): cosa aspetta l'utente in quel profilo. */
+  readonly hints = signal<Partial<Record<AppProfile, string>>>({});
+  private hintsLoaded = false;
+  private readonly available = computed(() => availableProfiles(this.auth.user()));
+  readonly cards = computed(() => PROFILE_CARDS.filter((card) => this.available().includes(card.id)));
+  readonly isAdmin = computed(() => this.available().includes('admin'));
+  readonly lastUsed = computed(() => {
+    const last = this.profiles.lastUsed(this.auth.user()?.email);
+    return last && this.available().includes(last) ? last : null;
   });
-  readonly currentProfile = computed(() => this.profileCards().find((profile) => profile.id === this.selectedProfile()) ?? this.profileCards()[0] ?? null);
+  /** Card in evidenza: l'ultimo profilo usato da questo account, altrimenti il primo. */
+  readonly highlighted = computed(() => this.lastUsed() ?? this.cards()[0]?.id ?? null);
 
-  onTabKeydown(event: KeyboardEvent, profile: AppProfile): void {
-    const cards = this.profileCards();
-    const index = cards.findIndex((card) => card.id === profile);
-    let nextIndex: number;
-    if (event.key === 'ArrowRight') nextIndex = (index + 1) % cards.length;
-    else if (event.key === 'ArrowLeft') nextIndex = (index - 1 + cards.length) % cards.length;
-    else if (event.key === 'Home') nextIndex = 0;
-    else if (event.key === 'End') nextIndex = cards.length - 1;
-    else return;
-    event.preventDefault();
-    const next = cards[nextIndex]?.id;
-    if (!next) return;
-    this.selectedProfile.set(next);
-    document.getElementById(`profile-tab-${next}`)?.focus();
+  constructor() {
+    effect(() => {
+      const available = this.available();
+      if (available.length > 1 && !this.hintsLoaded) { this.hintsLoaded = true; this.loadHints(available); }
+      if (available.length !== 1) return;
+      const only = available[0];
+      this.profiles.select(only);
+      const home = this.profiles.home(only);
+      void this.router.navigate([home.path], { queryParams: home.queryParams, replaceUrl: true });
+    });
   }
+
+  choose(profile: AppProfile): void {
+    this.profiles.remember(this.auth.user()?.email, profile);
+  }
+
+  private setHint(profile: AppProfile, hint: string): void {
+    if (hint) this.hints.update((hints) => ({ ...hints, [profile]: hint }));
+  }
+
+  /** Dati già esposti dalle API delle singole home; un errore lascia la card senza riga di stato. */
+  private loadHints(available: AppProfile[]): void {
+    if (available.includes('segretario')) {
+      this.bandi.list('segretario').subscribe({ next: ({ items }) => {
+        const next = (items ?? []).flatMap((bando) => bando.next_session ? [bando.next_session] : [])
+          .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))[0];
+        if (next) this.setHint('segretario', sessionHint(next.name, next.date, next.time));
+      }, error: () => undefined });
+    }
+    if (available.includes('referente')) {
+      this.bandi.listReferente().subscribe({ next: ({ items }) => {
+        const todo = (items ?? []).filter((bando) => !isBandoComplete(bando)).length;
+        this.setHint('referente', todo ? `${todo} ${todo === 1 ? 'bando da completare' : 'bandi da completare'}` : 'Tutti i bandi sono completi');
+      }, error: () => undefined });
+    }
+    for (const profile of ['sede', 'esperto'] as const) {
+      if (!available.includes(profile)) continue;
+      this.api.get<AssignedSessionsResponse>(`/sessioni/assegnate?mode=${profile === 'sede' ? 'sede' : 'expert'}`).subscribe({ next: ({ items }) => {
+        const resets = (items ?? []).reduce((total, session) => total + (session.open_reset_count ?? 0), 0);
+        if (profile === 'esperto' && resets) { this.setHint(profile, `${resets} ${resets === 1 ? 'richiesta di reset da fare' : 'richieste di reset da fare'}`); return; }
+        const today = new Date();
+        const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        const next = (items ?? []).filter((session) => session.date >= todayIso)
+          .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))[0];
+        if (next) this.setHint(profile, sessionHint(next.name, next.date, next.time));
+      }, error: () => undefined });
+    }
+  }
+}
+
+function sessionHint(name: string, date: string, time: string): string {
+  const when = sessionWhen(date, time);
+  return when.startsWith('Oggi') ? `Oggi: ${name} ${when.slice(5)}` : `Prossima: ${name} · ${when}`;
 }

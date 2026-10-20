@@ -3,12 +3,14 @@ import { ActivatedRoute, provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { ApiClient } from '../../core/api-client';
 import { BandoConfigComponent } from './bando-config.component';
+import { provideKitForTests } from '../../../testing/kit';
 
 describe('BandoConfigComponent', () => {
   it('renders configuration data and expert options', async () => {
     await TestBed.configureTestingModule({
       imports: [BandoConfigComponent],
       providers: [
+        ...provideKitForTests(),
         provideRouter([]),
         {
           provide: ActivatedRoute,
@@ -67,17 +69,31 @@ describe('BandoConfigComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Supporto tecnico per sessione');
     expect(fixture.nativeElement.textContent).toContain('Prova mattina');
     expect(fixture.nativeElement.textContent).not.toContain('Principale richiesto');
+    expect(fixture.nativeElement.querySelector('#s-sessioni').textContent).toContain('Tecnico Sede');
+    expect(fixture.nativeElement.querySelector('#session-sede-name-0-0')).toBeNull();
+    fixture.componentInstance.editSede(0);
+    fixture.detectChanges();
+    await fixture.whenStable();
     expect((fixture.nativeElement.querySelector('#session-sede-name-0-0') as HTMLInputElement).value).toBe('Tecnico Sede');
     expect((fixture.nativeElement.querySelector('#session-sede-email-0-0') as HTMLInputElement).value).toBe('sede@cnr.it');
-    expect(fixture.nativeElement.textContent).toContain('Nessuna modifica non salvata');
+    expect(fixture.nativeElement.textContent).toContain('Nessuna modifica da salvare');
     expect((fixture.nativeElement.querySelector('.app-savebar .btn-primary') as HTMLButtonElement).disabled).toBe(true);
-    const expertSelect = fixture.nativeElement.querySelector('#session-expert-0') as HTMLSelectElement;
+    const expertSelect = fixture.nativeElement.querySelector('#esp0') as HTMLSelectElement;
     expertSelect.value = 'nuovo@cnr.it';
     expertSelect.dispatchEvent(new Event('change'));
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('1 modifica non salvata');
     expect(fixture.nativeElement.querySelectorAll('.app-savebar button').length).toBe(2);
     expect([...fixture.nativeElement.querySelectorAll('.app-savebar button')].filter((button) => button.textContent.includes('Salva configurazione'))).toHaveLength(1);
+    fixture.componentInstance.cancel();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect((fixture.nativeElement.querySelector('.app-savebar .btn-primary') as HTMLButtonElement).disabled).toBe(true);
+    // Rimuovere un componente è una modifica anche se nessun campo del form cambia.
+    fixture.componentInstance.removeCommissioner(0);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('1 modifica non salvata');
+    expect((fixture.nativeElement.querySelector('.app-savebar .btn-primary') as HTMLButtonElement).disabled).toBe(false);
   });
 
   it('saves technical assignments only at session level', async () => {
@@ -85,6 +101,7 @@ describe('BandoConfigComponent', () => {
     await TestBed.configureTestingModule({
       imports: [BandoConfigComponent],
       providers: [
+        ...provideKitForTests(),
         provideRouter([]),
         {
           provide: ActivatedRoute,
@@ -161,6 +178,7 @@ describe('BandoConfigComponent', () => {
     await TestBed.configureTestingModule({
       imports: [BandoConfigComponent],
       providers: [
+        ...provideKitForTests(),
         provideRouter([]),
         {
           provide: ActivatedRoute,
@@ -202,6 +220,7 @@ describe('BandoConfigComponent', () => {
     await TestBed.configureTestingModule({
       imports: [BandoConfigComponent],
       providers: [
+        ...provideKitForTests(),
         provideRouter([]),
         {
           provide: ActivatedRoute,
@@ -257,7 +276,7 @@ describe('BandoConfigComponent', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).toContain('Nessuna sessione locale disponibile');
+    expect(fixture.nativeElement.textContent).toContain('Nessuna sessione nell’app per questo bando');
     fixture.nativeElement.querySelector('button.btn-primary').click();
     await fixture.whenStable();
     fixture.detectChanges();

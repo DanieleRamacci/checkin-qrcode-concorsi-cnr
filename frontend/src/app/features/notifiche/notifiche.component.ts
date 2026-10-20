@@ -1,8 +1,9 @@
 import { DatePipe } from '@angular/common';
-import { Component, computed, DestroyRef, ElementRef, HostListener, inject, input, signal, ViewChild } from '@angular/core';
+import { Component, computed, DestroyRef, effect, ElementRef, HostListener, inject, input, output, signal, ViewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { catchError, EMPTY, switchMap, timer } from 'rxjs';
+import { ItIconComponent } from 'design-angular-kit';
 import { ApiClient } from '../../core/api-client';
 import { AuthService } from '../../core/auth.service';
 import { ApiList, CandidateSummary } from '../../core/models/api.models';
@@ -19,61 +20,58 @@ interface NotificationItem {
 
 @Component({
   selector: 'app-notifiche',
-  imports: [FormsModule, DatePipe],
+  imports: [FormsModule, DatePipe, ItIconComponent],
   template: `
-    <button #fab class="app-chat-fab" type="button" [attr.aria-expanded]="drawerOpen()" aria-controls="session-chat-drawer" (click)="openDrawer()">
-      <span aria-hidden="true">✉</span><span>Messaggi</span>
-      @if (newCount()) { <span class="app-chat-fab-badge" aria-label="messaggi non letti">{{ newCount() }}</span> }
+    <button #fab type="button" class="app-chat-fab" [hidden]="!showFab()" aria-controls="session-chat" [attr.aria-expanded]="drawerOpen()" (click)="openDrawer()">
+      <it-icon name="comment" color="white" /><span>Messaggi</span>
+      @if (newCount()) { <span class="app-chat-fab-badge">{{ newCount() }}<span class="visually-hidden"> {{ newCount() === 1 ? 'messaggio non letto' : 'messaggi non letti' }}</span></span> }
     </button>
-    @if (drawerOpen()) {
-      <div class="app-chat-backdrop" (click)="closeDrawer()"></div>
-      <aside id="session-chat-drawer" class="app-chat-drawer" role="dialog" aria-modal="true" aria-labelledby="chat-title">
-        <header class="app-chat-head">
-          <div><h2 id="chat-title" class="h5 mb-1">Messaggi della sessione</h2><p class="small text-muted mb-0">Segretario · Informatico in sede · Esperto remoto</p></div>
-          <button #closeButton class="btn-close" type="button" aria-label="Chiudi messaggi" (click)="closeDrawer()"></button>
-        </header>
-        <div class="app-chat-messages" aria-live="polite" aria-relevant="additions text">
-          @if (messages().length === 0) { <p class="text-muted text-center py-4">Nessun messaggio. Scrivi al gruppo della sessione.</p> }
-          @for (item of messages(); track item.id) {
-            <article class="app-msg" [class.app-msg--me]="isMine(item)" [class.app-msg--seg]="roleClass(item) === 'seg'" [class.app-msg--esp]="roleClass(item) === 'esp'" [class.app-msg--sede]="roleClass(item) === 'sede'">
-              <div class="d-flex justify-content-between align-items-center gap-2"><strong>{{ item.author_display || displayName(item.author_email) }}</strong><time class="small text-muted" [attr.datetime]="item.created_at">{{ item.created_at | date:'dd/MM HH:mm' }}</time></div>
-              <span class="app-role-tag" [class.app-role-tag--seg]="roleClass(item) === 'seg'" [class.app-role-tag--esp]="roleClass(item) === 'esp'" [class.app-role-tag--sede]="roleClass(item) === 'sede'">{{ roleLabel(item.author_role) }}</span>
-              <p class="mb-0 mt-1">{{ readablePayload(item) }}</p>
-            </article>
+    <aside id="session-chat" class="app-chat-drawer" [class.is-open]="drawerOpen()" aria-labelledby="chat-t" [attr.aria-hidden]="drawerOpen() ? null : 'true'">
+      <div class="app-chat-head">
+        <div class="app-minw"><h2 id="chat-t" class="h5 mb-0">Messaggi della sessione</h2>@if (sessionName()) { <p class="small mb-0">{{ sessionName() }}</p> }</div>
+        <button #closeButton type="button" class="app-chat-close" aria-label="Chiudi i messaggi" [attr.tabindex]="drawerOpen() ? null : -1" (click)="closeDrawer()"><it-icon name="close" color="white" /></button>
+      </div>
+      <div class="app-chat-people" aria-label="Partecipanti">
+        <span>Segretario</span><span>Esperto remoto</span><span>Informatico in sede</span>
+      </div>
+      <ul class="app-chat-list" aria-live="polite" aria-relevant="additions text">
+        @for (item of messages(); track item.id) {
+          <li class="app-msg" [class.app-msg--me]="isMine(item)">
+            <p class="app-msg-meta">
+              <span class="app-role-tag" [class.app-role-tag--seg]="roleClass(item) === 'seg'" [class.app-role-tag--esp]="roleClass(item) === 'esp'" [class.app-role-tag--sede]="roleClass(item) === 'sede'">{{ isMine(item) ? 'Tu' : roleLabel(item.author_role) }}</span>
+              <time [attr.datetime]="item.created_at">{{ item.created_at | date:'HH:mm' }}</time>
+            </p>
+            <p class="app-msg-text">{{ readablePayload(item) }}</p>
+          </li>
+        } @empty {
+          <li class="text-secondary text-center py-4">Nessun messaggio. Scrivi al gruppo della sessione.</li>
+        }
+      </ul>
+      <div class="app-chat-compose">
+        @if (error()) { <div class="alert alert-danger py-2 mb-0" role="alert">{{ error() }}</div> }
+        <div class="app-quick" role="group" aria-label="Messaggi rapidi">
+          @for (reply of quickReplies; track reply) {
+            <button type="button" class="btn btn-outline-primary btn-xs" [disabled]="busy()" [attr.tabindex]="drawerOpen() ? null : -1" (click)="sendText(reply)">{{ reply }}</button>
           }
         </div>
-        @if (error()) { <div class="alert alert-danger py-2" role="alert">{{ error() }}</div> }
-        <div class="app-chat-quick d-flex flex-wrap gap-2" aria-label="Risposte rapide">
-          @for (reply of quickReplies; track reply) { <button class="btn btn-sm btn-outline-secondary" type="button" [disabled]="busy()" (click)="sendText(reply)">{{ reply }}</button> }
-        </div>
-        <form class="app-chat-compose" (ngSubmit)="send()">
-          <label class="visually-hidden" for="notification-message">Scrivi a tutti</label>
-          <textarea id="notification-message" class="form-control" name="message" rows="2" placeholder="Scrivi a tutti" [(ngModel)]="message" required></textarea>
-          <button class="btn btn-primary mt-2" type="submit" [disabled]="busy() || !message.trim()">@if (busy()) { Invio… } @else { Invia messaggio }</button>
+        <form class="d-flex gap-2 align-items-end" (ngSubmit)="send()">
+          <div class="form-group mb-0 flex-grow-1">
+            <label for="chat-msg" class="active">Scrivi a tutti</label>
+            <input type="text" class="form-control" id="chat-msg" name="message" autocomplete="off" [(ngModel)]="message" [attr.tabindex]="drawerOpen() ? null : -1" />
+          </div>
+          <button class="btn btn-primary" type="submit" [disabled]="busy() || !message.trim()" [attr.tabindex]="drawerOpen() ? null : -1">Invia</button>
         </form>
-      </aside>
-    }
-  `,
-  styles: `
-    .app-chat-fab { position: fixed; z-index: 30; right: 1.25rem; bottom: 1.25rem; display:flex; align-items:center; gap:.55rem; min-height:48px; padding:.65rem 1rem; border:0; border-radius:999px; color:#fff; background:#005cb9; box-shadow:0 4px 16px #17324d40; font-weight:700; }
-    .app-chat-fab-badge { display:grid; place-items:center; min-width:1.4rem; height:1.4rem; padding:0 .3rem; border-radius:99px; color:white; background:#c62828; font-size:.75rem; }
-    .app-chat-backdrop { position:fixed; z-index:39; inset:0; background:#102a43aa; }
-    .app-chat-drawer { position:fixed; z-index:40; inset:0 0 0 auto; width:min(400px,100vw); display:flex; flex-direction:column; padding:1rem; background:#fff; box-shadow:-8px 0 28px #102a4330; transform:none; visibility:visible; }
-    .app-chat-head { display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; padding-bottom:.8rem; border-bottom:1px solid #d9dadb; }
-    .app-chat-messages { flex:1; min-height:0; overflow:auto; display:flex; flex-direction:column; gap:.75rem; padding:1rem .25rem; }
-    .app-msg { max-width:92%; align-self:flex-start; padding:.65rem .75rem; border-radius:.75rem; background:#f1f3f5; overflow-wrap:anywhere; }
-    .app-msg--me { align-self:flex-end; background:#e8f1f8; }
-    .app-msg--seg { border-left:3px solid #0066cc; } .app-msg--esp { border-left:3px solid #32814b; } .app-msg--sede { border-left:3px solid #b86e00; }
-    .app-role-tag { display:inline-block; margin-top:.25rem; padding:.08rem .4rem; border-radius:99px; background:#e2e5e9; font-size:.72rem; font-weight:700; }
-    .app-role-tag--seg { color:#004b8d; background:#dceeff; } .app-role-tag--esp { color:#205b33; background:#e0f2e5; } .app-role-tag--sede { color:#754500; background:#fff0d5; }
-    .app-chat-quick { padding:.55rem 0; }
-    .app-chat-compose { padding-top:.55rem; border-top:1px solid #d9dadb; }
-    @media (max-width:767.98px) { .app-chat-drawer { width:100vw; } .app-chat-fab { right:.75rem; bottom:5.5rem; } }
+      </div>
+    </aside>
   `,
 })
 export class NotificheComponent {
   readonly sessionId = input.required<string>();
   readonly mode = input<'segretario' | 'sede' | 'esperto' | 'admin'>('segretario');
+  readonly sessionName = input('');
+  /** Su smartphone la chat si apre dalla scheda Messaggi: niente pulsante fisso sopra la barra in basso. */
+  readonly showFab = input(true);
+  readonly unreadChange = output<number>();
   private readonly api = inject(ApiClient);
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
@@ -89,6 +87,11 @@ export class NotificheComponent {
   private initialized = false;
   private latestSeenId = 0;
   @ViewChild('fab') private fab?: ElementRef<HTMLButtonElement>;
+  @ViewChild('closeButton') private closeButton?: ElementRef<HTMLButtonElement>;
+
+  constructor() {
+    effect(() => this.unreadChange.emit(this.newCount()));
+  }
 
   ngOnInit(): void {
     this.loadCandidateNames();
@@ -97,10 +100,15 @@ export class NotificheComponent {
   }
 
   load(): void { this.fetch().subscribe(({ items }) => this.applyItems(items)); }
-  openDrawer(): void { this.drawerOpen.set(true); this.markSeen(); }
+  openDrawer(): void {
+    this.drawerOpen.set(true);
+    this.markSeen();
+    // Il pannello è già nel DOM (si apre con .is-open): il focus va subito sul pulsante di chiusura.
+    queueMicrotask(() => this.closeButton?.nativeElement.focus());
+  }
   closeDrawer(): void {
     this.drawerOpen.set(false);
-    queueMicrotask(() => this.fab?.nativeElement.focus());
+    if (this.showFab()) queueMicrotask(() => this.fab?.nativeElement.focus());
   }
 
   @HostListener('document:keydown.escape')

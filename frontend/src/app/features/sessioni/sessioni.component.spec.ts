@@ -126,9 +126,8 @@ describe('SessioniComponent', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).toContain('Nessuna sessione sincronizzata');
+    expect(fixture.nativeElement.textContent).toContain('Nessuna sessione nell’app per questo concorso');
     expect(fixture.nativeElement.textContent).toContain('Scarica sessioni da Selezioni Online');
-    expect(fixture.nativeElement.textContent).toContain('prima sincronizzazione');
   });
 
   it('keeps the empty-session retry visible after sync failure', async () => {
@@ -190,9 +189,9 @@ describe('SessioniComponent', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).toContain('Sincronizzazione sessioni non riuscita');
+    expect(fixture.nativeElement.textContent).toContain('Scarico delle sessioni non riuscito');
     expect(fixture.nativeElement.textContent).toContain('flag di abilitazione');
-    expect(fixture.nativeElement.textContent).toContain('Non ci sono ancora sessioni locali');
+    expect(fixture.nativeElement.textContent).toContain('Non ci sono ancora sessioni salvate nell’app');
     expect(fixture.nativeElement.textContent).toContain('Scarica sessioni da Selezioni Online');
   });
 });

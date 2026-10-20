@@ -14,175 +14,91 @@ import { competitionLabel } from '../../shared/competition-label';
   selector: 'app-sessioni',
   imports: [RouterLink, FormsModule, FilterChipsComponent, PagerComponent],
   template: `
-    <div class="container my-5">
-      <nav aria-label="Percorso"><ol class="breadcrumb mb-2"><li class="breadcrumb-item"><a routerLink="/bandi" [queryParams]="{ mode: mode }">I miei concorsi</a></li><li class="breadcrumb-item active" aria-current="page">{{ competitionLabel(bando()?.title, commissionId) }}</li></ol></nav>
-      <h1 class="mb-1">{{ competitionLabel(bando()?.title, commissionId) === 'Concorso' ? 'Sessioni del concorso' : competitionLabel(bando()?.title, commissionId) }}</h1>
-      <p class="text-muted">{{ items().length }} {{ items().length === 1 ? 'sessione' : 'sessioni' }}</p>
-
-      <div class="d-flex gap-2 align-items-center mb-3">
-        <a
-          class="btn btn-outline-secondary btn-sm"
-          [routerLink]="['/bandi', commissionId, 'detail']"
-          [queryParams]="{ mode: mode }"
-        >
-          Dettaglio bando
-        </a>
-        <button
-          type="button"
-          class="btn btn-outline-primary btn-sm"
-          [disabled]="loading()"
-          (click)="reload(true)"
-        >
-          Aggiorna
-        </button>
-        @if (loading()) {
-          <div class="d-flex align-items-center">
-            <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
-            <span class="small">{{ syncing() ? 'Sincronizzazione da Selezioni Online…' : 'Caricamento…' }}</span>
-          </div>
-        }
+    <div class="container py-4 py-lg-5">
+      <nav class="breadcrumb-container" aria-label="Percorso di navigazione"><ol class="breadcrumb p-0 mb-2">
+        <li class="breadcrumb-item">
+          @if (mode === 'admin') { <a routerLink="/bandi" [queryParams]="{ mode: 'admin' }">Tutti i bandi</a> }
+          @else { <a routerLink="/bandi" [queryParams]="{ mode: mode }">I miei concorsi</a> }
+          <span class="separator">/</span>
+        </li>
+        <li class="breadcrumb-item active" aria-current="page">{{ title() }}</li>
+      </ol></nav>
+      <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3">
+        <div>
+          <h1 class="mb-1">{{ title() }}</h1>
+          <p class="mb-0 text-secondary">{{ items().length }} {{ items().length === 1 ? 'sessione' : 'sessioni' }} ·
+            <button type="button" class="btn btn-link p-0 align-baseline fw-semibold" [disabled]="loading()" (click)="reload(true)">Aggiorna da Selezioni Online</button></p>
+        </div>
+        <div class="d-flex flex-wrap align-items-center gap-3">
+          <a class="fw-semibold" [routerLink]="['/bandi', commissionId, 'detail']" [queryParams]="{ mode: mode }">Dettaglio bando</a>
+          <a class="btn btn-outline-primary" [routerLink]="['/bandi', commissionId, 'config']" [queryParams]="{ returnUrl: currentUrl() }">Configura bando</a>
+        </div>
       </div>
 
+      @if (syncing()) {
+        <div class="alert alert-info" role="status">
+          <div class="d-flex align-items-center gap-3">
+            <div class="progress-spinner progress-spinner-active size-sm"><span class="visually-hidden">Caricamento</span></div>
+            <span><strong>Scarico le sessioni da Selezioni Online…</strong> L’elenco si aggiorna da solo al termine.</span>
+          </div>
+        </div>
+      }
       @if (bando()?.visibility_reason === 'admin') {
-        <div class="alert alert-warning py-2 mb-3" role="alert">
-          <strong>Vista amministratore.</strong>
-          Stai usando un accesso di supporto su un bando per cui non risulti assegnato al profilo operativo richiesto.
+        <div class="alert alert-warning" role="note"><strong>Vista amministratore.</strong> Non risulti assegnato a questo bando con il profilo operativo richiesto.</div>
+      }
+      @if (configWarning(); as warning) {
+        <div class="alert alert-warning" role="status">
+          <strong>{{ warning.title }}</strong> {{ warning.text }} <a [routerLink]="['/bandi', commissionId, 'config']" [queryParams]="{ returnUrl: currentUrl() }">Configura bando</a>.
         </div>
       }
-
-      @if (bando() && !bando()!.configured) {
-        <div class="alert alert-warning d-flex align-items-center py-2 mb-3" role="alert">
-          <span class="flex-grow-1">
-            @if (!bando()!.metadata_fetched_at) {
-              <strong>Dati del concorso da sincronizzare.</strong>
-              Apri la configurazione per recuperare componenti e segretario da Selezioni Online.
-            } @else {
-              <strong>Configurazione del bando da completare.</strong>
-              Verifica i riferimenti operativi prima di proseguire.
-            }
-          </span>
-          @if (canConfigureBando()) {
-            <a [routerLink]="['/bandi', commissionId, 'config']" [queryParams]="{ returnUrl: currentUrl() }" class="btn btn-sm btn-warning ms-3 text-nowrap">
-              Configura bando
-            </a>
-          }
-        </div>
-      } @else if (bando()?.configured && canConfigureBando()) {
-        <div class="d-flex justify-content-end mb-2">
-          <a [routerLink]="['/bandi', commissionId, 'config']" [queryParams]="{ returnUrl: currentUrl() }" class="btn btn-sm btn-outline-secondary">
-            Configura bando
-          </a>
-        </div>
-      }
-
-      @if (bando()?.configured && bando()?.metadata_fetched_at && (bando()?.commissioners || []).length === 0) {
-        <div class="alert alert-warning py-2 mb-3" role="alert">
-          Componenti di commissione non sincronizzati o non aggiornati.
-        </div>
-      }
-
       @if (syncError()) {
         <div class="alert alert-warning" role="alert">
-          <h2 class="alert-heading h5 mb-2">Sincronizzazione sessioni non riuscita</h2>
-          <div>{{ syncError() }}</div>
-          @if (items().length > 0) {
-            <div class="mt-1">Stai visualizzando le sessioni gia presenti in archivio locale.</div>
-          } @else {
-            <div class="mt-1">Non ci sono ancora sessioni locali da mostrare per questo bando.</div>
-          }
+          <strong>Scarico delle sessioni non riuscito.</strong> {{ syncError() }}
+          @if (items().length > 0) { Stai vedendo le sessioni già salvate nell’app. } @else { Non ci sono ancora sessioni salvate nell’app. }
         </div>
       }
 
       @if (error()) {
         <div class="alert alert-danger" role="alert">{{ error() }}</div>
-      } @else if (!loading() && items().length === 0) {
-        <div class="empty-state border rounded p-4 p-md-5 text-center" role="status">
-          <h2 class="h4 mb-2">Nessuna sessione sincronizzata</h2>
-          <p class="text-muted mb-4">
-            Per iniziare scarica le sessioni di questo bando da Selezioni Online.
-          </p>
-          <button type="button" class="btn btn-primary" [disabled]="loading()" (click)="reload(true)">
-            Scarica sessioni da Selezioni Online
-          </button>
-          <p class="small text-muted mt-3 mb-0">
-            La prima sincronizzazione puo richiedere fino al timeout configurato per Selezioni Online.
-          </p>
+      } @else if (loading() && items().length === 0) {
+        <p class="d-flex align-items-center gap-2 py-3" role="status" aria-live="polite"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Carico le sessioni…</p>
+      } @else if (items().length === 0) {
+        <div class="app-empty bg-white" role="status">
+          <p class="fw-semibold mb-1">Nessuna sessione nell’app per questo concorso</p>
+          <p class="text-secondary mb-3">Scarica le sessioni del bando da Selezioni Online per iniziare.</p>
+          <button type="button" class="btn btn-primary" [disabled]="loading()" (click)="reload(true)">Scarica sessioni da Selezioni Online</button>
         </div>
-      } @else if (!loading()) {
+      } @else {
         <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3">
           <app-filter-chips label="Filtra sessioni" [options]="dateFilterOptions()" [selected]="dateFilter()" (selectedChange)="setDateFilter($event)" />
-          <div class="form-group mb-0 flex-grow-1" style="max-width: 22rem"><label for="session-search">Cerca sessione</label><input id="session-search" class="form-control" type="search" placeholder="Nome, sede o data" [ngModel]="query()" (ngModelChange)="setQuery($event)" /></div>
+          <div class="form-group mb-0 app-search"><label for="cs" class="active">Cerca sessione</label>
+            <input type="search" class="form-control" id="cs" placeholder="Nome, sede o data" [ngModel]="query()" (ngModelChange)="setQuery($event)" /></div>
         </div>
-        <div class="table-responsive">
-          <table class="table table-striped table-hover">
-            <thead class="table-light">
-              <tr>
-                <th>Data</th>
-                <th>Sessione</th>
-                <th>Stato</th>
-                <th>Presenti</th>
-                <th><span class="visually-hidden">Azioni</span></th>
-              </tr>
-            </thead>
+        <div class="card card-bg no-after"><div class="card-body p-0">
+          <div class="table-responsive"><table class="table align-middle mb-0 app-table">
+            <thead><tr><th scope="col">Data</th><th scope="col">Sessione</th><th scope="col">Stato</th><th scope="col">Presenti</th><th scope="col" class="text-end"><span class="visually-hidden">Azioni</span></th></tr></thead>
             <tbody>
               @for (item of pageItems(); track item.session_id) {
                 <tr [class.app-row-today]="isToday(item.date)">
-                  <td><strong>{{ item.date }}</strong><br />{{ item.time }} @if (isToday(item.date)) { <span class="badge bg-primary ms-1">Oggi</span> }</td>
-                  <td><a [routerLink]="['/sessioni', item.session_id]" [queryParams]="{ mode: mode }" class="fw-semibold">{{ item.name }}</a><br /><span class="small text-secondary">{{ item.location }}</span></td>
-                  <td><div class="app-phasebar" role="img" [attr.aria-label]="'Fase ' + phaseOf(item.current_state) + ' di 4'">@for (phase of phases; track phase) { <span [class.is-done]="phase < phaseOf(item.current_state)" [class.is-current]="phase === phaseOf(item.current_state) && phase > 1" [class.is-current-light]="phase === phaseOf(item.current_state) && phase === 1"></span> }</div><div class="mt-1"><strong>{{ stateLabel(item.current_state) }}</strong><br /><span class="small">{{ nextStep(item.current_state) }}</span></div></td>
-                  <td>{{ item.checked_in_count }} / {{ item.candidate_count || '—' }}</td>
-                  <td class="text-end">
-                    <a class="btn btn-sm" [class.btn-primary]="isToday(item.date)" [class.btn-outline-primary]="!isToday(item.date)" [routerLink]="['/sessioni', item.session_id]"
-                      [queryParams]="{ mode: mode }">
-                      Apri sessione
-                    </a>
+                  <td class="app-num-cell"><strong>{{ italianDate(item.date) }}</strong><br>{{ item.time.slice(0, 5) }}@if (isToday(item.date)) { <span class="badge bg-primary ms-1">Oggi</span> }</td>
+                  <td><a class="fw-semibold" [routerLink]="['/sessioni', item.session_id]" [queryParams]="{ mode: mode }">{{ item.name }}</a><br><span class="small text-secondary">{{ item.location }}</span></td>
+                  <td>
+                    <div class="app-phasebar" role="img" [attr.aria-label]="'Fase ' + phaseOf(item.current_state) + ' di 4'">
+                      @for (phase of phases; track phase) { <span [class.is-done]="phaseDone(item.current_state, phase)" [class.is-current]="phaseCurrent(item.current_state, phase) && item.current_state !== 'iniziale'" [class.is-current-light]="phaseCurrent(item.current_state, phase) && item.current_state === 'iniziale'"></span> }
+                    </div>
+                    <div class="mt-1"><strong [class.text-success]="finished(item.current_state)">{{ stateLabel(item.current_state) }}</strong>
+                      @if (nextStep(item.current_state)) { <br><span class="small">{{ nextStep(item.current_state) }}</span> }</div>
                   </td>
+                  <td class="app-num-cell">{{ presentLabel(item) }}</td>
+                  <td class="text-end"><a class="btn btn-sm" [class.btn-primary]="isToday(item.date)" [class.btn-outline-primary]="!isToday(item.date)" [routerLink]="['/sessioni', item.session_id]" [queryParams]="{ mode: mode }">Apri sessione</a></td>
                 </tr>
-              } @empty { <tr><td colspan="5">Nessuna sessione corrisponde ai filtri.</td></tr>
-              }
+              } @empty { <tr><td colspan="5" class="text-secondary">Nessuna sessione corrisponde ai filtri.</td></tr> }
             </tbody>
-          </table>
-        </div>
+          </table></div>
+        </div></div>
         <app-pager label="Sessioni" [total]="filteredItems().length" [page]="page()" [pageSize]="pageSize()" (pageChange)="page.set($event)" (pageSizeChange)="setPageSize($event)" />
       }
     </div>
-
-    @if (loading()) {
-      <div class="loading-overlay" role="status" aria-live="polite" aria-busy="true">
-        <div class="loading-panel text-center">
-          <div class="spinner-border text-primary" aria-hidden="true"></div>
-          <div class="fw-semibold mt-3">
-            {{ syncing() ? 'Sincronizzazione sessioni da Selezioni Online…' : 'Caricamento sessioni…' }}
-          </div>
-          <div class="small text-muted mt-1">Attendi il completamento dell'operazione.</div>
-        </div>
-      </div>
-    }
-  `,
-  styles: `
-    .empty-state {
-      max-width: 760px;
-      margin: 2rem auto;
-      background: #fff;
-    }
-    .loading-overlay {
-      position: fixed;
-      inset: 0;
-      z-index: 2050;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 1rem;
-      background: rgba(255, 255, 255, 0.72);
-    }
-    .loading-panel {
-      width: min(92vw, 420px);
-      border: 1px solid #d8e2ec;
-      border-radius: 8px;
-      background: #fff;
-      box-shadow: 0 1rem 2.5rem rgba(23, 50, 77, 0.18);
-      padding: 1.5rem;
-    }
   `,
 })
 export class SessioniComponent {
@@ -216,13 +132,34 @@ export class SessioniComponent {
       const matchesQuery = !q || `${item.name} ${item.location} ${item.date}`.toLocaleLowerCase().includes(q);
       const matchesDate = this.dateFilter() === 'all' || (this.dateFilter() === 'past' ? this.isPast(item.date) : !this.isPast(item.date));
       return matchesQuery && matchesDate;
-    }).sort((a, b) => this.dateKey(a.date).localeCompare(this.dateKey(b.date)) || a.time.localeCompare(b.time));
+    }).sort((a, b) => {
+      // Oggi e le prossime in ordine di data, poi le passate dalla più recente (prototipo sessioni.html).
+      const aPast = this.isPast(a.date), bPast = this.isPast(b.date);
+      if (aPast !== bPast) return aPast ? 1 : -1;
+      const order = this.dateKey(a.date).localeCompare(this.dateKey(b.date)) || a.time.localeCompare(b.time);
+      return aPast ? -order : order;
+    });
   });
   readonly pageItems = computed(() => this.filteredItems().slice(this.page() * this.pageSize(), (this.page() + 1) * this.pageSize()));
 
-  canConfigureBando(): boolean {
-    return this.mode === 'referente' || this.auth.hasCapability('admin') || !!this.auth.user()?.dev_mode;
-  }
+  readonly title = computed(() => {
+    const label = competitionLabel(this.bando()?.title, this.commissionId);
+    return label === 'Concorso' ? 'Sessioni del concorso' : label;
+  });
+
+  /** Un solo avviso con la soluzione (FR-024): prima gli esperti remoti mancanti, poi i dati del bando. */
+  readonly configWarning = computed(() => {
+    const bando = this.bando();
+    if (!bando) return null;
+    const missing = Number(bando.session_count || 0) - Number(bando.remote_expert_assigned_count || 0);
+    if (missing > 0) {
+      return { title: `${missing} ${missing === 1 ? 'sessione' : 'sessioni'} senza esperto remoto.`, text: 'Puoi indicarlo all’apertura della sessione oppure ora da' };
+    }
+    if (!bando.configured || bando.required_data_complete === false) {
+      return { title: 'Configurazione del bando da completare.', text: 'Mancano dati richiesti per le liste: completali da' };
+    }
+    return null;
+  });
 
   currentUrl(): string {
     return this.router.url;
@@ -233,6 +170,19 @@ export class SessioniComponent {
   setPageSize(value: number): void { this.pageSize.set(value); this.page.set(0); }
   stateLabel(state: string): string { return sessionStateLabel(state); }
   phaseOf(state: string): number { return sessionStateInfo(state).phase; }
+  /** Liste inviate chiude la fase 3, esame concluso la fase 4. */
+  finished(state: string): boolean { return state === 'liste_inviate' || state === 'esame_concluso'; }
+  phaseDone(state: string, phase: number): boolean { return phase < this.phaseOf(state) || (this.finished(state) && phase === this.phaseOf(state)); }
+  phaseCurrent(state: string, phase: number): boolean { return phase === this.phaseOf(state) && !this.finished(state); }
+  italianDate(value: string): string {
+    const iso = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return iso ? `${iso[3]}/${iso[2]}/${iso[1]}` : value;
+  }
+  /** "— / 4" prima del check-in: i presenti si contano solo da quando è avviato. */
+  presentLabel(item: SessionSummary): string {
+    const started = this.phaseOf(item.current_state) >= 2;
+    return `${started ? item.checked_in_count : '—'} / ${item.candidate_count || '—'}`;
+  }
   nextStep(state: string): string { const action = sessionStateInfo(state).actions.segretario?.action; return action ? `prossimo passo: ${action.toLocaleLowerCase()}` : ''; }
   isToday(value: string): boolean { return this.dateKey(value) === localDateKey(new Date()); }
   isPast(value: string): boolean { return this.dateKey(value) < localDateKey(new Date()); }

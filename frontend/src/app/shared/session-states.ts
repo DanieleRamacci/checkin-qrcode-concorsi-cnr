@@ -74,6 +74,14 @@ export function sessionStateAction(state: string, profile: SessionProfile): Prof
   return sessionStateInfo(state).actions[profile];
 }
 
+/** Badge di stato negli elenchi (prototipo home.html): da fare in giallo, liste inviate in verde. */
+export function sessionStateBadge(state: string): { label: string; tone: 'warning' | 'success' | 'neutral' } {
+  if (state === 'iniziale') return { label: 'Da configurare', tone: 'warning' };
+  const phase = sessionStateInfo(state).phase;
+  if (state !== 'liste_generate' && phase >= 3) return { label: sessionStateLabel(state), tone: 'success' };
+  return { label: sessionStateLabel(state), tone: 'neutral' };
+}
+
 export const ROLE_LABELS: Record<string, string> = {
   segretario: 'Segretario', referente: 'Referente', sede: 'Informatico in sede',
   informatico_sede: 'Informatico in sede', esperto: 'Esperto remoto',

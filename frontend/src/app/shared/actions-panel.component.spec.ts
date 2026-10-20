@@ -1,19 +1,27 @@
 import { TestBed } from '@angular/core/testing';
 import { Component } from '@angular/core';
-import { vi } from 'vitest';
 import { ActionsPanelComponent } from './actions-panel.component';
+import { provideKitForTests } from '../../testing/kit';
 
-@Component({ imports: [ActionsPanelComponent], template: '<app-actions-panel titolo="Scarica candidati" [inCorso]="true"><p>Dettaglio</p><button azione>Avvia</button></app-actions-panel>' })
+@Component({
+  imports: [ActionsPanelComponent],
+  template: `<app-actions-panel etichetta="Passo 2 di 3 · Preparazione" titolo="Scarica i candidati" nota="Al termine l'elenco compare qui sotto."
+    [inCorso]="true" messaggioInCorso="Sto scaricando i candidati da Selezioni Online…"><p>Dettaglio</p><button azione>Scarica candidati</button></app-actions-panel>`,
+})
 class HostComponent {}
 
 describe('ActionsPanelComponent', () => {
-  it('shows the next step, content, action, and long operation status', async () => {
-    await TestBed.configureTestingModule({ imports: [HostComponent] }).compileComponents();
+  it('renders the design head, step, content, long operation and footer action', async () => {
+    await TestBed.configureTestingModule({ imports: [HostComponent], providers: [...provideKitForTests()] }).compileComponents();
     const fixture = TestBed.createComponent(HostComponent);
     fixture.detectChanges();
-    expect(fixture.nativeElement.textContent).toContain('Scarica candidati');
-    expect(fixture.nativeElement.textContent).toContain('Dettaglio');
-    expect(fixture.nativeElement.textContent).toContain('Non chiudere la pagina');
-    expect(fixture.nativeElement.querySelector('[azione]')).toBeTruthy();
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.querySelector('.app-actions-head h2')?.textContent).toBe('Azioni');
+    expect(element.querySelector('.app-actions-sub')?.textContent).toBe('cosa fare adesso');
+    expect(element.querySelector('.app-eyebrow')?.textContent).toContain('Passo 2 di 3');
+    expect(element.querySelector('h3')?.textContent).toContain('Scarica i candidati');
+    expect(element.querySelector('.app-longop')?.textContent).toContain('Non chiudere la pagina');
+    expect(element.querySelector('.app-next-footer [azione]')?.textContent).toBe('Scarica candidati');
+    expect(element.querySelector('.app-next-footer p')?.textContent).toContain('Al termine');
   });
 });

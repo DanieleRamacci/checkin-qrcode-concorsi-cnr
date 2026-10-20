@@ -1,11 +1,12 @@
-import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
+import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { forkJoin, switchMap, timer } from 'rxjs';
 import { ApiClient } from '../../core/api-client';
 import { SessionSummary, WorkflowState } from '../../core/models/api.models';
 import { BandiService } from '../bandi/bandi.service';
-import { CandidatiComponent } from '../candidati/candidati.component';
+import { CandidateSectionMode, CandidatiComponent } from '../candidati/candidati.component';
 import { NotificheComponent } from '../notifiche/notifiche.component';
 import { SessionHeaderComponent } from './session-header.component';
 import { StateTimelineComponent } from './state-timeline.component';
@@ -27,77 +28,63 @@ interface OperationalConfig {
 
 @Component({
   selector: 'app-gestione-sessione',
-  imports: [CandidatiComponent, NotificheComponent, StateTimelineComponent, SessionHeaderComponent, SessionReferencesComponent, AzioniComponent, MobileSessionComponent],
+  imports: [NgTemplateOutlet, CandidatiComponent, NotificheComponent, StateTimelineComponent, SessionHeaderComponent, SessionReferencesComponent, AzioniComponent, MobileSessionComponent],
   template: `
-    <main class="container-fluid gestione-sessione content-area">
-      <div class="session-layout mx-auto">
-        @if (detail(); as sessionDetail) {
-          @if (!mobileView()) { <app-session-header [session]="sessionDetail" [state]="workflowState()?.current_state ?? ''" [profile]="viewMode" [adminView]="sessionDetail.visibility_reason === 'admin'" /> }
-        }
-          @if (error()) {
-            <div class="alert alert-danger mb-3" role="alert">{{ error() }}</div>
-          }
-          @if (detail(); as sessionDetail) {
-            @if (mobileView()) {
-              <app-mobile-session [session]="sessionDetail" [currentState]="workflowState()?.current_state ?? ''" [mode]="viewMode">
-                <div session-actions>
-                  <app-azioni
-                    [sessionId]="sessionId"
-                    [commissionId]="sessionDetail.commission_id"
-                    [currentState]="workflowState()?.current_state ?? null"
-                    [bandoConfigured]="bandoConfigured()"
-                    [deviceCount]="sessionDetail.device_count"
-                    [candidateCount]="sessionDetail.candidate_count"
-                    [checkedInCount]="sessionDetail.checked_in_count"
-                    [openResetCount]="openResetCount()"
-                    [viewMode]="viewMode"
-                    [adminOnly]="sessionDetail.visibility_reason === 'admin'"
-                    (changed)="load()"
-                  />
-                </div>
-                <div session-candidates>
-                  <app-candidati [sessionId]="sessionId" [viewMode]="viewMode" [refreshTick]="refreshTick()" [sectionMode]="candidateSectionMode()" (openResetCountChange)="openResetCount.set($event)" />
-                </div>
-                <div session-messages><app-notifiche [sessionId]="sessionId" [mode]="viewMode" /></div>
-              </app-mobile-session>
-            } @else {
+    @if (detail(); as sessionDetail) {
+      @if (mobileView()) {
+        @if (error()) { <div class="alert alert-danger m-3" role="alert">{{ error() }}</div> }
+        <app-mobile-session [session]="sessionDetail" [currentState]="state()" [mode]="viewMode" [unreadCount]="unread()"
+          [checkinSince]="stateTime('checkin_avviato')" [refreshTick]="refreshTick()" (openMessages)="chat.openDrawer()" (changed)="load()">
+          <div session-actions><ng-container [ngTemplateOutlet]="azioni" [ngTemplateOutletContext]="{ $implicit: sessionDetail, compatto: true }" /></div>
+          <div session-candidates><ng-container [ngTemplateOutlet]="candidati" /></div>
+        </app-mobile-session>
+        <app-notifiche #chat [sessionId]="sessionId" [mode]="viewMode" [sessionName]="sessionDetail.name" [showFab]="false" (unreadChange)="unread.set($event)" />
+      } @else {
+        <app-session-header [session]="sessionDetail" [state]="state()" [profile]="viewMode" [adminView]="sessionDetail.visibility_reason === 'admin'" />
+        <div class="container py-4">
+          @if (error()) { <div class="alert alert-danger mb-4" role="alert">{{ error() }}</div> }
           <div class="row g-4">
-            <div class="col-12 col-xl-9 action-column">
-              @if (detail()) {
-                  <app-azioni
-                    [sessionId]="sessionId"
-                    [commissionId]="detail()?.commission_id ?? ''"
-                    [currentState]="workflowState()?.current_state ?? null"
-                    [bandoConfigured]="bandoConfigured()"
-                    [deviceCount]="detail()?.device_count ?? 0"
-                    [candidateCount]="detail()?.candidate_count ?? 0"
-                    [checkedInCount]="detail()?.checked_in_count ?? 0"
-                    [openResetCount]="openResetCount()"
-                    [viewMode]="viewMode"
-                    [adminOnly]="detail()?.visibility_reason === 'admin'"
-                    (changed)="load()"
-                  />
-                  <div class="mb-3">
-                    <app-candidati [sessionId]="sessionId" [viewMode]="viewMode" [refreshTick]="refreshTick()" [sectionMode]="candidateSectionMode()" (openResetCountChange)="openResetCount.set($event)" />
-                  </div>
-                  <app-notifiche [sessionId]="sessionId" [mode]="viewMode" />
-              }
+            <div class="col-12 col-lg-8 d-flex flex-column gap-4 app-minw">
+              <ng-container [ngTemplateOutlet]="azioni" [ngTemplateOutletContext]="{ $implicit: sessionDetail }" />
+              <ng-container [ngTemplateOutlet]="candidati" />
             </div>
-            <aside class="col-12 col-xl-3 timeline-column">
-              <app-state-timeline [currentState]="workflowState()?.current_state ?? ''" [history]="workflowState()?.history ?? []" [faseEsameMia]="viewMode === 'esperto'" />
-              @if (mergedConfig(); as cfg) { <app-session-references [references]="cfg" /> }
-            </aside>
+            <div class="col-12 col-lg-4 d-flex flex-column gap-4">
+              <app-state-timeline [currentState]="state()" [history]="history()" [faseEsameMia]="viewMode === 'esperto'" />
+              <app-session-references [references]="mergedConfig() ?? {}" />
+            </div>
           </div>
-            }
-          }
-      </div>
-    </main>
-  `,
-  styles: `
-    .gestione-sessione { background-color: var(--app-ground); min-height: 70vh; padding: 1.5rem; }
-    .session-layout { max-width: 1440px; }
-    .action-column, .timeline-column { min-width: 0; }
-    @media (max-width: 767.98px) { .gestione-sessione { padding: .75rem; } }
+        </div>
+        <app-notifiche [sessionId]="sessionId" [mode]="viewMode" [sessionName]="sessionDetail.name" />
+      }
+    } @else if (error()) {
+      <div class="container py-4"><div class="alert alert-danger" role="alert">{{ error() }}</div></div>
+    } @else {
+      <div class="container py-4"><p role="status" aria-live="polite">Carico la sessione…</p></div>
+    }
+
+    <ng-template #azioni let-sessionDetail let-compatto="compatto">
+      <app-azioni
+        [compatto]="!!compatto"
+        [sessionId]="sessionId"
+        [commissionId]="sessionDetail.commission_id"
+        [currentState]="workflowState()?.current_state ?? null"
+        [bandoConfigured]="bandoConfigured()"
+        [deviceCount]="sessionDetail.device_count"
+        [candidateCount]="sessionDetail.candidate_count"
+        [checkedInCount]="sessionDetail.checked_in_count"
+        [openResetCount]="openResetCount()"
+        [history]="history()"
+        [references]="mergedConfig() ?? {}"
+        [viewMode]="viewMode"
+        [adminOnly]="sessionDetail.visibility_reason === 'admin'"
+        (changed)="load()"
+        (secretaryActionsOpen)="secretaryActionsOpen.set($event)"
+      />
+    </ng-template>
+    <ng-template #candidati>
+      <app-candidati [sessionId]="sessionId" [viewMode]="viewMode" [refreshTick]="refreshTick()" [sectionMode]="candidateSectionMode()"
+        [emptyMessage]="candidateEmptyMessage()" [concludedAt]="stateTime('checkin_concluso')" (openResetCountChange)="openResetCount.set($event)" />
+    </ng-template>
   `,
 })
 export class GestioneSessioneComponent {
@@ -107,27 +94,42 @@ export class GestioneSessioneComponent {
   private readonly destroyRef = inject(DestroyRef);
   readonly sessionId = this.route.snapshot.paramMap.get('sessionId') ?? '';
   readonly viewMode = normalizeViewMode(this.route.snapshot.queryParamMap.get('mode'));
-  readonly showTimeline = this.viewMode === 'segretario' || this.viewMode === 'admin';
   readonly detail = signal<SessionSummary | null>(null);
   readonly workflowState = signal<WorkflowState | null>(null);
+  readonly state = computed(() => this.workflowState()?.current_state ?? '');
+  readonly history = computed(() => this.workflowState()?.history ?? []);
   readonly bandoConfigured = signal(false);
   readonly mergedConfig = signal<OperationalConfig | null>(null);
   readonly refreshTick = signal(0);
   readonly openResetCount = signal(0);
+  readonly unread = signal(0);
+  /** L'informatico in sede ha aperto "Azioni del segretario". */
+  readonly secretaryActionsOpen = signal(false);
   readonly error = signal('');
   readonly mobileView = signal(typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 767.98px)').matches);
   private readonly onViewportChange = (event: MediaQueryListEvent) => this.mobileView.set(event.matches);
 
-  candidateSectionMode(): 'vuota' | 'sola-lettura' | 'checkin' | 'finale' | 'reset-sede' | 'reset-esperto' {
-    const state = this.workflowState()?.current_state;
+  readonly candidateSectionMode = computed<CandidateSectionMode>(() => {
+    const state = this.state();
     if (!state || state === 'iniziale' || state === 'configurata') return 'vuota';
     if (state === 'candidati_scaricati' || state === 'dispositivi_connessi') return 'sola-lettura';
-    if (state === 'checkin_avviato') {
-      if (this.viewMode === 'sede') return 'reset-sede';
-      if (this.viewMode === 'esperto') return 'reset-esperto';
-      return 'checkin';
-    }
-    return 'finale';
+    // Il reset password si gestisce sulla riga dei presenti dal check-in in poi (contracts/ui-session-states.md).
+    if (this.viewMode === 'esperto') return 'reset-esperto';
+    if (this.viewMode === 'sede') return state === 'checkin_avviato' && this.secretaryActionsOpen() ? 'checkin' : 'reset-sede';
+    return state === 'checkin_avviato' ? 'checkin' : 'finale';
+  });
+
+  readonly candidateEmptyMessage = computed(() => {
+    if (this.viewMode === 'sede' || this.viewMode === 'esperto') return 'Compariranno qui quando il segretario avrà scaricato i candidati.';
+    return this.state() === 'configurata'
+      ? 'Premi “Scarica candidati” qui sopra: l’elenco comparirà qui.'
+      : 'Compariranno qui dopo lo scaricamento da Selezioni Online (passo 2).';
+  });
+
+  stateTime(state: string): string {
+    const at = this.history().find((item) => item.state === state)?.at;
+    const date = at ? new Date(at) : null;
+    return date && !Number.isNaN(date.getTime()) ? date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : '';
   }
 
   constructor() {
@@ -205,17 +207,6 @@ export class GestioneSessioneComponent {
 
   private refreshChildren(): void {
     this.refreshTick.update((value) => value + 1);
-  }
-
-  showPreCheckinWarning(): boolean {
-    if (!this.showTimeline) return false;
-    const currentState = this.workflowState()?.current_state;
-    return [
-      'iniziale',
-      'configurata',
-      'candidati_scaricati',
-      'dispositivi_connessi',
-    ].includes(currentState ?? '');
   }
 }
 

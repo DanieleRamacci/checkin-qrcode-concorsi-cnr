@@ -1,69 +1,140 @@
-import { Component, input, signal } from '@angular/core';
+import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { SessionSummary } from '../../core/models/api.models';
+import { FormsModule } from '@angular/forms';
+import { ItIconComponent } from 'design-angular-kit';
+import { ApiClient } from '../../core/api-client';
+import { ApiList, CandidateSummary, SessionSummary } from '../../core/models/api.models';
 import { sessionStateLabel } from '../../shared/session-states';
 import { competitionLabel } from '../../shared/competition-label';
+import { sessionWhen } from '../../shared/session-date';
 
+/**
+ * P08 Sessione su smartphone (prototipo mobile-sessione.html): testata blu
+ * compatta, durante il check-in contatore con "Apri scanner" ed elenco di chi
+ * manca, barra in basso Sessione / Candidati / Messaggi.
+ */
 @Component({
   selector: 'app-mobile-session',
-  imports: [RouterLink],
+  imports: [RouterLink, FormsModule, ItIconComponent],
   template: `
-    <main class="mobile-session" aria-label="Gestione sessione da smartphone">
-      <header class="mobile-head">
-        <a class="back-link" routerLink="/bandi" [queryParams]="{ mode: mode() }" aria-label="Torna ai concorsi">‹</a>
-        <div class="mobile-title"><span>{{ competitionLabel(session()?.bando_title, session()?.commission_id) }}</span><h1>{{ session()?.name || 'Sessione' }}</h1></div>
-        <span class="message-count" aria-label="Messaggi non letti">{{ unreadCount() }}</span>
+    <div class="app-m-page">
+      <header class="app-m-head">
+        @if (technical()) {
+          <a class="app-m-icon" routerLink="/le-mie-sessioni" [queryParams]="{ mode: mode() === 'sede' ? 'sede' : 'expert' }" aria-label="Indietro: le mie sessioni"><it-icon name="arrow-left" color="white" /></a>
+        } @else {
+          <a class="app-m-icon" [routerLink]="['/bandi', session()?.commission_id, 'sessioni']" [queryParams]="{ mode: mode() }" aria-label="Indietro: sessioni del concorso"><it-icon name="arrow-left" color="white" /></a>
+        }
+        <div class="app-minw flex-grow-1"><strong class="d-block text-truncate">{{ session()?.name || 'Sessione' }}</strong><span class="small">{{ subtitle() }}</span></div>
+        <button type="button" class="app-m-icon position-relative border-0 bg-transparent" [attr.aria-label]="unreadCount() ? 'Messaggi, ' + unreadCount() + ' non letti' : 'Messaggi'" (click)="openMessages.emit()">
+          <it-icon name="comment" color="white" />@if (unreadCount()) { <span class="app-m-dot" aria-hidden="true">{{ unreadCount() }}</span> }
+        </button>
       </header>
-      <div class="mobile-summary">
-        <span class="state-badge">{{ stateLabel() }}</span>
-        <p class="mb-2 mt-2">{{ session()?.date }} · {{ session()?.time }} · {{ session()?.location }}</p>
-        <strong>{{ session()?.checked_in_count ?? 0 }} / {{ session()?.candidate_count ?? 0 }} presenti</strong>
+
+      <div class="app-m-body" [hidden]="activeTab() !== 'sessione'">
+        <p class="mb-0"><span class="app-state-pill">Stato: <strong>{{ stateLabel() }}</strong></span>
+          @if (checkinSince()) { <span class="small text-secondary">&ngsp;dalle {{ checkinSince() }}</span> }</p>
+        @if (checkin()) {
+          <section class="card card-bg no-after" aria-label="Presenze"><div class="card-body">
+            <p class="app-counter app-counter--sm mb-2"><strong>{{ present() }}</strong>&ngsp;<span>/ {{ total() }} presenti</span></p>
+            <div class="progress app-progress mb-3"><div class="progress-bar" role="progressbar" [style.width.%]="percent()" [attr.aria-valuenow]="percent()" aria-valuemin="0" aria-valuemax="100" aria-label="Presenti sul totale"></div></div>
+            <a class="btn btn-primary btn-lg w-100 btn-icon justify-content-center gap-2" routerLink="/scanner" [queryParams]="{ sessionId: session()?.session_id, mode: mode() }"><it-icon name="camera" color="white" /><span>Apri scanner</span></a>
+          </div></section>
+          @if (canRegister()) {
+            <section class="card card-bg no-after" aria-labelledby="m-mancano"><div class="card-body">
+              <div class="d-flex justify-content-between align-items-baseline mb-2"><h2 id="m-mancano" class="h5 mb-0">Mancano {{ missing().length }}</h2>
+                <button type="button" class="btn btn-link p-0 small fw-semibold" (click)="activeTab.set('candidati')">Tutti</button></div>
+              <div class="form-group mb-2"><label for="mq" class="visually-hidden">Cerca candidato</label>
+                <input type="search" class="form-control" id="mq" placeholder="Cerca cognome o documento" [ngModel]="query()" (ngModelChange)="query.set($event)" /></div>
+              <ul class="list-unstyled app-m-list mb-0">
+                @for (item of filteredMissing(); track item.uid) {
+                  <li><span class="flex-grow-1"><strong>{{ item.last_name }} {{ item.first_name }}</strong>
+                    @if (item.document_expired) { <br><span class="small text-danger fw-semibold">Documento scaduto</span> }</span>
+                    <button type="button" class="btn btn-outline-success btn-sm" [disabled]="busyUid() === item.uid" (click)="markPresent(item)">Presente<span class="visually-hidden"> {{ item.last_name }}</span></button></li>
+                } @empty {
+                  <li class="text-secondary">{{ query().trim() ? 'Nessun candidato corrisponde alla ricerca.' : 'Tutti i candidati risultano presenti.' }}</li>
+                }
+              </ul>
+              @if (message()) { <p class="small mt-2 mb-0" role="status">{{ message() }}</p> }
+            </div></section>
+          }
+        }
+        <ng-content select="[session-actions]" />
+      </div>
+      <div class="app-m-body" [hidden]="activeTab() !== 'candidati'">
+        <ng-content select="[session-candidates]" />
       </div>
 
-      <section class="mobile-tab-panel" [hidden]="activeTab() !== 'sessione'" aria-label="Sessione">
-        <a class="btn btn-success btn-lg w-100 mb-3" [routerLink]="['/scanner']" [queryParams]="{ sessionId: session()?.session_id, mode: mode() }">Apri scanner</a>
-        <p class="missing-count">Mancano {{ missingCount() }} candidati</p>
-        <ng-content select="[session-actions]" />
-      </section>
-      <section class="mobile-tab-panel" [hidden]="activeTab() !== 'candidati'" aria-label="Candidati">
-        <ng-content select="[session-candidates]" />
-      </section>
-      <section class="mobile-tab-panel" [hidden]="activeTab() !== 'messaggi'" aria-label="Messaggi">
-        <ng-content select="[session-messages]" />
-      </section>
-
-      <nav class="mobile-tabs" aria-label="Sezioni sessione">
-        <button type="button" [class.active]="activeTab() === 'sessione'" (click)="activeTab.set('sessione')">Sessione</button>
-        <button type="button" [class.active]="activeTab() === 'candidati'" (click)="activeTab.set('candidati')">Candidati</button>
-        <button type="button" [class.active]="activeTab() === 'messaggi'" (click)="activeTab.set('messaggi')">Messaggi <span class="visually-hidden">, {{ unreadCount() }} non letti</span></button>
+      <nav class="app-m-tabs" aria-label="Sezioni">
+        <a href="#" [attr.aria-current]="activeTab() === 'sessione' ? 'page' : null" (click)="$event.preventDefault(); activeTab.set('sessione')">Sessione</a>
+        <a href="#" [attr.aria-current]="activeTab() === 'candidati' ? 'page' : null" (click)="$event.preventDefault(); activeTab.set('candidati')">Candidati</a>
+        <a href="#" (click)="$event.preventDefault(); openMessages.emit()">Messaggi@if (unreadCount()) { · {{ unreadCount() }} }</a>
       </nav>
-    </main>
+    </div>
   `,
   styles: `
-    :host { display:block; }
-    .mobile-session { min-height:calc(100vh - 1rem); padding:0 0 5rem; color:#17324d; }
-    .mobile-head { display:flex; align-items:center; gap:.75rem; padding:.75rem 0 1rem; }
-    .back-link { text-decoration:none; font-size:2rem; line-height:1; width:2.75rem; min-height:2.75rem; display:grid; place-items:center; }
-    .mobile-title { flex:1; min-width:0; }
-    .mobile-title span { color:#5c6f82; font-size:.8rem; }
-    .mobile-title h1 { font-size:1.15rem; margin:0; overflow-wrap:anywhere; }
-    .message-count { min-width:2.75rem; min-height:2.75rem; display:grid; place-items:center; border-radius:50%; background:#e8f1f8; }
-    .mobile-summary { background:white; border:1px solid #d5dce3; border-radius:.75rem; padding:1rem; margin-bottom:1rem; }
-    .state-badge { display:inline-block; border-radius:999px; background:#e8f1f8; padding:.25rem .75rem; font-weight:600; }
-    .missing-count { color:#435a70; }
-    .mobile-tab-panel[hidden] { display:none; }
-    .mobile-tabs { position:fixed; z-index:20; inset:auto 0 0; display:grid; grid-template-columns:repeat(3,1fr); gap:.25rem; padding:.5rem max(.5rem,env(safe-area-inset-right)) calc(.5rem + env(safe-area-inset-bottom)) max(.5rem,env(safe-area-inset-left)); background:white; border-top:1px solid #c8d2dc; box-shadow:0 -3px 14px #17324d16; }
-    .mobile-tabs button { border:0; border-radius:.5rem; background:transparent; color:#17324d; min-height:44px; font-weight:600; }
-    .mobile-tabs button.active { background:#e8f1f8; color:#005a9c; }
+    .app-m-page { min-height: 100vh; display: flex; flex-direction: column; background: var(--app-ground); }
+    .app-m-head { position: sticky; top: 0; z-index: 20; }
+    .app-m-tabs { position: sticky; bottom: 0; z-index: 20; margin-top: auto; }
   `,
 })
 export class MobileSessionComponent {
-  readonly competitionLabel = competitionLabel;
+  private readonly api = inject(ApiClient);
   readonly session = input<SessionSummary | null>(null);
   readonly currentState = input('');
   readonly mode = input('segretario');
   readonly unreadCount = input(0);
-  readonly activeTab = signal<'sessione' | 'candidati' | 'messaggi'>('sessione');
-  readonly missingCount = () => Math.max(0, (this.session()?.candidate_count ?? 0) - (this.session()?.checked_in_count ?? 0));
-  readonly stateLabel = () => sessionStateLabel(this.currentState());
+  /** Ora di avvio del check-in (HH:MM). */
+  readonly checkinSince = input('');
+  readonly refreshTick = input(0);
+  readonly openMessages = output<void>();
+  /** Una presenza registrata da qui: la pagina aggiorna contatori e stato. */
+  readonly changed = output<void>();
+  readonly activeTab = signal<'sessione' | 'candidati'>('sessione');
+  readonly candidates = signal<CandidateSummary[]>([]);
+  readonly query = signal('');
+  readonly busyUid = signal<string | null>(null);
+  readonly message = signal('');
+
+  readonly technical = computed(() => this.mode() === 'sede' || this.mode() === 'esperto');
+  readonly checkin = computed(() => this.currentState() === 'checkin_avviato');
+  readonly canRegister = computed(() => this.mode() === 'segretario' || this.mode() === 'admin');
+  readonly stateLabel = computed(() => sessionStateLabel(this.currentState()));
+  readonly total = computed(() => this.session()?.candidate_count ?? 0);
+  readonly present = computed(() => this.session()?.checked_in_count ?? 0);
+  readonly percent = computed(() => this.total() ? Math.round((this.present() / this.total()) * 100) : 0);
+  readonly subtitle = computed(() => {
+    const session = this.session();
+    if (!session) return '';
+    return [sessionWhen(session.date, session.time).replace(' alle ', ' '), competitionLabel(session.bando_title, session.commission_id)].filter(Boolean).join(' · ');
+  });
+  readonly missing = computed(() => this.candidates().filter((item) => !item.checkin_effettuato));
+  readonly filteredMissing = computed(() => {
+    const query = this.query().trim().toLocaleLowerCase('it');
+    return this.missing().filter((item) => !query || `${item.last_name} ${item.first_name} ${item.document_number}`.toLocaleLowerCase('it').includes(query));
+  });
+
+  ngOnChanges(): void {
+    if (this.checkin() && this.canRegister() && this.session()) this.loadMissing();
+  }
+
+  markPresent(item: CandidateSummary): void {
+    const session = this.session();
+    if (!session) return;
+    this.busyUid.set(item.uid);
+    this.message.set('');
+    this.api.post(`/sessioni/${session.session_id}/candidati/${encodeURIComponent(item.uid)}/toggle-checkin?mode=${encodeURIComponent(this.mode())}`).subscribe({
+      next: () => { this.busyUid.set(null); this.candidates.update((items) => items.map((c) => c.uid === item.uid ? { ...c, checkin_effettuato: true } : c)); this.changed.emit(); },
+      error: () => { this.busyUid.set(null); this.message.set('Registrazione della presenza non riuscita. Riprova.'); },
+    });
+  }
+
+  private loadMissing(): void {
+    const session = this.session();
+    if (!session) return;
+    const params = new URLSearchParams({ checkin: 'no', mode: this.mode() });
+    this.api.get<ApiList<CandidateSummary>>(`/sessioni/${session.session_id}/candidati?${params}`).subscribe({
+      next: ({ items }) => this.candidates.set(items ?? []),
+      error: () => this.message.set('Impossibile aggiornare l’elenco di chi manca.'),
+    });
+  }
 }

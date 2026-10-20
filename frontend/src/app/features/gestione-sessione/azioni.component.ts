@@ -1,22 +1,16 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { Component, inject, input, output, signal } from '@angular/core';
+import { Component, ElementRef, Injector, afterNextRender, inject, input, output, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
+import { ItIconComponent } from 'design-angular-kit';
 import { ApiClient } from '../../core/api-client';
-import { ListSendResult, ListSummary } from '../../core/models/api.models';
+import { ListSendResult, ListSummary, WorkflowState } from '../../core/models/api.models';
 import { ActionsPanelComponent } from '../../shared/actions-panel.component';
+import { InPageLinkDirective } from '../../shared/in-page-link.directive';
+import { sessionStateAction, sessionStateInfo } from '../../shared/session-states';
 import { DevicesPanelComponent } from '../dispositivi/devices-panel.component';
 import { ListFilesComponent } from './list-files.component';
-import { sessionStateAction } from '../../shared/session-states';
-
-interface MergedConfig {
-  email_esperto_remoto?: string;
-  email_segretario?: string;
-  durata_prova_minuti?: number;
-  nome_informatico_sede?: string;
-  email_informatico_sede?: string;
-  telefono_informatico_sede?: string;
-  informatici_sede?: SedeTechnician[];
-}
+import { SessionReferences } from './session-references.component';
 
 interface SedeTechnician {
   nome?: string;
@@ -25,366 +19,267 @@ interface SedeTechnician {
   principale?: boolean;
 }
 
+interface Confirmation {
+  title: string;
+  body: string;
+  confirm: string;
+  cancel: string;
+  action: string;
+}
+
+const PHASE_NAMES = ['Preparazione', 'Check-in', 'Liste', 'Esame'];
+const LIST_STATES = ['liste_generate', 'liste_inviate', 'lista_presenti_aggiornata_su_moodle', 'avvia_esame', 'esame_in_corso', 'esame_concluso'];
+const AFTER_LISTS_SENT = LIST_STATES.slice(1);
+const FROM_CHECKIN = ['checkin_avviato', 'checkin_concluso', ...LIST_STATES];
+/** Stati in cui l'informatico in sede vede la sezione di riserva "Azioni del segretario" (contracts/ui-session-states.md). */
+const SECRETARY_BACKUP_STATES = ['candidati_scaricati', 'dispositivi_connessi', 'checkin_avviato', 'checkin_concluso', 'liste_generate'];
+
 /**
- * Riproduce 1:1 le card per-stato di templates/frammenti/azioni.html (vista segretario/non-esperto).
- * Le azioni qui gestite (configura_sessione, scarica_candidati, collega_dispositivo, genera_liste,
- * invia_liste) non passano dall'endpoint generico /actions/<action> — vedi DIRECT_ACTIONS in
- * utils/workflow_service.py — richiedono i rispettivi endpoint applicativi.
+ * Pannello "Azioni · cosa fare adesso" della pagina sessione, per stato e
+ * profilo come in specs/013-revisione-ui-design/contracts/ui-session-states.md
+ * e nei prototipi docs/design-revisione/prototipo/sessione-*.html.
+ * Le azioni dirette passano da /actions/<azione>; configurazione, scarico
+ * candidati e liste usano i rispettivi endpoint.
  */
 @Component({
   selector: 'app-azioni',
-  imports: [FormsModule, NgTemplateOutlet, ActionsPanelComponent, DevicesPanelComponent, ListFilesComponent],
+  imports: [FormsModule, NgTemplateOutlet, RouterLink, ItIconComponent, ActionsPanelComponent, DevicesPanelComponent, ListFilesComponent, InPageLinkDirective],
   template: `
-    @if (busy()) {
-      <div class="overlay" role="status" aria-live="polite" aria-busy="true">
-        <div class="text-center">
-          <div class="spinner-border" role="status"><span class="visually-hidden">Caricamento…</span></div>
-          <p class="mt-3 mb-0">{{ operationMessage() }}</p>
-        </div>
-      </div>
+    @if (currentState(); as state) {
+      @switch (viewMode()) {
+        @case ('esperto') { <ng-container *ngTemplateOutlet="esperto; context: { $implicit: state }" /> }
+        @case ('sede') {
+          <ng-container *ngTemplateOutlet="sede; context: { $implicit: state }" />
+          @if (secretaryBackup(state)) {
+            <details class="card card-bg no-after app-backup" (toggle)="onBackupToggle($event)">
+              <summary class="card-body py-3 fw-semibold">Azioni del segretario
+                <span class="fw-normal text-secondary small d-block">Da usare solo se il segretario non riesce a proseguire: risulti tu nella timeline.</span>
+              </summary>
+              <div class="card-body pt-0">
+                <ng-container *ngTemplateOutlet="segretario; context: { $implicit: state, nested: true }" />
+              </div>
+            </details>
+          }
+        }
+        @default { <ng-container *ngTemplateOutlet="segretario; context: { $implicit: state, nested: false }" /> }
+      }
     }
-    @if (currentState()) {
-      <app-actions-panel [etichetta]="viewMode() === 'esperto' ? 'Il tuo prossimo passo' : 'Azioni · cosa fare adesso'" [titolo]="panelTitle()">
-    @if (viewMode() === 'esperto') {
-      <div class="it-card-wrapper mb-3">
-        <div class="it-card shadow-sm p-3 bg-light">
-          <h5 class="mb-2">Scarica liste</h5>
-          <p class="text-muted">Scarica i file generati dal segretario per la sessione.</p>
-          @if (latestList()) { <app-list-files [list]="latestList()" /> } @else {
-            <div class="alert alert-warning mb-0">Le liste non sono ancora disponibili.</div>
-          }
-        </div>
-      </div>
 
-          <div class="it-card-wrapper mb-3">
-        <div class="it-card shadow-sm p-3 bg-light">
-          <h5 class="mb-2">Gestione esame</h5>
-          <p class="mb-2"><span class="badge app-badge-warning">{{ openResetCount() }} reset password da fare</span> <a href="#candidates" class="ms-2">Vai ai candidati</a></p>
-          <p class="small text-secondary">Per le nuove richieste arriva una notifica nel browser e un’email.</p>
-          <div class="form-check mb-3"><input class="form-check-input" id="reset-sound" type="checkbox" [checked]="resetSoundEnabled()" (change)="setResetSoundEnabled($event)" /><label class="form-check-label" for="reset-sound">Avviso sonoro per le nuove richieste</label></div>
-          @switch (currentState()) {
-            @case ('liste_inviate') {
-              <p class="text-muted">Conferma di avere aggiornato su Moodle l'elenco dei candidati presenti.</p>
-              <button class="btn btn-primary" type="button" [disabled]="busy()"
-                (click)="runAction('aggiorna_presenti_moodle', 'Confermi di avere aggiornato la lista presenti su Moodle?')">
-                Lista presenti aggiornata
-              </button>
-            }
-            @case ('lista_presenti_aggiornata_su_moodle') {
-              <p class="text-muted">Comunica al segretario che l'ambiente d'esame è pronto.</p>
-              <button class="btn btn-primary" type="button" [disabled]="busy()"
-                (click)="runAction('avvia_esame', 'Confermi di voler avviare la preparazione dell’esame?')">
-                Avvia esame
-              </button>
-            }
-            @case ('avvia_esame') {
-              <p class="text-muted">Avvia formalmente la prova dopo l'autorizzazione.</p>
-              <button class="btn btn-success" type="button" [disabled]="busy()"
-                (click)="runAction('inizia_esame', 'Confermi di voler iniziare l’esame?')">
-                Inizia esame
-              </button>
-            }
-            @case ('esame_in_corso') {
-              <p class="text-muted">Concludi la prova quando il tempo d'esame è terminato.</p>
-              <button class="btn btn-success" type="button" [disabled]="busy()"
-                (click)="runAction('concludi_esame', 'Confermi di voler concludere l’esame?')">
-                Concludi esame
-              </button>
-            }
-            @case ('esame_concluso') {
-              <div class="alert alert-success mb-0">Esame concluso.</div>
-            }
-            @case ('liste_generate') {
-              <div class="alert alert-info mb-0">Liste generate. In attesa che il segretario le invii all'esperto remoto.</div>
-            }
-            @default {
-              <div class="alert alert-info mb-0">In attesa che il segretario generi e invii le liste.</div>
-            }
-          }
-          @if (error()) { <div class="alert alert-danger mt-3 mb-0" role="alert">{{ error() }}</div> }
-        </div>
-      </div>
-    } @else if (viewMode() === 'sede') {
-      @if (currentState() === 'iniziale' || currentState() === 'configurata') {
-        <div class="alert alert-info mb-3" role="status">In attesa che il segretario prepari la sessione.</div>
-      }
-      @if (currentState() === 'candidati_scaricati' || currentState() === 'dispositivi_connessi') {
-        <section class="it-card-wrapper mb-3"><div class="it-card shadow-sm p-3 bg-light">
-          <h2 class="h5">Collegamento dispositivi</h2>
-          <p class="text-muted">Collega i telefoni che useranno lo scanner in aula.</p>
-          <app-devices-panel [sessionId]="sessionId()" [mode]="viewMode()" />
-          @if (currentState() === 'candidati_scaricati') { <p class="small text-muted mb-0">Il check-in si avvierà quando il segretario collega almeno un dispositivo.</p> }
-        </div></section>
-      }
-      @if (currentState() === 'checkin_avviato') {
-        <section class="it-card-wrapper mb-3"><div class="it-card shadow-sm p-3 bg-light">
-          <p class="mb-2">Il reset si chiede dalla riga del candidato.</p>
-          <p class="mb-2"><span class="badge app-badge-warning">{{ openResetCount() }} richieste in attesa</span></p>
-          <a class="btn btn-primary btn-sm me-2" href="#candidates">Vai ai candidati</a>
-          <details class="mt-3"><summary class="btn btn-outline-secondary btn-sm">Collega un dispositivo</summary><div class="mt-3"><app-devices-panel [sessionId]="sessionId()" [mode]="viewMode()" /></div></details>
-        </div></section>
-      }
-      @if (currentState() === 'liste_inviate' || currentState() === 'lista_presenti_aggiornata_su_moodle' || currentState() === 'avvia_esame' || currentState() === 'esame_in_corso' || currentState() === 'esame_concluso') {
-        <div class="alert alert-info mb-3" role="status">{{ sedeStatus() }}</div>
-      }
-      @if (['candidati_scaricati', 'dispositivi_connessi', 'checkin_avviato', 'checkin_concluso', 'liste_generate'].includes(currentState() ?? '')) {
-        <details class="it-card-wrapper mb-3">
-          <summary class="it-card shadow-sm p-3 bg-light fw-semibold">Azioni del segretario</summary>
-          <div class="it-card shadow-sm p-3 bg-light border-top-0">
-            @switch (currentState()) {
-              @case ('candidati_scaricati') { <p class="mb-0">Il segretario può proseguire dopo aver collegato i dispositivi necessari.</p> }
-              @case ('dispositivi_connessi') { <p>Dispositivi collegati: {{ deviceCount() }}.</p><button class="btn btn-primary" type="button" [disabled]="busy()" (click)="runAction('avvia_checkin')">Avvia check-in</button> }
-              @case ('checkin_avviato') { <p class="mb-0">Concludi check-in e altre azioni della sessione sono disponibili solo al segretario.</p> }
-              @case ('checkin_concluso') { <p>Il check-in è concluso. Genera le liste dei presenti.</p><button class="btn btn-primary" type="button" [disabled]="busy()" (click)="generaListe()">Genera liste</button> }
-              @case ('liste_generate') { @if (latestList()) { <app-list-files [list]="latestList()" /> }<button class="btn btn-primary mt-3" type="button" [disabled]="busy() || !latestList()" (click)="inviaListe()">Invia liste all’esperto remoto</button> }
-            }
-            @if (error()) { <div class="alert alert-danger mt-3 mb-0" role="alert">{{ error() }}</div> }
-          </div>
-        </details>
-      }
-    } @else {
-    @switch (currentState()) {
-      @case ('iniziale') {
-        <div class="it-card-wrapper mb-3">
-          <div class="it-card shadow-sm p-3 bg-light">
-            <h5 class="mb-1">Configura l’informatico in sede</h5>
+    <!-- Segretario (e amministratore in vista di supporto) -->
+    <ng-template #segretario let-state let-nested="nested">
+      @switch (state) {
+        @case ('iniziale') {
+          <app-actions-panel etichetta="Passo 1 di 3 · Preparazione" titolo="Chi ti aiuta in questa sessione?"
+            [nota]="canSaveSessionConfig() ? 'Poi scarichi i candidati da Selezioni Online.' : 'Indica l’esperto remoto e l’email dell’informatico in sede per continuare.'"
+            [inCorso]="busy()" [messaggioInCorso]="operationMessage()" [intestazione]="!nested">
+            <p class="text-secondary">Servono l’esperto remoto, che apre la prova su Moodle, e l’informatico in sede, che è in aula con te.
+              @if (bandoConfigured()) { Gli altri dati del bando sono già a posto. }</p>
             @if (!bandoConfigured()) {
-              <div class="alert alert-warning mt-3 mb-3">
-                I dati del bando non risultano ancora completi. Puoi comunque indicare qui sotto l'esperto remoto se manca, oppure attendere che il referente completi la configurazione.
-              </div>
-            } @else {
-              <p class="mb-2 text-muted small">
-                I dati del bando sono già configurati. Inserisci l'informatico in sede per questa sessione.
-              </p>
+              <div class="alert alert-warning" role="status">Alcuni dati del bando non sono ancora completi. Puoi proseguire: il referente li completa da “Configura bando”.</div>
             }
-            <form (ngSubmit)="saveSessionConfig()">
-              <div class="row g-2 mb-3">
-                <div class="col-md-6">
-                  <label class="form-label" for="email_esperto_remoto">Esperto remoto</label>
+            <form id="session-config-form" (ngSubmit)="saveSessionConfig()">
+              <div class="row g-3 mb-2">
+                <div class="col-12 col-md-7">
                   @if (expertOptions().length) {
-                    <select class="form-select" id="email_esperto_remoto" name="email_esperto_remoto"
-                            [(ngModel)]="sessionConfigModel.email_esperto_remoto" required>
-                      <option value="">Seleziona esperto remoto</option>
-                      @for (email of expertOptions(); track email) {
-                        <option [value]="email">{{ email }}</option>
-                      }
-                    </select>
+                    <div class="select-wrapper">
+                      <label for="email_esperto_remoto">Esperto remoto</label>
+                      <select id="email_esperto_remoto" name="email_esperto_remoto" [(ngModel)]="sessionConfigModel.email_esperto_remoto" required>
+                        <option value="">Scegli dall’elenco…</option>
+                        @for (email of expertOptions(); track email) { <option [value]="email">{{ email }}</option> }
+                      </select>
+                    </div>
                   } @else {
-                    <input type="email" class="form-control" id="email_esperto_remoto" placeholder="es. nome.cognome@cnr.it"
-                           [(ngModel)]="sessionConfigModel.email_esperto_remoto" name="email_esperto_remoto" required />
+                    <div class="form-group mb-0">
+                      <label for="email_esperto_remoto" class="active">Email dell’esperto remoto</label>
+                      <input type="email" class="form-control" id="email_esperto_remoto" name="email_esperto_remoto" [(ngModel)]="sessionConfigModel.email_esperto_remoto" required />
+                    </div>
                   }
-                  <div class="form-text">Assegnato a questa sessione. Può essere diverso da altre sessioni dello stesso bando.</div>
                 </div>
               </div>
-              <div class="row g-2 mb-3">
-                <div class="col-md-4">
-                  <label class="form-label" for="nome_informatico_sede">Nome informatico in sede</label>
-                  <input type="text" class="form-control" id="nome_informatico_sede" placeholder="es. Mario Rossi" [(ngModel)]="sessionConfigModel.nome_informatico_sede" name="nome_informatico_sede" />
+              <fieldset>
+                <legend class="h6 mt-2 mb-4">Informatico in sede</legend>
+                <div class="row g-3">
+                  <div class="col-12 col-md-4"><div class="form-group mb-0"><label for="nome_informatico_sede" class="active">Nome e cognome</label>
+                    <input type="text" class="form-control" id="nome_informatico_sede" name="nome_informatico_sede" [(ngModel)]="sessionConfigModel.nome_informatico_sede" /></div></div>
+                  <div class="col-12 col-md-4"><div class="form-group mb-0"><label for="email_informatico_sede" class="active">Email (obbligatoria)</label>
+                    <input type="email" class="form-control" id="email_informatico_sede" name="email_informatico_sede" [(ngModel)]="sessionConfigModel.email_informatico_sede" required /></div></div>
+                  <div class="col-12 col-md-4"><div class="form-group mb-0"><label for="telefono_informatico_sede" class="active">Telefono</label>
+                    <input type="tel" class="form-control" id="telefono_informatico_sede" name="telefono_informatico_sede" [(ngModel)]="sessionConfigModel.telefono_informatico_sede" /></div></div>
                 </div>
-                <div class="col-md-4">
-                  <label class="form-label" for="email_informatico_sede">Email</label>
-                  <input type="email" class="form-control" id="email_informatico_sede" placeholder="es. nome.cognome@cnr.it" [(ngModel)]="sessionConfigModel.email_informatico_sede" name="email_informatico_sede" required />
-                </div>
-                <div class="col-md-4">
-                  <label class="form-label" for="telefono_informatico_sede">Telefono</label>
-                  <input type="tel" class="form-control" id="telefono_informatico_sede" placeholder="es. +39 06 1234567" [(ngModel)]="sessionConfigModel.telefono_informatico_sede" name="telefono_informatico_sede" />
-                </div>
-              </div>
-              <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center border-top pt-3">
-                @if (!canSaveSessionConfig()) {
-                  <div class="text-danger small">
-                    Per proseguire devi selezionare l'esperto remoto e indicare l'email dell'informatico in sede.
-                  </div>
-                }
-                <button type="submit" class="btn btn-primary ms-auto" [disabled]="busy() || !canSaveSessionConfig()">Salva e prosegui</button>
-              </div>
+              </fieldset>
             </form>
-            @if (error()) { <div class="alert alert-danger mt-3 mb-0" role="alert">{{ error() }}</div> }
-          </div>
-        </div>
-        @if (!bandoConfigured()) {
-          <div class="alert alert-info mb-3">
-            Se mancano i componenti della commissione su Selezioni Online, la configurazione del bando non potrà precompilare segretario e componenti.
-          </div>
+            <ng-container *ngTemplateOutlet="esiti" />
+            <button azione type="submit" form="session-config-form" class="btn btn-primary btn-lg" [disabled]="busy() || !canSaveSessionConfig()">Salva e continua</button>
+          </app-actions-panel>
+        }
+        @case ('configurata') {
+          <app-actions-panel etichetta="Passo 2 di 3 · Preparazione" titolo="Scarica i candidati"
+            [nota]="adminOnly() ? 'Lo scarico richiede un segretario della commissione: da amministratore non è disponibile.' : 'Al termine l’elenco compare qui sotto.'"
+            [inCorso]="busy()" messaggioInCorso="Sto scaricando i candidati da Selezioni Online…" notaInCorso="Non chiudere la pagina. Di solito servono meno di 30 secondi." [intestazione]="!nested">
+            <p class="text-secondary mb-0">Prendiamo da Selezioni Online l’elenco dei candidati convocati a questa sessione, con i dati del documento. Usa le tue credenziali di segretario.</p>
+            @if (adminOnly()) {
+              <div class="alert alert-warning mt-3 mb-0" role="status">Stai aprendo questa sessione solo come amministratore locale: lo scarico dei candidati richiede una relazione operativa con la commissione.</div>
+            }
+            <ng-container *ngTemplateOutlet="esiti" />
+            <button azione type="button" class="btn btn-primary btn-lg btn-icon gap-2" [disabled]="busy() || adminOnly()" (click)="importCandidati()">
+              <it-icon name="download" color="white" /><span>Scarica candidati</span>
+            </button>
+          </app-actions-panel>
+        }
+        @case ('candidati_scaricati') { <ng-container *ngTemplateOutlet="dispositivi; context: { $implicit: state, nested }" /> }
+        @case ('dispositivi_connessi') { <ng-container *ngTemplateOutlet="dispositivi; context: { $implicit: state, nested }" /> }
+        @case ('checkin_avviato') {
+          @if (compatto() && !nested) {
+            <!-- Smartphone (P08): contatore ed elenco di chi manca sono già sopra, qui resta la conclusione. -->
+            <ng-container *ngTemplateOutlet="esiti" />
+            <button type="button" class="btn btn-outline-primary w-100" [disabled]="busy()" (click)="askConcludeCheckin()">Concludi check-in…</button>
+          } @else {
+          <app-actions-panel [etichetta]="'Fase 2 · Check-in in corso' + (stateTime('checkin_avviato') ? ' dalle ' + stateTime('checkin_avviato') : '')"
+            titolo="Registra le presenze" nota="Chiede conferma: dopo non si può riaprire." [inCorso]="busy()" [messaggioInCorso]="operationMessage()" [intestazione]="!nested">
+            <ng-container *ngTemplateOutlet="contatore" />
+            <p class="mb-0 small text-secondary"><span class="app-dot app-dot--ok" aria-hidden="true"></span>
+              {{ deviceCount() === 1 ? '1 scanner collegato' : deviceCount() + ' scanner collegati' }}
+              @if (!nested) { · <button type="button" class="btn btn-link p-0 align-baseline small" [attr.aria-expanded]="showDevices()" (click)="showDevices.set(!showDevices())">collega un altro dispositivo</button> }</p>
+            @if (showDevices() && !nested) { <div class="mt-3"><app-devices-panel [sessionId]="sessionId()" [mode]="viewMode()" /></div> }
+            @if (nested) { <p class="small text-secondary mt-2 mb-0">Con questa sezione aperta puoi segnare le presenze dalla tabella Candidati.</p> }
+            <ng-container *ngTemplateOutlet="esiti" />
+            <button azione type="button" class="btn btn-primary btn-lg" [disabled]="busy()" (click)="askConcludeCheckin()">Concludi check-in</button>
+          </app-actions-panel>
+          }
+        }
+        @case ('checkin_concluso') {
+          <app-actions-panel etichetta="Fase 3 · Liste" titolo="Genera le liste dei presenti"
+            [nota]="checkedInCount() + ' presenti · ' + absentCount() + (absentCount() === 1 ? ' assente' : ' assenti')"
+            [inCorso]="busy()" messaggioInCorso="Sto generando le liste…" notaInCorso="Non chiudere la pagina. Può servire fino a un minuto." [intestazione]="!nested">
+            <p class="text-secondary mb-0">Creiamo il file Excel dei presenti e il CSV per Moodle. Potrai scaricarli prima di inviarli.</p>
+            <ng-container *ngTemplateOutlet="esiti" />
+            <button azione type="button" class="btn btn-primary btn-lg" [disabled]="busy()" (click)="generaListe()">Genera liste</button>
+          </app-actions-panel>
+        }
+        @case ('liste_generate') {
+          <app-actions-panel etichetta="Fase 3 · Liste" titolo="Invia le liste all’esperto remoto" nota="Controlla i file se vuoi, poi invia."
+            [inCorso]="busy()" messaggioInCorso="Sto inviando le liste all’esperto remoto…" [intestazione]="!nested">
+            <p class="text-secondary">Le mandiamo per email a <strong class="text-body">{{ references().email_esperto_remoto || 'l’esperto remoto' }}</strong>, con te in copia.</p>
+            @if (latestList()) { <app-list-files [list]="latestList()" /> } @else { <p class="text-secondary mb-0">Carico i file della sessione…</p> }
+            <ng-container *ngTemplateOutlet="esiti" />
+            <button azione type="button" class="btn btn-primary btn-lg" [disabled]="busy() || !latestList()" (click)="inviaListe()">Invia liste</button>
+          </app-actions-panel>
+        }
+        @default {
+          <app-actions-panel [etichetta]="secretaryDoneEyebrow(state)" [titolo]="secretaryDoneTitle(state)"
+            nota="I file restano scaricabili anche dopo l’aggiornamento di Moodle." [intestazione]="!nested">
+            @if (state === 'liste_inviate' || state === 'lista_presenti_aggiornata_su_moodle') {
+              <div class="callout success mt-0 mb-4"><div class="callout-title"><it-icon name="check-circle" color="success" /><span class="text">Hai finito la tua parte</span></div>
+                <p class="mb-0">L’esperto remoto prepara Moodle e avvia l’esame: vedrai gli stati avanzare nella timeline.</p></div>
+            } @else if (state === 'avvia_esame') {
+              <div class="alert alert-info mb-4" role="status">L’ambiente d’esame è pronto su Moodle. L’esperto remoto avvia la prova quando la commissione autorizza.</div>
+            } @else if (state === 'esame_in_corso') {
+              <p class="text-secondary mb-4">I candidati stanno svolgendo la prova. L’esperto remoto la conclude allo scadere del tempo.</p>
+            } @else if (state === 'esame_concluso') {
+              <p class="text-secondary mb-4">La prova è terminata. Non ci sono altre azioni per questa sessione.</p>
+            }
+            <ng-container *ngTemplateOutlet="esiti" />
+            @if (latestList()) { <app-list-files [list]="latestList()" titolo="File della sessione" [esitoEmail]="true" /> }
+            <a azione class="btn btn-outline-primary" [routerLink]="['/bandi', commissionId(), 'sessioni']" [queryParams]="{ mode: viewMode() }">Torna alle sessioni</a>
+          </app-actions-panel>
         }
       }
-      @case ('configurata') {
-        @if (!bandoConfigured()) {
-          <div class="alert alert-warning mb-3">
-            Attenzione: il bando non risulta configurato. L'invio delle liste richiede un esperto remoto.
-          </div>
-        }
-        <div class="it-card-wrapper mb-3">
-          <div class="it-card shadow-sm p-3 bg-light">
-            <div class="d-flex justify-content-between align-items-start">
-              <div>
-                <h5 class="mb-2">Scarica candidati</h5>
-                <p class="mb-2 text-muted">Scarica i candidati registrati per questa sessione.</p>
-                @if (mergedConfig(); as cfg) {
-                  <ul class="small text-muted mb-0">
-                    @if (cfg.email_esperto_remoto) { <li><strong>Esperto remoto:</strong> {{ cfg.email_esperto_remoto }}</li> }
-                    @if (cfg.nome_informatico_sede || cfg.email_informatico_sede) {
-                      <li><strong>Informatico in sede:</strong> {{ cfg.nome_informatico_sede }} @if (cfg.email_informatico_sede) { ({{ cfg.email_informatico_sede }}) }</li>
-                    }
-                    @if (cfg.email_segretario) { <li><strong>Segretario:</strong> {{ cfg.email_segretario }}</li> }
-                    @if (cfg.durata_prova_minuti) { <li><strong>Durata prova:</strong> {{ cfg.durata_prova_minuti }} min</li> }
-                  </ul>
-                }
-                @if (adminOnly()) {
-                  <div class="alert alert-warning mt-3 mb-0">
-                    Stai aprendo questa sessione solo come amministratore locale: lo scarico candidati richiede una relazione operativa con la commissione.
-                  </div>
-                }
-              </div>
-              <button class="btn btn-primary" type="button" [disabled]="busy() || adminOnly()" (click)="importCandidati()">
-                @if (busy()) { <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span> }
-                Scarica Candidati
-              </button>
-            </div>
-            @if (success()) { <div class="alert alert-success mt-3 mb-0" role="status">{{ success() }}</div> }
-            @if (warning()) { <div class="alert alert-warning mt-3 mb-0" role="status">{{ warning() }}</div> }
-            @if (error()) { <div class="alert alert-danger mt-3 mb-0" role="alert">{{ error() }}</div> }
-          </div>
-        </div>
-      }
-      @case ('candidati_scaricati') {
-        <div class="it-card-wrapper mb-3">
-          <div class="it-card shadow-sm p-3 bg-light">
-            <h5 class="mb-2">Collega gli smartphone che useranno come scanner</h5>
-            <app-devices-panel [sessionId]="sessionId()" [mode]="viewMode()" />
-            <button class="btn btn-primary mt-3" type="button" disabled>Avvia check-in</button>
-            @if (deviceCount() === 0) { <p class="small text-muted mt-2 mb-0">Collega almeno un dispositivo per proseguire.</p> }
-          </div>
-        </div>
-      }
-      @case ('dispositivi_connessi') {
-        <div class="it-card-wrapper mb-3">
-          <div class="it-card shadow-sm p-3 bg-light">
-            <h5 class="mb-2">Tutto pronto: {{ deviceCount() }} dispositivi, candidati da registrare</h5>
-            <app-devices-panel [sessionId]="sessionId()" [mode]="viewMode()" />
-            <button class="btn btn-success mt-3" type="button" [disabled]="busy()" (click)="runAction('avvia_checkin')">Avvia check-in</button>
-          </div>
-        </div>
-      }
-      @case ('checkin_avviato') {
-        <div class="it-card-wrapper mb-3">
-          <div class="it-card shadow-sm p-3 bg-light">
-            <div class="d-flex justify-content-between align-items-start">
-              <div>
-                <h5 class="mb-2">Concludi Check-in</h5>
-                <p class="mb-3 text-muted">Concludi la fase di check-in per procedere.</p>
-              </div>
-              <button class="btn btn-outline-primary" type="button" [disabled]="busy()" (click)="concludeModalOpen.set(true)">Concludi check-in…</button>
-            </div>
-            @if (error()) { <div class="alert alert-danger mt-3 mb-0" role="alert">{{ error() }}</div> }
-          </div>
-        </div>
-      }
-      @case ('checkin_concluso') {
-        <div class="it-card-wrapper mb-3">
-          <div class="it-card shadow-sm p-3 bg-light">
-            <div class="d-flex justify-content-between align-items-start">
-              <div>
-                <h5 class="mb-2">Genera liste</h5>
-                <p class="mb-3 text-muted">Genera i file necessari (XLSX presenti + CSV Moodle aggiornato).</p>
-              </div>
-              <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="generaListe()">
-                @if (busy()) { <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span> }
-                Genera liste
-              </button>
-            </div>
-            @if (success()) { <div class="alert alert-success mt-3 mb-0" role="status">{{ success() }}</div> }
-            @if (warning()) { <div class="alert alert-warning mt-3 mb-0" role="status">{{ warning() }}</div> }
-            @if (error()) { <div class="alert alert-danger mt-3 mb-0" role="alert">{{ error() }}</div> }
-          </div>
-        </div>
-      }
-      @case ('liste_generate') { <ng-container *ngTemplateOutlet="listeGenerate" /> }
-      @case ('liste_inviate') { <ng-container *ngTemplateOutlet="listeGenerate" /> }
-    }
-    @if (currentState() === 'liste_inviate') {
-      <div class="alert alert-warning d-flex align-items-center" role="alert">
-        <div>In attesa di caricamento candidati presenti e comunicazione avvio prova da parte dell'informatico.</div>
-      </div>
-    }
-    @if (currentState() === 'lista_presenti_aggiornata_su_moodle') {
-      <div class="alert alert-info d-flex align-items-center" role="alert">
-        <div>Lista presenti aggiornata da parte dell'informatico.</div>
-      </div>
-    }
-    @if (currentState() === 'esame_in_corso') {
-      <div class="alert alert-primary d-flex align-items-center" role="alert">
-        <div>Prova in corso. L'esame è stato avviato regolarmente.</div>
-      </div>
-    }
-    }
+    </ng-template>
 
-    <ng-template #listeGenerate>
-      <div class="it-card-wrapper mb-3">
-        <div class="it-card shadow-sm p-3 bg-light">
-          <div class="d-flex justify-content-between align-items-start">
-            <div class="me-3">
-              <h5 class="mb-2">Liste Generate</h5>
-              <p class="mb-2 text-muted">I file sono pronti. Puoi scaricarli o inviarli all'esperto remoto.</p>
-              @if (latestList(); as lista) {
-                <ul class="mb-3">
-                  <li><strong>Presenti:</strong> {{ lista.num_presenti }}</li>
-                </ul>
-                <app-list-files [list]="latestList()" />
-              } @else {
-                <div class="alert alert-warning">Nessuna lista trovata.</div>
-              }
-            </div>
-            <div class="send-list-actions">
-              @if (currentState() === 'liste_generate') {
-                <button class="btn btn-success" type="button" [disabled]="busy() || !latestList()" (click)="inviaListe()">
-                  @if (busy()) { <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span> }
-                  Invia lista all'esperto remoto
-                </button>
-              } @else if (latestList()?.email_status === 'failed') {
-                <div class="alert alert-warning mb-0" role="status">
-                  Liste disponibili: l'esperto remoto può vederle e scaricarle dalla propria area personale.
-                  L'invio della notifica email non è riuscito{{ latestList()?.email_error ? (' (' + latestList()?.email_error + ')') : '' }}.
-                </div>
-              } @else {
-                <div class="alert alert-success mb-0" role="status">
-                  Liste candidati inviate correttamente.
-                  L'esperto remoto vede ora la fase successiva.
-                </div>
-              }
-            </div>
+    <ng-template #dispositivi let-state let-nested="nested">
+      <app-actions-panel etichetta="Passo 3 di 3 · Preparazione" titolo="Collega gli smartphone che useranno come scanner"
+        [nota]="nested ? 'Il check-in si avvia quando almeno un telefono è collegato.' : ''" [inCorso]="busy()" [messaggioInCorso]="operationMessage()" [intestazione]="!nested">
+        @if (!nested) { <app-devices-panel [sessionId]="sessionId()" [mode]="viewMode()" /> }
+        <ng-container *ngTemplateOutlet="esiti" />
+        <span nota>
+          @if (!nested) {
+            @if (state === 'dispositivi_connessi') {
+              <strong class="text-success">Tutto pronto:</strong> {{ deviceCount() === 1 ? '1 dispositivo' : deviceCount() + ' dispositivi' }}, {{ candidateCount() === 1 ? '1 candidato' : candidateCount() + ' candidati' }}. Puoi collegarne altri anche dopo.
+            } @else { Collega almeno un dispositivo per avviare il check-in. }
+          }
+        </span>
+        <button azione type="button" class="btn btn-primary btn-lg" [disabled]="busy() || state !== 'dispositivi_connessi'" (click)="runAction('avvia_checkin')">Avvia check-in</button>
+      </app-actions-panel>
+    </ng-template>
+
+    <!-- Informatico in sede -->
+    <ng-template #sede let-state>
+      @if (state === 'iniziale' || state === 'configurata') {
+        <app-actions-panel etichetta="Informatico in sede · in aula" titolo="In attesa che il segretario prepari la sessione"
+          nota="Quando i candidati sono scaricati, qui colleghi gli smartphone che useranno come scanner.">
+          <p class="text-secondary mb-0">Il segretario indica chi lo aiuta e scarica i candidati da Selezioni Online. Puoi seguire l’avanzamento nella timeline.</p>
+        </app-actions-panel>
+      } @else if (state === 'candidati_scaricati' || state === 'dispositivi_connessi') {
+        <app-actions-panel etichetta="Informatico in sede · in aula" titolo="Collega gli smartphone che useranno come scanner"
+          nota="Il segretario avvia il check-in quando i telefoni sono collegati.">
+          <app-devices-panel [sessionId]="sessionId()" [mode]="viewMode()" />
+        </app-actions-panel>
+      } @else {
+        <app-actions-panel etichetta="Informatico in sede · in aula" titolo="Segnala chi non riesce ad accedere"
+          [nota]="state === 'checkin_avviato' ? 'Puoi anche collegare smartphone come scanner.' : 'Le richieste restano possibili fino alla fine dell’esame.'">
+          <p class="text-secondary mb-2">Se un candidato non riesce ad accedere a Moodle, premi <strong class="text-body">Serve reset password</strong> sulla sua riga nella tabella Candidati qui sotto. L’esperto remoto riceve la richiesta; quando l’ha risolta vedi “Reset fatto”. Il reset si chiede dalla riga del candidato.</p>
+          <p class="mb-0"><span class="badge app-badge-warning">{{ openResetCount() === 1 ? '1 richiesta in attesa' : openResetCount() + ' richieste in attesa' }}</span> <a href="#cand" appInPageLink="cand" class="ms-2 fw-semibold">Vai ai candidati</a></p>
+          @if (showDevices() && state === 'checkin_avviato') { <div class="mt-3"><app-devices-panel [sessionId]="sessionId()" [mode]="viewMode()" /></div> }
+          @if (state === 'checkin_avviato') {
+            <button azione type="button" class="btn btn-outline-primary" [attr.aria-expanded]="showDevices()" (click)="showDevices.set(!showDevices())">{{ showDevices() ? 'Chiudi collegamento' : 'Collega un dispositivo' }}</button>
+          }
+        </app-actions-panel>
+      }
+    </ng-template>
+
+    <!-- Esperto remoto -->
+    <ng-template #esperto let-state>
+      <app-actions-panel [etichetta]="'Esperto remoto · fase ' + phaseName(state)" [titolo]="expertTitle(state)" [nota]="expertNote(state)"
+        [inCorso]="busy()" [messaggioInCorso]="operationMessage()">
+        <p class="text-secondary">{{ expertText(state) }}</p>
+        @if (fromCheckin(state)) {
+          <p class="mb-3"><span class="badge app-badge-warning">{{ openResetCount() === 1 ? '1 reset password da fare' : openResetCount() + ' reset password da fare' }}</span> <a href="#cand" appInPageLink="cand" class="ms-2 fw-semibold">Vai ai candidati</a>
+            <br><span class="small text-secondary">Per ogni nuova richiesta ti avvisiamo nel browser e via email.</span></p>
+          <div class="form-check mb-3">
+            <input class="form-check-input" id="reset-sound" type="checkbox" [checked]="resetSoundEnabled()" (change)="setResetSoundEnabled($event)" />
+            <label class="form-check-label" for="reset-sound">Avviso sonoro per le nuove richieste</label>
           </div>
-          @if (success()) { <div class="alert alert-success mt-3 mb-0" role="status">{{ success() }}</div> }
-          @if (warning()) { <div class="alert alert-warning mt-3 mb-0" role="status">{{ warning() }}</div> }
-          @if (error()) { <div class="alert alert-danger mt-3 mb-0" role="alert">{{ error() }}</div> }
-        </div>
+        }
+        @if (latestList() && (state === 'liste_generate' || afterListsSent(state))) {
+          <app-list-files [list]="latestList()" [titolo]="afterListsSent(state) && stateTime('liste_inviate') ? 'Liste ricevute alle ' + stateTime('liste_inviate') : 'File della sessione'" />
+        }
+        <ng-container *ngTemplateOutlet="esiti" />
+        @if (expertAction(state); as action) {
+          <button azione type="button" class="btn btn-primary btn-lg" [disabled]="busy()" (click)="askExpertAction(state)">{{ action }}</button>
+        }
+      </app-actions-panel>
+    </ng-template>
+
+    <ng-template #contatore>
+      <p class="app-counter mb-2"><strong>{{ checkedInCount() }}</strong>&ngsp;<span>/ {{ candidateCount() }} presenti</span></p>
+      <div class="progress app-progress mb-2">
+        <div class="progress-bar" role="progressbar" [style.width.%]="presentPercent()" [attr.aria-valuenow]="presentPercent()" aria-valuemin="0" aria-valuemax="100" aria-label="Presenti sul totale"></div>
       </div>
     </ng-template>
-    @if (concludeModalOpen()) {
-      <div class="modal d-block" role="dialog" aria-modal="true" aria-labelledby="conclude-title" style="background:rgba(0,0,0,.45)">
-        <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
-          <div class="modal-header"><h2 class="modal-title h5" id="conclude-title">Concludere il check-in?</h2></div>
-          <div class="modal-body"><p>{{ checkedInCount() }} presenti su {{ candidateCount() }}.</p><p class="mb-0">Gli altri risulteranno assenti. Dopo la conclusione non sarà più possibile registrare presenze.</p></div>
+
+    <ng-template #esiti>
+      @if (success()) { <div class="alert alert-success mt-3 mb-0" role="status">{{ success() }}</div> }
+      @if (warning()) { <div class="alert alert-warning mt-3 mb-0" role="status">{{ warning() }}</div> }
+      @if (error()) { <div class="alert alert-danger mt-3 mb-0" role="alert">{{ error() }}</div> }
+    </ng-template>
+
+    @if (confirmation(); as dialog) {
+      <div class="modal d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="confirm-title" style="background: rgba(0,0,0,.45)"
+        (keydown.escape)="confirmation.set(null)">
+        <div class="modal-dialog modal-dialog-centered" role="document"><div class="modal-content">
+          <div class="modal-header"><h2 class="modal-title h5" id="confirm-title">{{ dialog.title }}</h2></div>
+          <div class="modal-body"><p class="mb-0" [innerHTML]="dialog.body"></p></div>
           <div class="modal-footer">
-            <button class="btn btn-outline-secondary" type="button" (click)="concludeModalOpen.set(false)">Continua il check-in</button>
-            <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="confirmConcludeCheckin()">Concludi check-in</button>
+            <button #confirmCancel class="btn btn-outline-secondary btn-sm" type="button" (click)="confirmation.set(null)">{{ dialog.cancel }}</button>
+            <button class="btn btn-primary btn-sm" type="button" [disabled]="busy()" (click)="confirm(dialog)">{{ dialog.confirm }}</button>
           </div>
         </div></div>
       </div>
     }
-      </app-actions-panel>
-    }
   `,
   styles: `
-    .overlay {
-      position: fixed;
-      inset: 0;
-      z-index: 2000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(255, 255, 255, 0.75);
-    }
+    .app-backup > summary { cursor: pointer; list-style-position: inside; }
+    .app-backup[open] > summary { border-bottom: 1px solid var(--app-line); margin-bottom: 1rem; }
   `,
 })
 export class AzioniComponent {
@@ -398,36 +293,30 @@ export class AzioniComponent {
   readonly candidateCount = input(0);
   readonly checkedInCount = input(0);
   readonly openResetCount = input(0);
+  readonly history = input<WorkflowState['history']>([]);
+  readonly references = input<SessionReferences>({});
+  /** Vista smartphone: durante il check-in mostra solo "Concludi check-in…". */
+  readonly compatto = input(false);
   readonly changed = output<void>();
+  /** L'informatico in sede ha aperto "Azioni del segretario": la tabella passa alla registrazione presenze. */
+  readonly secretaryActionsOpen = output<boolean>();
 
   private readonly api = inject(ApiClient);
+  private readonly injector = inject(Injector);
+  private readonly confirmCancel = viewChild<ElementRef<HTMLButtonElement>>('confirmCancel');
   readonly error = signal('');
   readonly success = signal('');
   readonly warning = signal('');
   readonly busy = signal(false);
-  readonly operationMessage = signal('Operazione in corso... non chiudere la pagina.');
-  readonly mergedConfig = signal<MergedConfig | null>(null);
+  readonly operationMessage = signal('Operazione in corso…');
   readonly latestList = signal<ListSummary | null>(null);
   readonly expertOptions = signal<string[]>([]);
-  readonly concludeModalOpen = signal(false);
+  readonly confirmation = signal<Confirmation | null>(null);
+  readonly showDevices = signal(false);
   readonly resetSoundEnabled = signal(loadResetSoundPreference());
   private readonly originalDocumentTitle = typeof document === 'undefined' ? '' : document.title;
-  private lastOpenResetCount = 0;
-
-  panelTitle(): string {
-    const state = this.currentState() ?? '';
-    const profile = this.viewMode() === 'esperto' ? 'esperto' : 'segretario';
-    return sessionStateAction(state, profile)?.title ?? 'Stato non riconosciuto';
-  }
-
-  sedeStatus(): string {
-    return sessionStateAction(this.currentState() ?? '', 'sede')?.title ?? 'Stato non riconosciuto';
-  }
-
-  confirmConcludeCheckin(): void {
-    this.concludeModalOpen.set(false);
-    this.runAction('concludi_checkin');
-  }
+  private lastOpenResetCount = -1;
+  private loadedState: string | null = null;
 
   sessionConfigModel = {
     email_esperto_remoto: '',
@@ -437,16 +326,19 @@ export class AzioniComponent {
     informatici_sede: [] as SedeTechnician[],
   };
 
-  ngOnInit(): void {
-    this.loadContextData();
-  }
-
   ngOnChanges(): void {
-    this.loadContextData();
+    // I dati di contesto si ricaricano solo al cambio di stato: il polling della
+    // pagina aggiorna spesso gli input e non deve azzerare il modulo in compilazione.
+    const state = this.currentState();
+    if (state && state !== this.loadedState) {
+      this.loadedState = state;
+      this.showDevices.set(false);
+      this.loadContextData(state);
+    }
     if (this.viewMode() === 'esperto') {
       const count = this.openResetCount();
       if (typeof document !== 'undefined') document.title = count > 0 ? `(${count}) ${this.originalDocumentTitle}` : this.originalDocumentTitle;
-      if (count > this.lastOpenResetCount && this.lastOpenResetCount >= 0 && this.resetSoundEnabled()) this.playResetSound();
+      if (this.lastOpenResetCount >= 0 && count > this.lastOpenResetCount && this.resetSoundEnabled()) this.playResetSound();
       this.lastOpenResetCount = count;
     }
   }
@@ -455,81 +347,107 @@ export class AzioniComponent {
     if (typeof document !== 'undefined' && this.viewMode() === 'esperto') document.title = this.originalDocumentTitle;
   }
 
+  secretaryBackup(state: string): boolean { return SECRETARY_BACKUP_STATES.includes(state); }
+  fromCheckin(state: string): boolean { return FROM_CHECKIN.includes(state); }
+  afterListsSent(state: string): boolean { return AFTER_LISTS_SENT.includes(state); }
+  phaseName(state: string): string { return PHASE_NAMES[sessionStateInfo(state).phase - 1]; }
+  absentCount(): number { return Math.max(0, this.candidateCount() - this.checkedInCount()); }
+  presentPercent(): number { return this.candidateCount() ? Math.round((this.checkedInCount() / this.candidateCount()) * 100) : 0; }
+
+  /** Ora (HH:MM) in cui la sessione è entrata nello stato, dalla timeline. */
+  stateTime(state: string): string {
+    const at = this.history()?.find((item) => item.state === state)?.at;
+    if (!at) return '';
+    const date = new Date(at);
+    return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  secretaryDoneEyebrow(state: string): string {
+    if (state === 'liste_inviate') return 'Fase 3 · Liste inviate' + (this.stateTime('liste_inviate') ? ` alle ${this.stateTime('liste_inviate')}` : '');
+    return sessionStateInfo(state).phase === 4 ? 'Fase 4 · Esame · a cura dell’esperto remoto' : '';
+  }
+
+  secretaryDoneTitle(state: string): string {
+    if (state === 'liste_inviate' || state === 'lista_presenti_aggiornata_su_moodle') return 'Nessuna azione da fare';
+    return sessionStateAction(state, 'segretario')?.title ?? 'Stato non riconosciuto';
+  }
+
+  expertTitle(state: string): string { return sessionStateAction(state, 'esperto')?.title ?? 'Stato non riconosciuto'; }
+  expertAction(state: string): string | undefined { return sessionStateAction(state, 'esperto')?.action; }
+
+  expertText(state: string): string {
+    switch (state) {
+      case 'liste_generate': return 'Il segretario ha generato le liste: puoi già scaricarle. In attesa che il segretario le invii.';
+      case 'liste_inviate': return 'Scarica il CSV degli utenti Moodle e caricalo sulla piattaforma d’esame, poi conferma qui.';
+      case 'lista_presenti_aggiornata_su_moodle': return 'I presenti sono su Moodle. Prepara l’ambiente d’esame e conferma quando è pronto: il segretario lo vede nella timeline.';
+      case 'avvia_esame': return 'I presenti sono su Moodle e l’ambiente è pronto. Quando la commissione autorizza, avvia la prova: i candidati potranno iniziare.';
+      case 'esame_in_corso': return 'I candidati stanno svolgendo la prova. Concludila allo scadere del tempo.';
+      case 'esame_concluso': return 'La prova è terminata. Non ci sono altre azioni per questa sessione.';
+      default: return 'Ti avvisiamo per email quando il segretario invia le liste dei presenti. Intanto puoi seguire l’avanzamento nella timeline.';
+    }
+  }
+
+  expertNote(state: string): string {
+    switch (state) {
+      case 'liste_inviate': return 'Dopo la conferma prepari l’ambiente d’esame.';
+      case 'lista_presenti_aggiornata_su_moodle': return 'Poi avvii la prova.';
+      case 'avvia_esame': return 'Dopo l’avvio lo stato passa a “Esame in corso”.';
+      case 'esame_in_corso': return 'Chiede conferma: dopo non si può riaprire.';
+      default: return '';
+    }
+  }
+
+  askConcludeCheckin(): void {
+    const present = this.checkedInCount();
+    const total = this.candidateCount();
+    this.confirmation.set({
+      title: 'Concludere il check-in?',
+      body: `<strong>${present} ${present === 1 ? 'candidato' : 'candidati'} su ${total}</strong> ${present === 1 ? 'risulta presente' : 'risultano presenti'}. Gli altri saranno considerati assenti.<br>Dopo la conclusione non si possono più registrare presenze. Il passo successivo è generare le liste per l’esperto remoto.`,
+      confirm: 'Concludi check-in',
+      cancel: 'Continua il check-in',
+      action: 'concludi_checkin',
+    });
+    this.focusDialog();
+  }
+
+  askExpertAction(state: string): void {
+    const dialogs: Record<string, Omit<Confirmation, 'cancel'>> = {
+      liste_inviate: { title: 'Presenti caricati su Moodle?', body: 'Conferma di avere aggiornato su Moodle l’elenco dei candidati presenti. Il passaggio non si può annullare.', confirm: 'Lista presenti aggiornata', action: 'aggiorna_presenti_moodle' },
+      lista_presenti_aggiornata_su_moodle: { title: 'Ambiente d’esame pronto?', body: 'Il segretario vedrà che l’ambiente d’esame è pronto. Il passaggio non si può annullare.', confirm: 'Ambiente pronto', action: 'avvia_esame' },
+      avvia_esame: { title: 'Iniziare l’esame?', body: 'I candidati potranno iniziare la prova. Il passaggio non si può annullare.', confirm: 'Inizia esame', action: 'inizia_esame' },
+      esame_in_corso: { title: 'Concludere l’esame?', body: 'La prova risulterà conclusa per tutti i candidati. Il passaggio non si può annullare.', confirm: 'Concludi esame', action: 'concludi_esame' },
+    };
+    const dialog = dialogs[state];
+    if (!dialog) return;
+    this.confirmation.set({ ...dialog, cancel: 'Annulla' });
+    this.focusDialog();
+  }
+
+  confirm(dialog: Confirmation): void {
+    this.confirmation.set(null);
+    this.runAction(dialog.action);
+  }
+
+  onBackupToggle(event: Event): void {
+    this.secretaryActionsOpen.emit((event.target as HTMLDetailsElement).open);
+  }
+
   setResetSoundEnabled(event: Event): void {
     const enabled = (event.target as HTMLInputElement).checked;
     this.resetSoundEnabled.set(enabled);
-    try { localStorage.setItem('checkin.resetSoundEnabled', String(enabled)); } catch { /* Storage can be disabled by the browser. */ }
-  }
-
-  private playResetSound(): void {
-    try {
-      const context = new AudioContext();
-      const oscillator = context.createOscillator();
-      const gain = context.createGain();
-      oscillator.frequency.value = 880;
-      gain.gain.value = 0.04;
-      oscillator.connect(gain);
-      gain.connect(context.destination);
-      oscillator.start();
-      oscillator.stop(context.currentTime + 0.16);
-      oscillator.onended = () => void context.close();
-    } catch { /* Audio is optional and can be unavailable until a user gesture. */ }
-  }
-
-  private loadContextData(): void {
-    const modeParam = encodeURIComponent(this.viewMode());
-    const commissionId = this.commissionId();
-    if (this.currentState() === 'iniziale') {
-      this.api.get<Record<string, any>>(`/sessioni/${this.sessionId()}/config?mode=${modeParam}`).subscribe((data) => {
-        this.sessionConfigModel = {
-          email_esperto_remoto: data['email_esperto_remoto'] ?? '',
-          nome_informatico_sede: data['nome_informatico_sede'] ?? '',
-          email_informatico_sede: data['email_informatico_sede'] ?? '',
-          telefono_informatico_sede: data['telefono_informatico_sede'] ?? '',
-          informatici_sede: (data['informatici_sede'] as unknown as SedeTechnician[]) ?? [],
-        };
-      });
-      if (!commissionId) return;
-      this.api.get<Record<string, any>>(`/bandi/${commissionId}/config?mode=${modeParam}`).subscribe((data) => {
-        this.expertOptions.set(data['expert_options'] ?? []);
-      });
-    }
-    if (this.currentState() === 'configurata') {
-      if (!commissionId) return;
-      this.api.get<MergedConfig>(`/bandi/${commissionId}/config?mode=${modeParam}`).subscribe((bando) => {
-        this.api.get<MergedConfig>(`/sessioni/${this.sessionId()}/config?mode=${modeParam}`).subscribe((sessione) => {
-          this.mergedConfig.set({ ...bando, ...Object.fromEntries(Object.entries(sessione).filter(([, v]) => v)) });
-        });
-      });
-    }
-    if ([
-      'liste_generate',
-      'liste_inviate',
-      'lista_presenti_aggiornata_su_moodle',
-      'avvia_esame',
-      'esame_in_corso',
-      'esame_concluso',
-    ].includes(this.currentState() ?? '')) {
-      this.api.get<ListSummary>(`/sessioni/${this.sessionId()}/lists/latest?mode=${modeParam}`).subscribe({
-        next: (item) => this.latestList.set(item),
-        error: () => this.latestList.set(null),
-      });
-    }
+    try { localStorage.setItem('checkin.resetSoundEnabled', String(enabled)); } catch { /* Archiviazione del browser non disponibile. */ }
   }
 
   saveSessionConfig(): void {
-    this.error.set('');
-    this.success.set('');
-    this.warning.set('');
+    this.clearMessages();
     const validationError = this.sessionConfigValidationError();
     if (validationError) {
       this.error.set(validationError);
       return;
     }
-    this.startBusy('Salvataggio configurazione in corso...');
-    const modeParam = encodeURIComponent(this.viewMode());
-    this.api.put(`/sessioni/${this.sessionId()}/config?mode=${modeParam}`, this.sessionConfigPayload()).subscribe({
-      next: () => { this.stopBusy(); this.success.set('Configurazione sessione salvata correttamente.'); this.changed.emit(); },
+    this.startBusy('Salvo chi ti aiuta in questa sessione…');
+    this.api.put(`/sessioni/${this.sessionId()}/config?mode=${this.mode()}`, this.sessionConfigPayload()).subscribe({
+      next: () => { this.stopBusy(); this.success.set('Configurazione della sessione salvata.'); this.changed.emit(); },
       error: (err) => { this.stopBusy(); this.error.set(this.extractError(err)); },
     });
   }
@@ -544,38 +462,31 @@ export class AzioniComponent {
       this.error.set('Scarica candidati richiede che il tuo utente sia segretario abilitato su Selezioni Online per questo bando.');
       return;
     }
-    this.error.set('');
-    this.success.set('');
-    this.warning.set('');
-    this.startBusy('Importazione candidati in corso...');
-    this.api.post(`/sessioni/${this.sessionId()}/candidati/import?mode=${encodeURIComponent(this.viewMode())}`).subscribe({
-      next: () => { this.stopBusy(); this.success.set('Lista candidati importata correttamente.'); this.changed.emit(); },
+    this.clearMessages();
+    this.startBusy('Sto scaricando i candidati da Selezioni Online…');
+    this.api.post(`/sessioni/${this.sessionId()}/candidati/import?mode=${this.mode()}`).subscribe({
+      next: () => { this.stopBusy(); this.success.set('Candidati scaricati da Selezioni Online.'); this.changed.emit(); },
       error: (err) => { this.stopBusy(); this.error.set(this.extractError(err)); },
     });
   }
 
-  runAction(action: string, confirmation?: string): void {
-    if (confirmation && !window.confirm(confirmation)) return;
-    this.error.set('');
-    this.success.set('');
-    this.warning.set('');
-    this.startBusy('Aggiornamento stato in corso...');
-    this.api.post(`/sessioni/${this.sessionId()}/actions/${action}?mode=${encodeURIComponent(this.viewMode())}`).subscribe({
+  runAction(action: string): void {
+    this.clearMessages();
+    this.startBusy('Aggiorno lo stato della sessione…');
+    this.api.post(`/sessioni/${this.sessionId()}/actions/${action}?mode=${this.mode()}`).subscribe({
       next: () => { this.stopBusy(); this.changed.emit(); },
       error: (err) => { this.stopBusy(); this.error.set(this.extractError(err)); },
     });
   }
 
   generaListe(): void {
-    this.error.set('');
-    this.success.set('');
-    this.warning.set('');
-    this.startBusy('Generazione liste candidati in corso...');
-    this.api.post<ListSummary>(`/sessioni/${this.sessionId()}/lists/generate?mode=${encodeURIComponent(this.viewMode())}`).subscribe({
+    this.clearMessages();
+    this.startBusy('Sto generando le liste…');
+    this.api.post<ListSummary>(`/sessioni/${this.sessionId()}/lists/generate?mode=${this.mode()}`).subscribe({
       next: (item) => {
         this.stopBusy();
         this.latestList.set(item);
-        this.success.set(item.message || 'Liste candidati generate correttamente.');
+        this.success.set(item.message || 'Liste dei presenti generate.');
         this.changed.emit();
       },
       error: (err) => { this.stopBusy(); this.error.set(this.extractError(err)); },
@@ -583,27 +494,62 @@ export class AzioniComponent {
   }
 
   inviaListe(): void {
-    this.error.set('');
-    this.success.set('');
-    this.warning.set('');
-    this.startBusy('Invio liste candidati all’esperto remoto in corso...');
-    this.api.post<ListSendResult>(`/sessioni/${this.sessionId()}/lists/send?mode=${encodeURIComponent(this.viewMode())}`).subscribe({
+    this.clearMessages();
+    this.startBusy('Sto inviando le liste all’esperto remoto…');
+    this.api.post<ListSendResult>(`/sessioni/${this.sessionId()}/lists/send?mode=${this.mode()}`).subscribe({
       next: (result) => {
         this.stopBusy();
-        const recipients = result.recipients?.length
-          ? ` Destinatario: ${result.recipients.join(', ')}.`
-          : '';
+        const recipients = result.recipients?.length ? ` Destinatario: ${result.recipients.join(', ')}.` : '';
         this.success.set((result.message || 'Liste candidati inviate correttamente.') + recipients);
         if (result.warning) {
-          this.warning.set(`Email non inviata: ${result.warning}. L'esperto remoto può comunque vedere e scaricare le liste dalla propria area personale.`);
+          this.warning.set(`Email non inviata: ${result.warning}. L’esperto remoto può comunque vedere e scaricare le liste dalla propria area personale.`);
         }
         if (result.email_status) {
-          this.latestList.update((item) => (item ? { ...item, email_status: result.email_status } : item));
+          this.latestList.update((item) => (item ? { ...item, email_status: result.email_status, email_error: result.warning ?? item.email_error } : item));
         }
         this.changed.emit();
       },
       error: (err) => { this.stopBusy(); this.error.set(this.extractError(err)); },
     });
+  }
+
+  private loadContextData(state: string): void {
+    const commissionId = this.commissionId();
+    if (state === 'iniziale') {
+      this.api.get<Record<string, unknown>>(`/sessioni/${this.sessionId()}/config?mode=${this.mode()}`).subscribe((data) => {
+        this.sessionConfigModel = {
+          email_esperto_remoto: (data['email_esperto_remoto'] as string) ?? '',
+          nome_informatico_sede: (data['nome_informatico_sede'] as string) ?? '',
+          email_informatico_sede: (data['email_informatico_sede'] as string) ?? '',
+          telefono_informatico_sede: (data['telefono_informatico_sede'] as string) ?? '',
+          informatici_sede: (data['informatici_sede'] as SedeTechnician[]) ?? [],
+        };
+      });
+      if (commissionId) {
+        this.api.get<Record<string, unknown>>(`/bandi/${commissionId}/config?mode=${this.mode()}`).subscribe((data) => {
+          this.expertOptions.set((data['expert_options'] as string[]) ?? []);
+        });
+      }
+    }
+    if (LIST_STATES.includes(state)) {
+      this.api.get<ListSummary>(`/sessioni/${this.sessionId()}/lists/latest?mode=${this.mode()}`).subscribe({
+        next: (item) => this.latestList.set(item),
+        error: () => this.latestList.set(null),
+      });
+    }
+  }
+
+  /** Il focus va sulla scelta prudente della conferma appena compare. */
+  private focusDialog(): void {
+    afterNextRender(() => this.confirmCancel()?.nativeElement.focus(), { injector: this.injector });
+  }
+
+  private mode(): string { return encodeURIComponent(this.viewMode()); }
+
+  private clearMessages(): void {
+    this.error.set('');
+    this.success.set('');
+    this.warning.set('');
   }
 
   private startBusy(message: string): void {
@@ -613,7 +559,21 @@ export class AzioniComponent {
 
   private stopBusy(): void {
     this.busy.set(false);
-    this.operationMessage.set('Operazione in corso... non chiudere la pagina.');
+  }
+
+  private playResetSound(): void {
+    try {
+      const context = new AudioContext();
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.frequency.value = 880;
+      gain.gain.value = 0.04;
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start();
+      oscillator.stop(context.currentTime + 0.16);
+      oscillator.onended = () => void context.close();
+    } catch { /* Il suono è facoltativo e può non essere disponibile prima di un'interazione. */ }
   }
 
   private extractError(err: unknown): string {
@@ -625,15 +585,9 @@ export class AzioniComponent {
 
   private sessionConfigValidationError(): string {
     const missing = [];
-    if (!this.trimmed(this.sessionConfigModel.email_esperto_remoto)) {
-      missing.push("l'esperto remoto");
-    }
-    if (!this.trimmed(this.sessionConfigModel.email_informatico_sede)) {
-      missing.push("l'email dell'informatico in sede");
-    }
-    return missing.length
-      ? `Per proseguire devi compilare ${missing.join(' e ')}.`
-      : '';
+    if (!this.trimmed(this.sessionConfigModel.email_esperto_remoto)) missing.push("l'esperto remoto");
+    if (!this.trimmed(this.sessionConfigModel.email_informatico_sede)) missing.push("l'email dell'informatico in sede");
+    return missing.length ? `Per proseguire devi compilare ${missing.join(' e ')}.` : '';
   }
 
   private trimmed(value: string | null | undefined): string {
@@ -649,14 +603,9 @@ export class AzioniComponent {
     };
     const informaticiSede = [
       primarySede,
-      ...this.sessionConfigModel.informatici_sede.filter((item) =>
-        this.trimmed(item.email) !== this.trimmed(primarySede.email)
-      ),
+      ...this.sessionConfigModel.informatici_sede.filter((item) => this.trimmed(item.email) !== this.trimmed(primarySede.email)),
     ].filter((item) => this.trimmed(item.nome) || this.trimmed(item.email) || this.trimmed(item.telefono));
-    return {
-      ...this.sessionConfigModel,
-      informatici_sede: informaticiSede,
-    };
+    return { ...this.sessionConfigModel, informatici_sede: informaticiSede };
   }
 }
 

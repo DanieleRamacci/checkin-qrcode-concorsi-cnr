@@ -87,16 +87,16 @@ describe('BandiComponent', () => {
 
     expect(fixture.nativeElement.textContent).toContain('Concorso CNR');
     expect(fixture.nativeElement.textContent).toContain('I miei concorsi');
-    expect(fixture.nativeElement.textContent).toContain('Aggiorna da Selezioni Online');
+    expect(fixture.nativeElement.textContent).toContain('Aggiorna ora');
     expect(fixture.nativeElement.textContent).toContain('Non trovi un concorso?');
     expect(fixture.nativeElement.textContent).toContain('Con sessioni in arrivo');
-    expect(fixture.nativeElement.querySelector('a[href*="/config"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('table.app-table a[href*="/config"]')?.textContent).toContain('Configura');
   });
 
   it('filters concorsi by upcoming sessions or incomplete configuration and supports pagination', async () => {
     const fixture = await createComponent('segretario', false, [
-      { commission_id: 'c1', title: 'Concorso in arrivo', configured: true, required_data_complete: true, session_count: 1, next_session: { session_id: 's1', name: 'Sessione 1', date: '2026-10-20', time: '09:00', location: 'Roma', state: 'iniziale' } },
-      { commission_id: 'c2', title: 'Concorso da completare', configured: false, required_data_complete: false, session_count: 0, next_session: null },
+      { commission_id: 'c1', title: 'Concorso in arrivo', configured: true, required_data_complete: true, session_count: 1, remote_expert_assigned_count: 1, referente_email: 'rdp@cnr.it', next_session: { session_id: 's1', name: 'Sessione 1', date: '2026-10-20', time: '09:00', location: 'Roma', state: 'iniziale' } },
+      { commission_id: 'c2', title: 'Concorso da completare', configured: false, required_data_complete: false, session_count: 1, remote_expert_assigned_count: 0, next_session: null },
     ]);
     const component = fixture.componentInstance;
     component.setBandoFilter('upcoming');
@@ -159,7 +159,6 @@ describe('BandiComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Tutti i bandi');
     expect(fixture.nativeElement.textContent).toContain('Vista amministratore');
     expect(fixture.nativeElement.textContent).toContain('Solo vista admin');
-    expect(fixture.nativeElement.textContent).toContain('Ruolo Selezioni: PRESIDENTE');
   });
 
   it('loads local bandi first and syncs only on manual refresh', async () => {
@@ -242,7 +241,7 @@ describe('BandiComponent', () => {
     expect(syncCalls).toBe(0);
     expect(fixture.nativeElement.textContent).toContain('Bando locale');
 
-    const button: HTMLButtonElement = fixture.nativeElement.querySelector('button.btn-outline-primary');
+    const button = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>).find((item) => item.textContent?.includes('Aggiorna ora')) as HTMLButtonElement;
     button.click();
     fixture.detectChanges();
     await fixture.whenStable();
@@ -257,7 +256,6 @@ describe('BandiComponent', () => {
 
     expect(fixture.nativeElement.textContent).toContain('Nessun bando sincronizzato');
     expect(fixture.nativeElement.textContent).toContain('Sincronizza bandi da Selezioni Online');
-    expect(fixture.nativeElement.textContent).toContain('prima sincronizzazione');
     expect(fixture.nativeElement.textContent).not.toContain('Nessuna commissione disponibile.');
   });
 

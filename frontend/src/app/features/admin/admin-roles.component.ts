@@ -16,111 +16,70 @@ interface AdminRole {
   selector: 'app-admin-roles',
   imports: [FormsModule, DatePipe, NgTemplateOutlet],
   template: `
-    <section class="container my-5 admin-page" aria-labelledby="admin-roles-title">
-      <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 id="admin-roles-title" class="mb-0">Gestione permessi</h1>
-      </div>
+    <h1 class="mb-3">Permessi</h1>
+    @if (error()) { <div class="alert alert-danger" role="alert">{{ error() }}</div> }
+    @if (message()) { <div class="alert alert-success" role="status">{{ message() }}</div> }
 
-      @if (error()) { <div class="alert alert-danger" role="alert">{{ error() }}</div> }
-      @if (message()) { <div class="alert alert-success" role="status">{{ message() }}</div> }
+    <section class="card card-bg no-after mb-4" aria-labelledby="pe-esp"><div class="card-body">
+      <h2 id="pe-esp" class="h4 mb-1">Esperti remoti</h2>
+      <p class="text-secondary">Chi è in questo elenco si può scegliere come esperto remoto nella configurazione dei bandi e delle sessioni.</p>
+      <form class="row g-3 align-items-end mb-3" (ngSubmit)="add(expertEmail, 'esperto_informatico')">
+        <div class="col-12 col-md-8"><div class="form-group mb-0"><label for="expert-email" class="active">Email istituzionale</label>
+          <input id="expert-email" class="form-control" type="email" name="expertEmail" placeholder="nome.cognome@cnr.it" [(ngModel)]="expertEmail" required /></div></div>
+        <div class="col-12 col-md-4"><button class="btn btn-primary w-100" type="submit" [disabled]="busy()">Aggiungi esperto</button></div>
+      </form>
+      <ng-container *ngTemplateOutlet="roleTable; context: { $implicit: experts(), empty: 'Nessun esperto remoto registrato.' }" />
+    </div></section>
 
-      <div class="card mb-4">
-        <div class="card-header bg-light py-2">
-          <span class="fw-bold text-uppercase small text-primary">Esperti remoti</span>
-          <span class="text-muted small ms-2">Disponibili come “Esperto remoto” nella configurazione bandi</span>
-        </div>
-        <div class="card-body">
-          <form class="row g-2 align-items-end mb-3" (ngSubmit)="add(expertEmail, 'esperto_informatico')">
-            <div class="col-md-8">
-              <label for="expert-email" class="form-label small mb-1">Email esperto</label>
-              <input id="expert-email" class="form-control form-control-sm" type="email" name="expertEmail"
-                placeholder="nome.cognome@cnr.it" [(ngModel)]="expertEmail" required />
-            </div>
-            <div class="col-md-4">
-              <button class="btn btn-primary btn-sm w-100" type="submit" [disabled]="busy()">
-                @if (busy()) {
-                  <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
-                }
-                <span>Aggiungi esperto</span>
-              </button>
-            </div>
-          </form>
-          <ng-container *ngTemplateOutlet="roleTable; context: { $implicit: experts(), empty: 'Nessun esperto remoto registrato.' }" />
-        </div>
-      </div>
+    <section class="card card-bg no-after" aria-labelledby="pe-alt"><div class="card-body">
+      <h2 id="pe-alt" class="h4 mb-1">Altri ruoli</h2>
+      <p class="text-secondary">Amministratori dell’applicazione: vedono tutti i bandi e l’area Amministrazione.</p>
+      <form class="row g-3 align-items-end mb-3" (ngSubmit)="add(roleEmail, selectedRole())">
+        <div class="col-12 col-md-5"><div class="form-group mb-0"><label for="admin-email" class="active">Email istituzionale</label>
+          <input id="admin-email" class="form-control" type="email" name="roleEmail" placeholder="nome.cognome@cnr.it" [(ngModel)]="roleEmail" required /></div></div>
+        <div class="col-12 col-md-4"><div class="select-wrapper"><label for="role-select">Ruolo</label>
+          <select id="role-select" name="role" [ngModel]="selectedRole()" (ngModelChange)="selectedRole.set($event)">
+            <option value="admin_globale">Amministratore</option>
+            <option value="esperto_informatico">Esperto remoto</option>
+          </select></div></div>
+        <div class="col-12 col-md-3"><button class="btn btn-outline-primary w-100" type="submit" [disabled]="busy()">Aggiungi</button></div>
+      </form>
+      <ng-container *ngTemplateOutlet="roleTable; context: { $implicit: admins(), empty: 'Nessun amministratore registrato.' }" />
+      <p class="small text-secondary mt-3 mb-0">“Rimuovi” chiede conferma.</p>
+    </div></section>
 
-      <div class="card mb-4">
-        <div class="card-header bg-light py-2">
-          <span class="fw-bold text-uppercase small text-primary">Altri ruoli</span>
-        </div>
-        <div class="card-body">
-          <form class="row g-2 align-items-end mb-3" (ngSubmit)="add(roleEmail, selectedRole())">
-            <div class="col-md-6">
-              <label for="admin-email" class="form-label small mb-1">Email utente</label>
-              <input id="admin-email" class="form-control form-control-sm" type="email" name="roleEmail"
-                placeholder="nome.cognome@cnr.it" [(ngModel)]="roleEmail" required />
-            </div>
-            <div class="col-md-3">
-              <label for="role-select" class="form-label small mb-1">Ruolo</label>
-              <select id="role-select" class="form-select form-select-sm" name="role" [ngModel]="selectedRole()" (ngModelChange)="selectedRole.set($event)">
-                <option value="admin_globale">Amministratore</option>
-                <option value="esperto_informatico">Esperto remoto</option>
-              </select>
-            </div>
-            <div class="col-md-3">
-              <button class="btn btn-primary btn-sm w-100" type="submit" [disabled]="busy()">
-                @if (busy()) {
-                  <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
-                }
-                <span>Aggiungi ruolo</span>
-              </button>
-            </div>
-          </form>
-          <ng-container *ngTemplateOutlet="roleTable; context: { $implicit: admins(), empty: 'Nessun amministratore registrato.' }" />
-        </div>
-      </div>
-
-      <ng-template #roleTable let-rows let-empty="empty">
-        @if (loading()) {
-          <div class="d-flex align-items-center gap-2 py-2" role="status" aria-live="polite">
-            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-            <span>Caricamento permessi…</span>
-          </div>
-        } @else if (rows.length === 0) {
-          <p class="text-muted small mb-0">{{ empty }}</p>
-        } @else {
-          <div class="table-responsive">
-            <table class="table table-sm table-hover mb-0">
-              <thead class="table-light"><tr><th>Email</th><th>Ruolo</th><th>Aggiunto da</th><th>Il</th><th></th></tr></thead>
-              <tbody>
-                @for (row of rows; track row.user_email + row.role) {
-                  <tr>
-                    <td>{{ row.user_email }}</td>
-                    <td><span class="badge text-bg-light">{{ roleLabel(row.role) }}</span></td>
-                    <td>{{ row.created_by || '-' }}</td>
-                    <td class="text-muted small">{{ row.created_at ? (row.created_at | date:'dd/MM/yyyy') : '-' }}</td>
-                    <td class="text-end">
-                      <button class="btn btn-sm btn-link text-danger" type="button" [disabled]="busy()" (click)="pendingRemoval.set(row)">Rimuovi</button>
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-        }
-      </ng-template>
-    </section>
+    <ng-template #roleTable let-rows let-empty="empty">
+      @if (loading()) {
+        <p class="d-flex align-items-center gap-2 py-2 mb-0" role="status" aria-live="polite"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Carico i permessi…</p>
+      } @else if (rows.length === 0) {
+        <p class="text-secondary mb-0">{{ empty }}</p>
+      } @else {
+        <div class="table-responsive"><table class="table align-middle mb-0">
+          <thead><tr><th scope="col">Email</th><th scope="col">Ruolo</th><th scope="col">Aggiunto da</th><th scope="col">Data</th><th scope="col"><span class="visually-hidden">Azioni</span></th></tr></thead>
+          <tbody>
+            @for (row of rows; track row.user_email + row.role) {
+              <tr>
+                <td class="text-break">{{ row.user_email }}</td>
+                <td><span class="badge app-badge-neutral">{{ roleLabel(row.role) }}</span></td>
+                <td class="text-break">{{ row.created_by || '—' }}</td>
+                <td class="app-num-cell">{{ row.created_at ? (row.created_at | date:'dd/MM/yyyy') : '—' }}</td>
+                <td class="text-end"><button class="btn btn-link text-danger p-0 fw-semibold" type="button" [disabled]="busy()" (click)="pendingRemoval.set(row)">Rimuovi<span class="visually-hidden"> {{ row.user_email }}</span></button></td>
+              </tr>
+            }
+          </tbody>
+        </table></div>
+      }
+    </ng-template>
     @if (pendingRemoval(); as row) {
-      <div class="modal d-block" role="dialog" aria-modal="true" aria-labelledby="remove-role-title" style="background:rgba(0,0,0,.45)">
+      <div class="modal d-block" role="dialog" aria-modal="true" aria-labelledby="remove-role-title" style="background:rgba(0,0,0,.45)" (keydown.escape)="pendingRemoval.set(null)">
         <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
           <div class="modal-header"><h2 id="remove-role-title" class="modal-title h5">Rimuovere questo permesso?</h2></div>
           <div class="modal-body">Il ruolo <strong>{{ roleLabel(row.role) }}</strong> verrà rimosso da <strong>{{ row.user_email }}</strong>.</div>
-          <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" (click)="pendingRemoval.set(null)">Annulla</button><button class="btn btn-danger" type="button" [disabled]="busy()" (click)="remove(row)">Rimuovi permesso</button></div>
+          <div class="modal-footer"><button class="btn btn-outline-secondary btn-sm" type="button" (click)="pendingRemoval.set(null)">Annulla</button><button class="btn btn-danger btn-sm" type="button" [disabled]="busy()" (click)="remove(row)">Rimuovi permesso</button></div>
         </div></div>
       </div>
     }
   `,
-  styles: `.admin-page { max-width: 900px; }`,
 })
 export class AdminRolesComponent {
   private readonly api = inject(ApiClient);

@@ -91,6 +91,8 @@ export const routes: Routes = [
       {
         path: 'sessioni/:sessionId',
         title: 'Gestione sessione — Check-in CNR Concorsi',
+        // Su smartphone la sessione ha una testata propria (P08): header e footer del sito si nascondono.
+        data: { mobileImmersive: true },
         loadComponent: () =>
           import('./features/gestione-sessione/gestione-sessione.component').then(
             (module) => module.GestioneSessioneComponent,
