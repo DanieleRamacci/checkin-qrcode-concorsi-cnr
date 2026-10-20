@@ -1,6 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
+import { By } from '@angular/platform-browser';
 import { BandiComponent } from './bandi.component';
+import { BandiTableComponent } from './bandi-table.component';
 import { BandiService } from './bandi.service';
 import { ActivatedRoute } from '@angular/router';
 import { provideRouter } from '@angular/router';
@@ -21,6 +23,7 @@ describe('BandiComponent', () => {
         {
           provide: BandiService,
           useValue: {
+            secretarySyncDue: () => false,
             sync: () =>
               of({
                 items: items ?? [
@@ -98,7 +101,7 @@ describe('BandiComponent', () => {
       { commission_id: 'c1', title: 'Concorso in arrivo', configured: true, required_data_complete: true, session_count: 1, remote_expert_assigned_count: 1, referente_email: 'rdp@cnr.it', next_session: { session_id: 's1', name: 'Sessione 1', date: '2026-10-20', time: '09:00', location: 'Roma', state: 'iniziale' } },
       { commission_id: 'c2', title: 'Concorso da completare', configured: false, required_data_complete: false, session_count: 1, remote_expert_assigned_count: 0, next_session: null },
     ]);
-    const component = fixture.componentInstance;
+    const component = fixture.debugElement.query(By.directive(BandiTableComponent)).componentInstance as BandiTableComponent;
     component.setBandoFilter('upcoming');
     expect(component.filteredItems().map((item) => item.commission_id)).toEqual(['c1']);
     component.setBandoFilter('incomplete');
@@ -161,7 +164,7 @@ describe('BandiComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Solo vista admin');
   });
 
-  it('loads local bandi first and syncs only on manual refresh', async () => {
+  it('shows local bandi first, then refreshes them from Selezioni Online once on opening', async () => {
     let listCalls = 0;
     let syncCalls = 0;
 
@@ -176,6 +179,7 @@ describe('BandiComponent', () => {
         {
           provide: BandiService,
           useValue: {
+            secretarySyncDue: () => syncCalls === 0,
             list: () => {
               listCalls += 1;
               return of({
@@ -238,8 +242,8 @@ describe('BandiComponent', () => {
     fixture.detectChanges();
 
     expect(listCalls).toBe(1);
-    expect(syncCalls).toBe(0);
-    expect(fixture.nativeElement.textContent).toContain('Bando locale');
+    expect(syncCalls).toBe(1);
+    expect(fixture.nativeElement.textContent).toContain('Bando sincronizzato');
 
     const button = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>).find((item) => item.textContent?.includes('Aggiorna ora')) as HTMLButtonElement;
     button.click();
@@ -247,7 +251,7 @@ describe('BandiComponent', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    expect(syncCalls).toBe(1);
+    expect(syncCalls).toBe(2);
     expect(fixture.nativeElement.textContent).toContain('Bando sincronizzato');
   });
 
@@ -271,6 +275,7 @@ describe('BandiComponent', () => {
         {
           provide: BandiService,
           useValue: {
+            secretarySyncDue: () => false,
             sync: () => throwError(() => ({ status: 500 })),
             list: () => throwError(() => ({
               status: 403,

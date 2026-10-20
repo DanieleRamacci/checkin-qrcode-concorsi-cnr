@@ -137,6 +137,12 @@ aggiornato il 19/10/2026 (schermate P01–P22, P09a–P09e).
   per `data_esame` (salvata come testo `AAAA-MM-GG HH:MM:SS`, ordinabile). Il
   campo esistente `session_count` conta già le sessioni scaricate: con zero
   sessioni la UI mostra "sessioni non ancora scaricate".
+  Correzione dopo il collaudo (2026-10-20): home segretario e "I miei
+  concorsi" mostrano subito i dati salvati e poi aggiornano i concorsi da
+  Selezioni Online all'apertura (una chiamata, al massimo ogni 10 minuti per
+  scheda); la home mette in primo piano la sessione futura più vicina e sotto
+  l'elenco dei concorsi in ordine di prossima sessione. Aprendo un concorso senza
+  sessioni salvate, il segretario le scarica automaticamente una volta.
 - **Motivazione**: le sessioni sono già collegate dalla stessa query; una sola
   chiamata alimenta home e "I miei concorsi" (P01, P02).
 - **Alternative**: una chiamata `/bandi/<id>/sessioni` per bando (decine di
@@ -154,6 +160,10 @@ aggiornato il 19/10/2026 (schermate P01–P22, P09a–P09e).
   collaudo: la rotta Home mostra sempre le tab dei profili disponibili, anche
   quando il profilo è uno solo; ogni tab contiene i link alle sue pagine.
   La scelta non viene conservata nel browser fra account diversi.
+  Correzione dopo il collaudo (2026-10-20): l'header mostra solo le voci del
+  profilo attivo, che resta lo stesso dopo ricarica o "indietro"; una sessione
+  aperta senza `mode` usa il profilo attivo. Segretario e referente vengono
+  proposti come primo accesso solo a chi non ha già un profilo di supporto.
 - **Motivazione**: evita card inutili senza nascondere i profili a chi non ha
   ancora sincronizzato.
 - **Alternative**: mostrare sempre tutte le card (com'è oggi); calcolare le

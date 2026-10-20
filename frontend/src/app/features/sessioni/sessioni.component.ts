@@ -121,6 +121,7 @@ export class SessioniComponent {
   readonly page = signal(0);
   readonly pageSize = signal(10);
   readonly phases = [1, 2, 3, 4];
+  private autoSyncDone = false;
   readonly dateFilterOptions = computed<FilterChipOption[]>(() => [
     { id: 'upcoming', label: 'Da oggi in poi', count: this.items().filter((item) => !this.isPast(item.date)).length },
     { id: 'past', label: 'Passate', count: this.items().filter((item) => this.isPast(item.date)).length },
@@ -228,6 +229,11 @@ export class SessioniComponent {
         this.items.set(items);
         this.loading.set(false);
         this.syncing.set(false);
+        // Concorso aperto per la prima volta dal segretario: le sessioni si scaricano da sole, una volta.
+        if (!items.length && this.mode === 'segretario' && !this.autoSyncDone) {
+          this.autoSyncDone = true;
+          this.reload(true);
+        }
       },
       error: (error) => {
         if (!preserveError) {

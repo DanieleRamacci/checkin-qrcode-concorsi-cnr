@@ -82,7 +82,8 @@ def test_me_returns_user_context_and_csrf(monkeypatch):
     assert payload["email"] == "expert@cnr.it"
     assert payload["display_name"] == "Esperto CNR"
     assert payload["roles"] == ["esperto_informatico"]
-    assert payload["profiles"] == ["segretario", "referente", "sede", "esperto"]
+    # Solo profili di supporto: segretario e referente non vengono proposti.
+    assert payload["profiles"] == ["sede", "esperto"]
     assert "expert_workflow" in payload["capabilities"]
     assert "sede_workflow" in payload["capabilities"]
     assert payload["csrf_token"]
@@ -213,3 +214,36 @@ def test_api_logout_clears_local_session():
     with client.session_transaction() as flask_session:
         assert "user_email" not in flask_session
         assert "access_token" not in flask_session
+
+
+def test_profiles_offer_secretary_and_referente_on_first_access(monkeypatch):
+    from routes.api_v1 import auth
+
+    class CursorStub:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, *_args):
+            pass
+
+        def fetchone(self):
+            return None
+
+    class ConnectionStub:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return CursorStub()
+
+    monkeypatch.setattr(auth, "get_db_connection", ConnectionStub)
+    monkeypatch.setattr(auth, "has_any_assigned_sede_session", lambda email: False)
+
+    assert auth._profiles_for_user("nuovo@cnr.it", set()) == ["segretario", "referente"]
+    assert auth._profiles_for_user("admin@cnr.it", {auth.ROLE_ADMIN}) == ["admin"]

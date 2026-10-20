@@ -1,21 +1,22 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { ItIconComponent } from 'design-angular-kit';
 import { AuthService } from '../../core/auth.service';
-import { BandoSummary } from '../../core/models/api.models';
+import { BandiResponse, BandoSummary } from '../../core/models/api.models';
 import { availableProfiles } from '../../core/profile.service';
-import { sessionStateAction, sessionStateBadge, sessionStateLabel } from '../../shared/session-states';
+import { sessionStateAction, sessionStateLabel } from '../../shared/session-states';
 import { competitionLabel } from '../../shared/competition-label';
 import { BandiService } from '../bandi/bandi.service';
+import { BandiTableComponent, bandiSyncLine } from '../bandi/bandi-table.component';
 
 /**
- * P01 Home segretario (docs/design-revisione/prototipo/home.html): la prossima
- * sessione in evidenza e l'elenco delle prossime sessioni. L'elenco completo
- * dei concorsi resta in "I miei concorsi".
+ * P01 Home segretario (docs/design-revisione/prototipo/home.html): la sessione
+ * più vicina tra quelle scaricate in primo piano e, sotto, i concorsi di cui
+ * l'utente è segretario come in "I miei concorsi". All'apertura i concorsi si
+ * aggiornano da Selezioni Online; le sessioni si scaricano aprendo un concorso.
  */
 @Component({
   selector: 'app-secretary-home',
-  imports: [RouterLink, ItIconComponent],
+  imports: [RouterLink, BandiTableComponent],
   template: `
     <div class="container py-4 py-lg-5">
       <h1 class="mb-1">Buongiorno, {{ firstName() }}</h1>
@@ -24,8 +25,8 @@ import { BandiService } from '../bandi/bandi.service';
         @if (multiProfile()) { · <a routerLink="/">cambia profilo</a> }
       </p>
 
-      @if (loading()) { <p role="status" aria-live="polite">Caricamento delle prossime sessioni…</p> }
-      @if (error()) { <div class="alert alert-warning" role="status">{{ error() }}</div> }
+      @if (loading()) { <p role="status" aria-live="polite">Carico i tuoi concorsi…</p> }
+      @if (error()) { <div class="alert alert-danger" role="alert">{{ error() }}</div> }
 
       @if (nextSession(); as next) {
         <section class="card app-today mb-4" aria-labelledby="oggi">
@@ -42,37 +43,40 @@ import { BandiService } from '../bandi/bandi.service';
             <a class="btn btn-primary btn-lg" [routerLink]="['/sessioni', next.session.session_id]" [queryParams]="{ mode: 'segretario' }">Apri sessione</a>
           </div>
         </section>
-      } @else if (!loading() && !error()) {
+      } @else if (!loading() && bandi().length) {
         <section class="card card-bg no-after mb-4" aria-labelledby="nessuna-sessione">
           <div class="card-body">
-            <h2 id="nessuna-sessione" class="h5">Nessuna prossima sessione tra quelle scaricate</h2>
-            <p>Questa pagina mostra solo le sessioni già salvate nell’app. Non consulta in tempo reale Selezioni Online.</p>
-            @if (unloadedCount()) {
-              <p>{{ unloadedCount() }} {{ unloadedCount() === 1 ? 'concorso è presente' : 'concorsi sono presenti' }} senza sessioni scaricate nell’app. Apri un concorso e seleziona “Scarica sessioni da Selezioni Online” per verificare e importare le sue sessioni.</p>
-            }
-            <a class="btn btn-primary" routerLink="/bandi">Vai ai miei concorsi</a>
+            <h2 id="nessuna-sessione" class="h5">Nessuna sessione in programma tra quelle scaricate</h2>
+            <p class="mb-0">Le sessioni di un concorso si scaricano da Selezioni Online quando lo apri. Scegli un concorso qui sotto.</p>
           </div>
         </section>
       }
 
-      @if (upcomingSessions().length > 1) {
-        <section class="mb-4" aria-labelledby="prossime">
-          <div class="d-flex flex-wrap justify-content-between align-items-baseline gap-2 mb-2">
-            <h2 id="prossime" class="h4 mb-0">Prossime sessioni</h2>
-            <a routerLink="/bandi" class="fw-semibold">Tutti i miei concorsi <it-icon name="chevron-right" size="xs" color="primary" /></a>
+      @if (!loading() && !error()) {
+        <section aria-labelledby="concorsi-title">
+          <div class="d-flex flex-wrap justify-content-between align-items-baseline gap-2 mb-3">
+            <h2 id="concorsi-title" class="h3 mb-0">I miei concorsi</h2>
+            <p class="mb-0 small text-secondary" role="status" aria-live="polite">
+              @if (syncing()) {
+                <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Aggiorno i concorsi da Selezioni Online…
+              } @else {
+                {{ syncLine() }} · <button type="button" class="btn btn-link p-0 align-baseline small fw-semibold" (click)="sync()">Aggiorna ora</button>
+              }
+            </p>
           </div>
-          <div class="card card-bg no-after"><div class="link-list-wrapper"><ul class="link-list app-rows mb-0">
-            @for (entry of upcomingSessions().slice(1); track entry.session.session_id) {
-              <li><a class="list-item app-row" [routerLink]="['/sessioni', entry.session.session_id]" [queryParams]="{ mode: 'segretario' }">
-                <span class="app-row-date">{{ shortDate(entry.session.date) }} · {{ entry.session.time }}</span>
-                <span class="flex-grow-1">{{ entry.session.name }} – {{ entry.session.location }} <span class="text-secondary">· {{ competitionLabel(entry.bando.title, entry.bando.commission_id) }}</span></span>
-                <span [class]="'badge app-badge-' + badge(entry.session.state).tone">{{ badge(entry.session.state).label }}</span>
-              </a></li>
-            }
-          </ul></div></div>
+          @if (syncError()) {
+            <div class="alert alert-warning" role="alert"><strong>Aggiornamento da Selezioni Online non riuscito.</strong> {{ syncError() }} Stai vedendo i dati già salvati nell’app.</div>
+          }
+          @if (bandi().length) {
+            <app-bandi-table [items]="bandi()" mode="segretario" idPrefix="home-concorsi" />
+          } @else if (!syncing()) {
+            <div class="app-empty bg-white" role="status">
+              <p class="fw-semibold mb-1">Nessun concorso trovato</p>
+              <p class="text-secondary mb-3">Su Selezioni Online non risultano concorsi in cui sei segretario. Se l’incarico è recente, riprova tra qualche minuto.</p>
+              <button type="button" class="btn btn-primary" (click)="sync()">Aggiorna da Selezioni Online</button>
+            </div>
+          }
         </section>
-      } @else if (!loading() && !error()) {
-        <p><a routerLink="/bandi" class="fw-semibold">Tutti i miei concorsi <it-icon name="chevron-right" size="xs" color="primary" /></a></p>
       }
     </div>
   `,
@@ -82,20 +86,42 @@ export class SecretaryHomeComponent {
   private readonly bandiService = inject(BandiService);
   readonly bandi = signal<BandoSummary[]>([]);
   readonly loading = signal(true);
+  readonly syncing = signal(false);
   readonly error = signal('');
+  readonly syncError = signal('');
   readonly competitionLabel = competitionLabel;
   readonly stateLabel = sessionStateLabel;
-  readonly badge = sessionStateBadge;
   readonly multiProfile = computed(() => availableProfiles(this.auth.user()).length > 1);
-  readonly upcomingSessions = computed(() => this.bandi().flatMap((bando) => bando.next_session ? [{ bando, session: bando.next_session }] : [])
-    .sort((a, b) => `${a.session.date} ${a.session.time}`.localeCompare(`${b.session.date} ${b.session.time}`)));
-  readonly nextSession = computed(() => this.upcomingSessions()[0] ?? null);
-  readonly unloadedCount = computed(() => this.bandi().filter((bando) => bando.session_count === 0).length);
+  /** La sessione futura più vicina fra le prossime sessioni dei concorsi (una per concorso). */
+  readonly nextSession = computed(() => this.bandi().flatMap((bando) => bando.next_session ? [{ bando, session: bando.next_session }] : [])
+    .sort((a, b) => `${a.session.date} ${a.session.time}`.localeCompare(`${b.session.date} ${b.session.time}`))[0] ?? null);
+  readonly syncLine = computed(() => bandiSyncLine(this.bandi()));
 
   constructor() {
+    // Prima i dati salvati nell'app, subito; poi l'aggiornamento da Selezioni Online.
     this.bandiService.list('segretario').subscribe({
-      next: ({ items }) => { this.bandi.set(items ?? []); this.loading.set(false); },
-      error: () => { this.error.set('Impossibile caricare i concorsi. Puoi riprovare da I miei concorsi.'); this.loading.set(false); },
+      next: ({ items }) => {
+        this.bandi.set(items ?? []);
+        this.loading.set(false);
+        if (this.bandiService.secretarySyncDue()) this.sync();
+      },
+      error: () => { this.error.set('Impossibile caricare i concorsi. Ricarica la pagina per riprovare.'); this.loading.set(false); },
+    });
+  }
+
+  sync(): void {
+    this.syncing.set(true);
+    this.syncError.set('');
+    this.bandiService.sync('segretario').subscribe({
+      next: (response: BandiResponse) => {
+        this.bandi.set(response.items ?? []);
+        this.syncError.set(response.sync_error ?? '');
+        this.syncing.set(false);
+      },
+      error: () => {
+        this.syncError.set('Selezioni Online non ha risposto.');
+        this.syncing.set(false);
+      },
     });
   }
 

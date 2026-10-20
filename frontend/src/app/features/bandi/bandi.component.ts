@@ -4,14 +4,12 @@ import { FormsModule } from '@angular/forms';
 import { BandoSummary } from '../../core/models/api.models';
 import { AuthService } from '../../core/auth.service';
 import { BandiService } from './bandi.service';
-import { FilterChipsComponent, FilterChipOption } from '../../shared/filter-chips.component';
-import { PagerComponent } from '../../shared/pager.component';
 import { competitionLabel } from '../../shared/competition-label';
-import { sessionWhen } from '../../shared/session-date';
+import { BandiTableComponent, bandiSyncLine } from './bandi-table.component';
 
 @Component({
   selector: 'app-bandi',
-  imports: [RouterLink, FormsModule, FilterChipsComponent, PagerComponent],
+  imports: [RouterLink, FormsModule, BandiTableComponent],
   template: `
     @if (auth.user()?.dev_mode) {
       <div class="alert alert-warning d-flex align-items-center gap-2 mb-0 rounded-0 py-2" role="alert">
@@ -33,10 +31,6 @@ import { sessionWhen } from '../../shared/session-date';
             <h1 class="mb-1">{{ dashboardTitle() }}</h1>
             <p class="mb-0 text-secondary">{{ syncLine() }} ·
               <button type="button" class="btn btn-link p-0 align-baseline fw-semibold" [disabled]="syncing()" (click)="reload()">Aggiorna ora</button></p>
-          </div>
-          <div class="form-group mb-0 app-search">
-            <label for="cerca" class="active">Cerca concorso</label>
-            <input type="search" class="form-control" id="cerca" placeholder="Codice o titolo" [ngModel]="query()" (ngModelChange)="onQueryChange($event)" />
           </div>
         </div>
         @if (syncing()) {
@@ -67,34 +61,7 @@ import { sessionWhen } from '../../shared/session-date';
             <button type="button" class="btn btn-primary" [disabled]="syncing()" (click)="reload()">{{ emptyActionLabel() }}</button>
           </div>
         } @else {
-          <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
-            <app-filter-chips label="Filtra concorsi" [options]="bandoFilterOptions()" [selected]="bandoFilter()" (selectedChange)="setBandoFilter($event)" />
-            <div class="select-wrapper app-sort"><label for="ord" class="visually-hidden">Ordina</label>
-              <select id="ord" [ngModel]="bandoSort()" (ngModelChange)="setBandoSort($event)">
-                <option value="session">Ordina: prossima sessione</option><option value="name">Ordina: codice</option>
-              </select></div>
-          </div>
-          <div class="card card-bg no-after"><div class="card-body p-0">
-            <div class="table-responsive"><table class="table table-hover align-middle mb-0 app-table">
-              <thead><tr><th scope="col">Concorso</th><th scope="col">Prossima sessione</th><th scope="col">Sessioni</th><th scope="col">Configurazione</th><th scope="col" class="text-end"><span class="visually-hidden">Azioni</span></th></tr></thead>
-              <tbody>
-                @for (bando of pageItems(); track bando.commission_id) {
-                  <tr>
-                    <td><a class="fw-semibold" [routerLink]="['/bandi', bando.commission_id, 'sessioni']" [queryParams]="{ mode: mode }">{{ competitionLabel(bando.title, bando.commission_id) }}</a>
-                      @if (isAdminMode() && bando.visibility_reason === 'admin') { <br><span class="badge app-badge-neutral">Solo vista admin</span> }</td>
-                    <td class="app-num-cell">{{ bando.next_session ? nextSessionLabel(bando.next_session.date, bando.next_session.time) : '—' }}</td>
-                    <td class="app-num-cell">{{ bando.session_count }}</td>
-                    <td><span [class]="'badge app-badge-' + configBadge(bando).tone">{{ configBadge(bando).label }}</span></td>
-                    <td class="text-end app-actions">
-                      <a class="me-3 fw-semibold" [routerLink]="['/bandi', bando.commission_id, 'config']" [queryParams]="{ returnUrl: currentUrl() }">Configura</a>
-                      <a class="btn btn-primary btn-sm" [routerLink]="['/bandi', bando.commission_id, 'sessioni']" [queryParams]="{ mode: mode }">Vedi sessioni</a>
-                    </td>
-                  </tr>
-                } @empty { <tr><td colspan="5" class="text-secondary">Nessun concorso corrisponde ai filtri.</td></tr> }
-              </tbody>
-            </table></div>
-          </div></div>
-          <app-pager label="Concorsi" [total]="filteredItems().length" [page]="page()" [pageSize]="pageSize()" (pageChange)="page.set($event)" (pageSizeChange)="setPageSize($event)" />
+          <app-bandi-table [items]="items()" [mode]="mode" />
           <div class="accordion mt-4">
             <div class="accordion-item">
               <h2 class="accordion-header" id="faq-h"><button class="accordion-button" [class.collapsed]="!helpOpen()" type="button" [attr.aria-expanded]="helpOpen()" aria-controls="faq-c" (click)="helpOpen.set(!helpOpen())">Non trovi un concorso?</button></h2>
@@ -239,30 +206,11 @@ export class BandiComponent {
   readonly mobilePromptOpen = signal(true);
   readonly helpOpen = signal(false);
   readonly query = signal('');
-  readonly bandoFilter = signal<'upcoming' | 'incomplete' | 'all'>('all');
-  readonly bandoSort = signal<'session' | 'name'>('session');
-  readonly page = signal(0);
-  readonly pageSize = signal(10);
-  readonly bandoFilterOptions = computed<FilterChipOption[]>(() => [
-    { id: 'upcoming', label: 'Con sessioni in arrivo', count: this.items().filter((b) => !!b.next_session).length },
-    { id: 'incomplete', label: 'Da completare', count: this.items().filter((b) => this.configBadge(b).tone === 'warning').length },
-    { id: 'all', label: 'Tutti', count: this.items().length },
-  ]);
+  /** Ricerca della vista per le modalità tecniche; la tabella del segretario ha la sua. */
   readonly filteredItems = computed(() => {
     const q = this.query().trim().toLowerCase();
-    return this.items().filter((bando) => {
-      const matchesQuery = !q || `${bando.title} ${bando.commission_id}`.toLowerCase().includes(q);
-      const matchesFilter = this.bandoFilter() === 'all'
-        || (this.bandoFilter() === 'upcoming' ? !!bando.next_session : this.configBadge(bando).tone === 'warning');
-      return matchesQuery && matchesFilter;
-    }).sort((a, b) => {
-      if (this.bandoSort() === 'name') return a.title.localeCompare(b.title);
-      const aDate = a.next_session ? `${a.next_session.date} ${a.next_session.time}` : '9999-99-99';
-      const bDate = b.next_session ? `${b.next_session.date} ${b.next_session.time}` : '9999-99-99';
-      return aDate.localeCompare(bDate) || a.title.localeCompare(b.title);
-    });
+    return this.items().filter((bando) => !q || `${bando.title} ${bando.commission_id}`.toLowerCase().includes(q));
   });
-  readonly pageItems = computed(() => this.filteredItems().slice(this.page() * this.pageSize(), (this.page() + 1) * this.pageSize()));
   readonly hasAdminSupportItems = computed(() =>
     this.items().some((bando) => bando.visibility_reason === 'admin'),
   );
@@ -364,34 +312,8 @@ export class BandiComponent {
     return 'Ricarica elenco';
   }
 
-  /** "Dati da Selezioni Online aggiornati oggi alle 10:19" dal più recente aggiornamento dei concorsi. */
   syncLine(): string {
-    const latest = this.items().map((bando) => bando.last_sync).filter((value): value is string => !!value).sort().at(-1);
-    const date = latest ? new Date(latest) : null;
-    if (!date || Number.isNaN(date.getTime())) return 'Dati da Selezioni Online';
-    const time = date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
-    const today = new Date().toDateString() === date.toDateString();
-    return `Dati da Selezioni Online aggiornati ${today ? 'oggi' : 'il ' + date.toLocaleDateString('it-IT')} alle ${time}`;
-  }
-
-  /** "oggi 14:17" oppure "30/09 15:52" (prototipo concorsi.html). */
-  nextSessionLabel(date: string, time: string): string {
-    const when = sessionWhen(date, time);
-    if (when.startsWith('Oggi')) return when.replace('Oggi alle', 'oggi');
-    const iso = date.match(/^\d{4}-(\d{2})-(\d{2})/);
-    return iso ? `${iso[2]}/${iso[1]} ${time.slice(0, 5)}` : when;
-  }
-
-  /** Un solo messaggio per riga, con la cosa da sistemare (FR-023, prototipo concorsi.html). */
-  configBadge(bando: BandoSummary): { label: string; tone: 'success' | 'warning' | 'neutral' } {
-    const sessions = Number(bando.session_count || 0);
-    if (!sessions) return { label: 'Nessuna sessione pianificata', tone: 'neutral' };
-    const missingExperts = sessions - Number(bando.remote_expert_assigned_count || 0);
-    if (missingExperts > 0) return { label: `Manca l’esperto remoto in ${missingExperts} ${missingExperts === 1 ? 'sessione' : 'sessioni'}`, tone: 'warning' };
-    if (!bando.referente_email) return { label: 'Referente non indicato', tone: 'warning' };
-    if (bando.required_data_complete === false) return { label: 'Dati del bando da completare', tone: 'warning' };
-    if (!bando.next_session) return { label: 'Tutte le sessioni concluse', tone: 'neutral' };
-    return { label: 'Configurazione completa', tone: 'success' };
+    return bandiSyncLine(this.items());
   }
 
   currentUrl(): string {
@@ -402,10 +324,7 @@ export class BandiComponent {
     this.loadItems();
   }
 
-  onQueryChange(query: string): void { this.query.set(query); this.page.set(0); }
-  setBandoFilter(filter: string): void { this.bandoFilter.set(filter as 'upcoming' | 'incomplete' | 'all'); this.page.set(0); }
-  setBandoSort(sort: string): void { this.bandoSort.set(sort as 'session' | 'name'); this.page.set(0); }
-  setPageSize(size: number): void { this.pageSize.set(size); this.page.set(0); }
+  onQueryChange(query: string): void { this.query.set(query); }
 
   reload(): void {
     this.loading.set(true);
@@ -435,7 +354,11 @@ export class BandiComponent {
     this.syncError.set(null);
     this.syncSource.set(null);
     this.service.list(this.mode).subscribe({
-      next: (response) => this.applyResponse(response),
+      next: (response) => {
+        this.applyResponse(response);
+        // I concorsi del segretario si aggiornano da Selezioni Online all'apertura (al massimo ogni 10 minuti).
+        if (this.isSecretaryMode() && this.service.secretarySyncDue()) this.reload();
+      },
       error: (error) => {
         this.error.set(apiErrorText(error, 'Impossibile caricare i bandi.'));
         this.loading.set(false);

@@ -21,12 +21,16 @@ def _profiles_for_user(email: str, roles: set[str]) -> list[str]:
         referente = cursor.fetchone() is not None
     if secretary: profiles.append("segretario")
     if referente: profiles.append("referente")
-    if not secretary and not referente:
+    support = []
+    if has_any_assigned_sede_session(email): support.append("sede")
+    if ROLE_ESPERTO in roles: support.append("esperto")
+    if ROLE_ADMIN in roles: support.append("admin")
+    # Primo accesso senza dati locali: si propongono segretario e referente,
+    # che si popolano con la prima sincronizzazione. Chi ha già un profilo di
+    # supporto (sede, esperto, admin) non li vede finché non risultano davvero.
+    if not secretary and not referente and not support:
         profiles.extend(["segretario", "referente"])
-    if has_any_assigned_sede_session(email): profiles.append("sede")
-    if ROLE_ESPERTO in roles: profiles.append("esperto")
-    if ROLE_ADMIN in roles: profiles.append("admin")
-    return profiles
+    return profiles + support
 
 
 auth_api_bp = Blueprint("api_v1_auth", __name__)

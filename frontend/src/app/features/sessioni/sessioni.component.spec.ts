@@ -81,7 +81,8 @@ describe('SessioniComponent', () => {
     expect(fixture.componentInstance.pageItems().length).toBe(1);
   });
 
-  it('shows a guided download action when no local sessions exist', async () => {
+  it('downloads the sessions once on first opening, then shows a guided download action if none exist', async () => {
+    let syncCalls = 0;
     await TestBed.configureTestingModule({
       imports: [SessioniComponent],
       providers: [
@@ -93,7 +94,7 @@ describe('SessioniComponent', () => {
         {
           provide: SessioniService,
           useValue: {
-            sync: () => of({ success: true, inserted: 0 }),
+            sync: () => { syncCalls += 1; return of({ success: true, inserted: 0 }); },
             list: () => of({ commission_id: 'c1', items: [] }),
           },
         },
@@ -128,6 +129,7 @@ describe('SessioniComponent', () => {
 
     expect(fixture.nativeElement.textContent).toContain('Nessuna sessione nell’app per questo concorso');
     expect(fixture.nativeElement.textContent).toContain('Scarica sessioni da Selezioni Online');
+    expect(syncCalls).toBe(1);
   });
 
   it('keeps the empty-session retry visible after sync failure', async () => {

@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { adminGuard, authGuard } from './core/auth.guard';
+import { adminGuard, authGuard, sessionModeGuard } from './core/auth.guard';
 
 export const routes: Routes = [
   {
@@ -93,6 +93,7 @@ export const routes: Routes = [
         title: 'Gestione sessione — Check-in CNR Concorsi',
         // Su smartphone la sessione ha una testata propria (P08): header e footer del sito si nascondono.
         data: { mobileImmersive: true },
+        canActivate: [sessionModeGuard],
         loadComponent: () =>
           import('./features/gestione-sessione/gestione-sessione.component').then(
             (module) => module.GestioneSessioneComponent,

@@ -1,4 +1,4 @@
-import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { Component, DestroyRef, afterRenderEffect, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ItIconComponent } from 'design-angular-kit';
@@ -56,7 +56,7 @@ export function parseSessionQr(decodedText: string): string | null {
     <main class="app-scanner app-phone--dark" aria-labelledby="scanner-title">
       <header class="app-s-head">
         @if (ready() && sessionId) {
-          <a class="app-m-icon" [routerLink]="['/sessioni', sessionId]" [queryParams]="{ mode: mode }" aria-label="Torna alla sessione"><it-icon name="arrow-left" color="white" /></a>
+          <a class="app-m-icon" [routerLink]="['/sessioni', sessionId]" [queryParams]="mode ? { mode } : null" aria-label="Torna alla sessione"><it-icon name="arrow-left" color="white" /></a>
         } @else {
           <a class="app-m-icon" routerLink="/" aria-label="Indietro"><it-icon name="arrow-left" color="white" /></a>
         }
@@ -85,7 +85,13 @@ export function parseSessionQr(decodedText: string): string | null {
 
       <div class="app-camera" [class.app-camera--dim]="!!workflowBlocked()">
         <p class="app-camera-hint">{{ cameraHint() }}</p>
-        <div id="reader-wrapper" [class.d-none]="candidate() || workflowBlocked() || manualSearchOpen() || !(ready() || associationMode())"><div id="reader"></div></div>
+        <div id="reader-wrapper" [class.d-none]="!cameraArea()"><div id="reader"></div></div>
+        @if (cameraArea()) {
+          <div class="app-camera-retry">
+            @if (cameraError()) { <p class="mb-1">Fotocamera non disponibile. Controlla che il browser abbia il permesso di usarla.</p> }
+            <button type="button" class="btn btn-sm btn-outline-light" (click)="restartCamera()">{{ cameraError() ? 'Riprova' : 'La fotocamera non si vede? Riattivala' }}</button>
+          </div>
+        }
         @if (workflowBlocked() || candidate() || manualSearchOpen()) { <div class="app-frame" aria-hidden="true"><span></span><span></span><span></span><span></span></div> }
       </div>
 
@@ -166,6 +172,7 @@ export function parseSessionQr(decodedText: string): string | null {
     .app-scanner-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 30; min-width: 15rem; background: #fff; border-radius: 4px; padding: .25rem .75rem; }
     .app-scanner-message { position: absolute; left: 16px; right: 16px; bottom: 24px; text-align: center; font-weight: 600; color: #fff; margin: 0; }
     .app-scanner-message.is-error { color: #ffd5d9; }
+    .app-camera-retry { position: relative; z-index: 1; margin-top: 12px; text-align: center; color: #fff; font-size: .875rem; }
   `,
 })
 export class ScannerComponent {
@@ -180,6 +187,8 @@ export class ScannerComponent {
   private registrationToken = this.route.snapshot.queryParamMap.get('token') ?? '';
   deviceToken = '';
   private camera: Html5Qrcode | null = null;
+  /** Avvii e arresti della fotocamera uno alla volta: html5-qrcode non accetta transizioni sovrapposte. */
+  private cameraQueue: Promise<void> = Promise.resolve();
   private heartbeatTimer?: number;
   private summaryTimer?: number;
 
@@ -198,19 +207,49 @@ export class ScannerComponent {
   readonly noteOpen = signal(false);
   /** Presenza appena confermata da questo telefono (non "già registrato" altrove). */
   readonly justConfirmed = signal(false);
-  readonly mode = this.route.snapshot.queryParamMap.get('mode') ?? 'segretario';
+  /** Profilo da cui si è aperto lo scanner; senza, la pagina sessione sceglie quello dell'utente. */
+  readonly mode = this.route.snapshot.queryParamMap.get('mode');
+  readonly pageVisible = signal(typeof document === 'undefined' || document.visibilityState !== 'hidden');
+  readonly cameraError = signal(false);
+  /** Pausa breve dopo un errore di verifica, perché la fotocamera non rilegga subito lo stesso QR. */
+  private readonly scanPaused = signal(false);
+  /** Il riquadro della fotocamera è quello che l'utente deve vedere in questo momento. */
+  readonly cameraArea = computed(() => {
+    if (this.associationMode()) return this.associationStatus() !== 'Collegamento in corso…';
+    return this.ready() && !!this.summary() && !this.workflowBlocked() && !this.candidate()
+      && !this.manualSearchOpen() && !this.candidateNotFound();
+  });
+  /** La fotocamera legge solo con il riquadro visibile e la pagina in primo piano. */
+  private readonly shouldScan = computed(() => this.cameraArea() && this.pageVisible() && !this.busy() && !this.scanPaused());
   readonly stateLabel = sessionStateLabel;
   noteDraft = '';
   private currentUid = '';
 
   constructor() {
+    const onVisibility = () => this.pageVisible.set(document.visibilityState !== 'hidden');
+    // Tornando dalla cache del browser (iOS) il flusso video è fermo: si riavvia.
+    const onPageShow = (event: PageTransitionEvent) => { if (event.persisted) this.restartCamera(); };
+    const onBeforeUnload = () => this.disconnectWithBeacon();
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pageshow', onPageShow);
+    window.addEventListener('beforeunload', onBeforeUnload);
     this.destroyRef.onDestroy(() => {
-      this.stopCamera();
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pageshow', onPageShow);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      this.enqueueCamera(async () => {
+        await this.stopCamera();
+        try { this.camera?.clear(); } catch { /* Il riquadro è già stato rimosso. */ }
+        this.camera = null;
+      });
       if (this.heartbeatTimer) window.clearInterval(this.heartbeatTimer);
       if (this.summaryTimer) window.clearInterval(this.summaryTimer);
     });
-
-    window.addEventListener('beforeunload', () => this.disconnectWithBeacon());
+    // Dopo il rendering il riquadro #reader ha già la sua dimensione: si accende o spegne la fotocamera.
+    afterRenderEffect(() => {
+      this.shouldScan();
+      this.syncCamera();
+    });
 
     if (this.sessionId) {
       try { this.deviceToken = localStorage.getItem(this.storageKey()) ?? ''; } catch { this.deviceToken = ''; }
@@ -248,7 +287,6 @@ export class ScannerComponent {
       error: (error) => {
         this.associationStatus.set('Collegamento non riuscito');
         this.fail(this.apiError(error, 'Registrazione dispositivo non riuscita.'));
-        window.setTimeout(() => this.startCamera(), 0);
       },
     });
   }
@@ -266,21 +304,36 @@ export class ScannerComponent {
     this.refreshSessionSummary();
   }
 
+  /** Riallinea la fotocamera allo stato della pagina; lo stato si rilegge quando tocca a questa operazione. */
+  private syncCamera(): void {
+    this.enqueueCamera(() => (this.shouldScan() ? this.startCamera() : this.stopCamera()));
+  }
+
+  /** "Riattiva": chiude il flusso video (anche se bloccato) e lo riapre. */
+  restartCamera(): void {
+    this.cameraError.set(false);
+    this.enqueueCamera(() => this.stopCamera());
+    this.syncCamera();
+  }
+
+  private enqueueCamera(operation: () => Promise<void>): void {
+    this.cameraQueue = this.cameraQueue.then(operation, operation);
+  }
+
   private async startCamera(): Promise<void> {
-    if ((!this.ready() && !this.associationMode()) || (this.ready() && this.workflowBlocked()) || this.camera?.isScanning) return;
-    this.camera = this.camera ?? new Html5Qrcode('reader');
+    if (this.camera?.isScanning) return;
     try {
+      this.camera ??= new Html5Qrcode('reader');
       await this.camera.start(
         { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 250, height: 250 } },
+        // Il mirino si adatta al riquadro: con un valore fisso più grande del video la libreria non parte.
+        { fps: 10, qrbox: (width, height) => { const size = Math.max(120, Math.floor(Math.min(width, height) * 0.8)); return { width: size, height: size }; } },
         (decodedText) => this.onScan(decodedText),
         () => undefined,
       );
-      // L'indicazione resta nel testo sopra il mirino (cameraHint).
-      this.messageIsError.set(false);
-      this.message.set('');
+      this.cameraError.set(false);
     } catch {
-      this.fail('Impossibile accedere alla fotocamera. Verifica i permessi del browser.');
+      this.cameraError.set(true);
     }
   }
 
@@ -294,13 +347,16 @@ export class ScannerComponent {
   }
 
   private onScan(decodedText: string): void {
+    // La libreria richiama la callback a ogni fotogramma: conta solo la prima lettura.
+    if (!this.shouldScan()) return;
     if (this.associationMode()) {
       const target = parseSessionQr(decodedText);
       if (!target) {
         this.fail('QR sessione non valido.');
         return;
       }
-      void this.stopCamera().then(() => window.location.assign(target));
+      this.associationStatus.set('Collegamento in corso…');
+      this.enqueueCamera(async () => { await this.stopCamera(); window.location.assign(target); });
       return;
     }
     const uid = parseCandidateQr(decodedText);
@@ -309,13 +365,11 @@ export class ScannerComponent {
       return;
     }
     this.currentUid = uid;
-    void this.stopCamera();
     this.verifyCandidate();
   }
 
   private verifyCandidate(): void {
     this.busy.set(true);
-    this.workflowBlocked.set('');
     this.candidateNotFound.set(false);
     this.api.post<CandidateSummary>('/scanner/verify-candidate', this.payload()).subscribe({
       next: (candidate) => {
@@ -335,7 +389,10 @@ export class ScannerComponent {
           this.candidateNotFound.set(true);
           this.messageIsError.set(true);
           this.message.set('Candidato non trovato.');
-        } else window.setTimeout(() => this.startCamera(), 700);
+        } else {
+          this.scanPaused.set(true);
+          window.setTimeout(() => this.scanPaused.set(false), 1500);
+        }
       },
     });
   }
@@ -378,28 +435,25 @@ export class ScannerComponent {
     this.manualSearchOpen.set(false);
     this.candidate.set(null);
     this.currentUid = '';
-    this.workflowBlocked.set('');
     this.candidateNotFound.set(false);
     this.messageIsError.set(false);
     this.message.set('');
-    window.setTimeout(() => this.startCamera(), 0);
   }
 
-  toggleManualSearch(): void { this.manualSearchOpen.update((value) => !value); if (this.manualSearchOpen()) void this.stopCamera(); else window.setTimeout(() => this.startCamera(), 0); }
+  toggleManualSearch(): void { this.manualSearchOpen.update((value) => !value); }
 
   openManualSearch(): void {
     this.manualSearchOpen.set(true);
     this.candidateNotFound.set(false);
     this.message.set('');
     this.messageIsError.set(false);
-    void this.stopCamera();
   }
 
   retryAssociation(): void {
     this.message.set('');
     this.messageIsError.set(false);
     this.associationStatus.set('Inquadra il QR della sessione');
-    window.setTimeout(() => this.startCamera(), 0);
+    this.restartCamera();
   }
 
   openCandidate(uid: string): void {
@@ -417,8 +471,7 @@ export class ScannerComponent {
     });
   }
 
-  async clearAssociation(): Promise<void> {
-    await this.stopCamera();
+  clearAssociation(): void {
     if (this.heartbeatTimer) window.clearInterval(this.heartbeatTimer);
     if (this.summaryTimer) window.clearInterval(this.summaryTimer);
     this.api.post('/devices/disconnect', {
@@ -429,6 +482,7 @@ export class ScannerComponent {
     this.deviceToken = '';
     this.ready.set(false);
     this.candidate.set(null);
+    this.summary.set(null);
     this.sessionId = '';
     this.registrationToken = '';
     window.history.replaceState({}, '', '/scanner');
@@ -449,12 +503,8 @@ export class ScannerComponent {
         window.clearInterval(this.summaryTimer);
         this.summaryTimer = undefined;
       }
-      const wasBlocked = !!this.workflowBlocked();
       this.workflowBlocked.set('');
-      if (wasBlocked) window.setTimeout(() => this.startCamera(), 0);
-      else if (!this.camera?.isScanning) window.setTimeout(() => this.startCamera(), 0);
     } else {
-      void this.stopCamera();
       if (!this.summaryTimer && this.ready()) {
         this.summaryTimer = window.setInterval(() => this.refreshSessionSummary(), 5000);
       }
@@ -504,7 +554,6 @@ export class ScannerComponent {
     this.workflowBlocked.set('');
     this.messageIsError.set(false);
     this.message.set('');
-    window.setTimeout(() => this.startCamera(), 0);
   }
 
   private fail(message: string): void {

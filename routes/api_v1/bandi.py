@@ -214,7 +214,8 @@ def list_bandi(
                            stato_corrente AS state
                       FROM sessioni
                      WHERE commission_id = ANY(%s)
-                       AND COALESCE(data_esame, '') >= to_char(CURRENT_TIMESTAMP, 'YYYY-MM-DD HH24:MI:SS')
+                       -- Le sessioni di oggi restano "prossime" per tutta la giornata, anche dopo l'ora d'inizio.
+                       AND COALESCE(data_esame, '') >= to_char(CURRENT_DATE, 'YYYY-MM-DD')
                   ORDER BY commission_id, data_esame, ora
                     """,
                     (commission_ids,),

@@ -1,31 +1,47 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Component, signal } from '@angular/core';
+import { provideRouter, Router } from '@angular/router';
+import { AuthService } from './auth.service';
 import { availableProfiles, ProfileService } from './profile.service';
 
+@Component({ template: '' })
+class EmptyPage {}
+
 describe('ProfileService', () => {
+  const user = signal<Record<string, unknown> | null>(null);
+
   beforeEach(() => {
-    TestBed.configureTestingModule({ providers: [provideRouter([])] });
+    user.set({ email: 'tutti@cnr.it', profiles: ['segretario', 'referente', 'sede', 'esperto', 'admin'] });
+    TestBed.configureTestingModule({ providers: [provideRouter([{ path: '**', component: EmptyPage }]), { provide: AuthService, useValue: { user } }] });
     window.localStorage.clear();
   });
 
-  it('builds the header menu from the profiles of the user, not from the active one', () => {
+  it('builds the header menu from the active profile', () => {
     const service = TestBed.inject(ProfileService);
-    const all = ['segretario', 'referente', 'sede', 'esperto', 'admin'] as const;
-    service.select('esperto');
-    const asExpert = service.navigation([...all]).map((item) => item.label);
-    service.select('segretario');
-    expect(service.navigation([...all]).map((item) => item.label)).toEqual(asExpert);
-    expect(service.navigation(['segretario']).map((item) => item.label)).toEqual(['Home', 'I miei concorsi', 'Scanner']);
-    expect(service.navigation(['esperto']).map((item) => item.label)).toEqual(['Home', 'Le mie sessioni']);
+    expect(service.navigation('segretario').map((item) => item.label)).toEqual(['Home', 'I miei concorsi', 'Scanner']);
+    expect(service.navigation('sede').map((item) => item.label)).toEqual(['Le mie sessioni', 'Scanner']);
+    expect(service.navigation('esperto')[0].queryParams).toEqual({ mode: 'expert' });
+    expect(service.navigation('admin').map((item) => item.label)).toEqual(['Amministrazione', 'Tutti i bandi']);
   });
 
-  it('opens Le mie sessioni in the mode of the profiles the user has', () => {
+  it('keeps the active profile on shared pages and follows URLs that declare it', async () => {
     const service = TestBed.inject(ProfileService);
-    service.select('segretario');
-    expect(service.navigation(['esperto']).find((item) => item.label === 'Le mie sessioni')?.queryParams).toEqual({ mode: 'expert' });
-    expect(service.navigation(['sede', 'esperto']).find((item) => item.label === 'Le mie sessioni')?.queryParams).toEqual({ mode: 'sede' });
-    service.select('esperto');
-    expect(service.navigation(['sede', 'esperto']).find((item) => item.label === 'Le mie sessioni')?.queryParams).toEqual({ mode: 'expert' });
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/le-mie-sessioni?mode=sede');
+    expect(service.active()).toBe('sede');
+    await router.navigateByUrl('/bandi/b1/config?returnUrl=%2Freferenti%2Fbandi');
+    expect(service.active()).toBe('sede');
+    await router.navigateByUrl('/bandi/b1/sessioni?mode=admin');
+    expect(service.active()).toBe('admin');
+  });
+
+  it('opens a session without mode with a profile the user has', () => {
+    user.set({ email: 'sede@cnr.it', profiles: ['sede'] });
+    const service = TestBed.inject(ProfileService);
+    expect(service.active()).toBe('sede');
+    expect(service.sessionProfile()).toBe('sede');
+    user.set({ email: 'ref@cnr.it', profiles: ['referente', 'esperto'] });
+    expect(service.sessionProfile()).toBe('esperto');
   });
 
   it('remembers the last profile per account', () => {

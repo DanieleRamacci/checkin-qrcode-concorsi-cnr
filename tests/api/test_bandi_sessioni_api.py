@@ -426,7 +426,7 @@ def test_list_bandi_counts_sessions_by_commission_not_original_user(monkeypatch)
     assert "s.user_email = c.user_email" not in executed[0][0]
 
 
-def test_list_bandi_includes_nearest_future_session_or_null(monkeypatch):
+def test_list_bandi_includes_nearest_session_from_today_or_null(monkeypatch):
     from routes.api_v1 import bandi
 
     future_rows = [
@@ -474,7 +474,7 @@ def test_list_bandi_includes_nearest_future_session_or_null(monkeypatch):
         "time": "09:00", "location": "Roma", "state": "iniziale",
     }
     assert "data_esame" in executed[1][0]
-    assert "CURRENT_TIMESTAMP" in executed[1][0]
+    assert "CURRENT_DATE" in executed[1][0]
     assert "ORDER BY commission_id, data_esame, ora" in executed[1][0]
 
     future_rows.clear()

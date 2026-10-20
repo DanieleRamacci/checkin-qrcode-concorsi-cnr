@@ -4,7 +4,7 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } fro
 import { filter, map, startWith } from 'rxjs';
 import { ItIconComponent } from 'design-angular-kit';
 import { AuthService } from '../core/auth.service';
-import { availableProfiles, ProfileService } from '../core/profile.service';
+import { ProfileService } from '../core/profile.service';
 import { InPageLinkDirective } from '../shared/in-page-link.directive';
 
 /**
@@ -19,7 +19,7 @@ import { InPageLinkDirective } from '../shared/in-page-link.directive';
   template: `
     <a class="skip-link" href="#main-content" appInPageLink="main-content">Vai al contenuto principale</a>
     <div class="app-shell" [class.app-shell--immersive]="immersive()">
-      <header class="it-header-wrapper app-header" [class.app-header--dense]="navigationItems().length > 4">
+      <header class="it-header-wrapper app-header">
         <div class="it-header-slim-wrapper">
           <div class="container">
             <div class="it-header-slim-wrapper-content">
@@ -36,8 +36,7 @@ import { InPageLinkDirective } from '../shared/in-page-link.directive';
                       @for (item of navigationItems(); track item.label) {
                         <li>
                           <a class="list-item" [routerLink]="item.path" [queryParams]="item.queryParams ?? null"
-                            routerLinkActive="active" [routerLinkActiveOptions]="{ exact: item.path === '/' }"
-                            [class.active]="item.path === '/' && onProfileHome()" [attr.aria-current]="item.path === '/' && onProfileHome() ? 'page' : null"
+                            routerLinkActive="active" [routerLinkActiveOptions]="activeOptions"
                             ariaCurrentWhenActive="page" (click)="menuOpen.set(false)">{{ item.label }}</a>
                         </li>
                       }
@@ -46,12 +45,14 @@ import { InPageLinkDirective } from '../shared/in-page-link.directive';
                 </nav>
               </div>
               <div class="it-header-slim-right-zone">
-                @if (auth.user()) {
+                @if (auth.user() && profiles.available().length > 1) {
                   <a class="btn btn-dropdown app-profile-switch" routerLink="/">
-                    <span class="app-profile-prefix d-none d-md-inline">Profilo:&nbsp;</span><strong>{{ profiles.label() }}</strong>
+                    <span class="d-none d-md-inline">Profilo:&nbsp;</span><strong>{{ profiles.label() }}</strong>
                     <it-icon name="exchange-circle" size="xs" color="white" />
                     <span class="visually-hidden">, cambia profilo</span>
                   </a>
+                } @else if (auth.user()) {
+                  <span class="app-profile-switch small"><span class="d-none d-md-inline">Profilo:&nbsp;</span><strong>{{ profiles.label() }}</strong></span>
                 }
                 <div class="it-access-top-wrapper position-relative">
                   <button class="btn btn-primary btn-sm btn-icon btn-full app-user-button" type="button"
@@ -106,12 +107,6 @@ import { InPageLinkDirective } from '../shared/in-page-link.directive';
     .app-profile-switch { white-space: nowrap; }
     .app-user-button .d-lg-block { max-width: 14rem; overflow: hidden; text-overflow: ellipsis; }
     .link-list .list-item { white-space: nowrap; }
-    .app-header--dense .app-profile-prefix { display: none !important; }
-    .app-header--dense .app-user-button .d-lg-block { max-width: 8rem; }
-    @media (min-width: 992px) {
-      .app-header--dense .it-header-slim-wrapper-content { gap: 12px; }
-      .app-header--dense .nav-mobile .link-list { gap: 2px; padding: 0 8px; margin-right: 0; }
-    }
     .app-user-menu {
       position: absolute; right: 0; top: calc(100% + .25rem); z-index: 1000; min-width: 16rem;
       padding: .75rem 1rem; border-radius: 4px; background: #fff; color: var(--app-ink); text-align: left;
@@ -122,16 +117,12 @@ import { InPageLinkDirective } from '../shared/in-page-link.directive';
 export class AppLayoutComponent {
   readonly auth = inject(AuthService);
   readonly profiles = inject(ProfileService);
-  readonly availableProfiles = computed(() => availableProfiles(this.auth.user()));
-  readonly navigationItems = computed(() => this.profiles.navigation(this.availableProfiles()));
+  /** Menu del profilo attivo: cambia insieme al pulsante "Profilo". */
+  readonly navigationItems = computed(() => this.profiles.navigation(this.profiles.active()));
+  /** "I miei concorsi" resta evidenziata nelle pagine del concorso; `mode` deve coincidere con quello della voce. */
+  readonly activeOptions = { paths: 'subset', queryParams: 'subset', fragment: 'ignored', matrixParams: 'ignored' } as const;
   private readonly router = inject(Router);
   /** La pagina corrente chiede la vista a tutto schermo su smartphone (route data mobileImmersive). */
-  private readonly url = toSignal(this.router.events.pipe(
-    filter((event) => event instanceof NavigationEnd),
-    map((event) => (event as NavigationEnd).urlAfterRedirects),
-  ), { initialValue: this.router.url });
-  /** "Home" resta evidenziata anche nella home del profilo (es. /segretario), dove porta la scelta profilo. */
-  readonly onProfileHome = computed(() => this.url().split('?')[0] === '/segretario');
   readonly immersive = toSignal(this.router.events.pipe(
     filter((event) => event instanceof NavigationEnd),
     startWith(null),

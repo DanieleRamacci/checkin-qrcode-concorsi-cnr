@@ -36,7 +36,7 @@ describe('AppLayoutComponent', () => {
   it('renders the blue slim header, main landmark and dark footer of the design', () => {
     const element = setup({ display_name: 'Utente Test', email: 'utente@cnr.it', profiles: ['segretario'], capabilities: [], app_version: 'abc1234' });
     expect(element.querySelector('header.it-header-wrapper.app-header .it-header-slim-wrapper')).toBeTruthy();
-    expect(element.querySelector('.app-profile-switch')?.getAttribute('href')).toBe('/');
+    expect(element.querySelector('a.app-profile-switch')).toBeNull();
     expect(element.querySelector('#main-content')).toBeTruthy();
     expect(element.querySelector('footer.it-footer.app-footer .it-footer-small-prints')).toBeTruthy();
     expect(element.textContent).toContain('CNR · Check-in Concorsi');
@@ -61,8 +61,13 @@ describe('AppLayoutComponent', () => {
     expect(navLabels(element)).toEqual(['Home', 'I miei concorsi', 'Scanner']);
   });
 
-  it('shows the pages of every profile, whatever profile is active', () => {
-    const element = setup({ email: 'admin@cnr.it', profiles: ['segretario', 'referente', 'sede', 'esperto', 'admin'], capabilities: ['admin'] });
-    expect(navLabels(element)).toEqual(['Home', 'Concorsi', 'Sessioni', 'Referente', 'Amministrazione', 'Scanner']);
+  it('shows only the pages of the active profile to a user with every profile', async () => {
+    @Component({ template: '' })
+    class Page {}
+    const element = setup({ email: 'admin@cnr.it', profiles: ['segretario', 'referente', 'sede', 'esperto', 'admin'], capabilities: ['admin'] }, [{ path: '**', component: Page }]);
+    await TestBed.inject(Router).navigateByUrl('/le-mie-sessioni?mode=sede');
+    TestBed.tick();
+    expect(navLabels(element)).toEqual(['Le mie sessioni', 'Scanner']);
+    expect(element.querySelector('.app-profile-switch')?.textContent).toContain('Informatico in sede');
   });
 });

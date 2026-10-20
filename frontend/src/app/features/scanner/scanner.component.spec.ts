@@ -204,4 +204,33 @@ describe('ScannerComponent', () => {
     vi.unstubAllGlobals();
     timeout.mockRestore();
   });
+
+  it('hides the camera while a candidate is shown and brings it back for the next scan', async () => {
+    vi.stubGlobal('localStorage', { getItem: () => 'device-token', setItem: vi.fn(), removeItem: vi.fn() });
+    const post = (path: string) => path === '/scanner/session-summary'
+      ? of({ session_id: 's1', name: 'Sessione CNR', current_state: 'checkin_avviato', checked_in_count: 0, candidate_count: 2 })
+      : of({ uid: 'c1', first_name: 'Ada', last_name: 'Lovelace', document_number: 'DOC1', checkin_effettuato: false });
+    await TestBed.configureTestingModule({
+      imports: [ScannerComponent],
+      providers: [
+        provideRouter([]),
+        ...provideKitForTests(),
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: new Map([['sessionId', 's1']]) } } },
+        { provide: ApiClient, useValue: { post } },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(ScannerComponent);
+    fixture.detectChanges();
+    const reader = () => fixture.nativeElement.querySelector('#reader-wrapper') as HTMLElement;
+    expect(reader().classList).not.toContain('d-none');
+    fixture.componentInstance.openCandidate('c1');
+    fixture.detectChanges();
+    expect(reader().classList).toContain('d-none');
+    fixture.componentInstance.resetScanner();
+    fixture.detectChanges();
+    expect(reader().classList).not.toContain('d-none');
+    expect(fixture.nativeElement.textContent).toContain('Riattivala');
+    fixture.destroy();
+    vi.unstubAllGlobals();
+  });
 });
