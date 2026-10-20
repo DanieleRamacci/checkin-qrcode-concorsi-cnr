@@ -87,7 +87,10 @@ def oidc_callback():
                 'client_id': OIDC_CLIENT_ID,
                 'client_secret': OIDC_CLIENT_SECRET
             },
-            headers={'Content-Type': 'application/x-www-form-urlencoded'}
+            headers={'Content-Type': 'application/x-www-form-urlencoded'},
+            # Come il rinnovo in utils/oidc.py: senza limite una risposta lenta di
+            # Keycloak blocca il worker finché il proxy risponde con un errore.
+            timeout=(5, 15),
         )
 
         token_response.raise_for_status()

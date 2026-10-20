@@ -166,7 +166,8 @@ export function parseSessionQr(decodedText: string): string | null {
   `,
   styles: `
     .app-scanner { min-height: 100vh; display: flex; flex-direction: column; position: relative; overflow: hidden; }
-    .app-scanner .app-camera { min-height: calc(100vh - 64px); }
+    /* Mirino, video e "Riattivala" uno sotto l'altro, centrati (il foglio comune dispone .app-camera in riga). */
+    .app-scanner .app-camera { min-height: calc(100vh - 64px); flex-direction: column; align-items: center; justify-content: flex-start; }
     #reader-wrapper { width: min(320px, 86vw); position: relative; z-index: 1; }
     #reader { width: 100%; min-height: 240px; border-radius: 8px; overflow: hidden; }
     .app-scanner-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 30; min-width: 15rem; background: #fff; border-radius: 4px; padding: .25rem .75rem; }

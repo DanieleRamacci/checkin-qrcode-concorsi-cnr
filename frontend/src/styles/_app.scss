@@ -254,6 +254,8 @@ body:has(.app-savebar) .proto-index { bottom: calc(84px + env(safe-area-inset-bo
 .app-preview-head { background: var(--app-primary); color: #fff; border-radius: 6px; padding: 14px 18px; display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; }
 .app-ref-check li { line-height: 1.5; }
 .app-camera--dim { filter: grayscale(1) brightness(.55); }
+/* Video inserito da html5-qrcode: fuori dall'incapsulamento del componente scanner. */
+.app-scanner #reader video { display: block; width: 100% !important; height: auto !important; object-fit: cover; }
 .app-static-backdrop { position: fixed; inset: 0; z-index: 1050; }
 .app-static-modal { position: fixed; inset: 0; z-index: 1055; overflow-y: auto; }
 .app-row-attn td { background: #fff8eb; }
