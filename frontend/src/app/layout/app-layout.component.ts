@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, HostListener, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
@@ -65,12 +65,12 @@ import { InPageLinkDirective } from '../shared/in-page-link.directive';
                     <div id="user-menu" class="app-user-menu shadow">
                       <p class="mb-0 fw-semibold">{{ auth.user()?.display_name || auth.user()?.email }}</p>
                       <p class="mb-2 text-secondary small text-break">{{ auth.user()?.email }}</p>
-                      <ul class="link-list mb-0">
-                        <li><a class="list-item" routerLink="/area-personale" (click)="userMenuOpen.set(false)">Area personale</a></li>
+                      <ul class="list-unstyled mb-0 app-user-menu-list">
+                        <li><a routerLink="/area-personale" (click)="userMenuOpen.set(false)">Area personale</a></li>
                         @if (auth.hasCapability('admin')) {
-                          <li><a class="list-item" routerLink="/admin/impostazioni" (click)="userMenuOpen.set(false)">Impostazioni</a></li>
+                          <li><a routerLink="/admin/impostazioni" (click)="userMenuOpen.set(false)">Impostazioni</a></li>
                         }
-                        <li><button class="list-item btn btn-link p-0 text-decoration-none" type="button" (click)="logout()">Esci</button></li>
+                        <li class="app-user-menu-exit"><button type="button" (click)="logout()">Esci</button></li>
                       </ul>
                     </div>
                   }
@@ -111,7 +111,13 @@ import { InPageLinkDirective } from '../shared/in-page-link.directive';
       position: absolute; right: 0; top: calc(100% + .25rem); z-index: 1000; min-width: 16rem;
       padding: .75rem 1rem; border-radius: 4px; background: #fff; color: var(--app-ink); text-align: left;
     }
-    .app-user-menu .list-item { display: block; padding: .5rem 0; color: var(--app-primary); text-align: left; }
+    .app-user-menu-list a, .app-user-menu-list button {
+      display: block; width: 100%; padding: .5rem 0; border: 0; background: none; box-shadow: none;
+      color: var(--app-primary); font-weight: 600; text-align: left; text-decoration: none;
+    }
+    .app-user-menu-list a:hover, .app-user-menu-list button:hover { text-decoration: underline; }
+    .app-user-menu-exit { margin-top: .25rem; border-top: 1px solid var(--app-line); }
+    .app-user-menu-exit button { color: var(--app-danger-ink); }
   `,
 })
 export class AppLayoutComponent {
@@ -143,6 +149,15 @@ export class AppLayoutComponent {
     const institution = this.settings.institution_name || 'CNR';
     return `${institution} · Check-in Concorsi`;
   }
+
+  /** Il menu utente si chiude cliccando fuori o con Esc. */
+  @HostListener('document:click', ['$event'])
+  closeUserMenuOutside(event: MouseEvent): void {
+    if (this.userMenuOpen() && !(event.target as HTMLElement | null)?.closest('.it-access-top-wrapper')) this.userMenuOpen.set(false);
+  }
+
+  @HostListener('document:keydown.escape')
+  closeUserMenu(): void { this.userMenuOpen.set(false); }
 
   toggleUserMenu(): void {
     if (!this.auth.user()) { this.auth.login(); return; }

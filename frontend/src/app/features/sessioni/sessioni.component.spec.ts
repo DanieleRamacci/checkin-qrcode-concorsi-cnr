@@ -29,7 +29,7 @@ describe('SessioniComponent', () => {
                     session_id: 's1',
                     commission_id: 'c1',
                     name: 'Prova scritta',
-                    date: '20/10/2026',
+                    date: '20/10/2099',
                     time: '10:00',
                     location: 'Roma',
                     current_state: 'iniziale',
