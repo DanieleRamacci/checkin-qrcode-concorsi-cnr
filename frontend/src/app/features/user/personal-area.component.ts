@@ -1,7 +1,10 @@
 import { JsonPipe } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { ApiClient } from '../../core/api-client';
 import { AuthService } from '../../core/auth.service';
+
+interface TestAccess { base_url: string; cookie_name: string; cookie_value: string; csrf_header: string; csrf_token: string; }
 
 @Component({
   selector: 'app-personal-area',
@@ -63,6 +66,31 @@ import { AuthService } from '../../core/auth.service';
               </div>
             </div>
           </div>
+
+          @if (user()?.api_test_access) {
+            <div class="col-12">
+              <div class="card card-bg no-after app-cand-card border border-warning">
+                <div class="card-header bg-light"><strong>Accesso API per i test</strong></div>
+                <div class="card-body">
+                  <p class="mb-2">Permette a chi lo riceve di usare l’applicazione <strong>come te</strong>, con i tuoi permessi, finché questa sessione resta valida (fino a 8 ore). Dallo solo per i test sul server di prova e premi <strong>Esci</strong> quando hai finito: l’accesso smette subito di funzionare.</p>
+                  @if (testAccess(); as access) {
+                    <dl class="app-access-data mb-3">
+                      <dt>Indirizzo API</dt><dd><code class="user-select-all">{{ access.base_url }}</code></dd>
+                      <dt>Cookie</dt><dd><code class="user-select-all">{{ access.cookie_name }}={{ access.cookie_value }}</code></dd>
+                      <dt>{{ access.csrf_header }}</dt><dd><code class="user-select-all">{{ access.csrf_token }}</code></dd>
+                    </dl>
+                    <div class="d-flex flex-wrap gap-2">
+                      <button class="btn btn-primary btn-sm" type="button" (click)="copyTestAccess(access)">Copia accesso API</button>
+                      <button class="btn btn-outline-secondary btn-sm" type="button" (click)="testAccess.set(null)">Nascondi</button>
+                    </div>
+                  } @else {
+                    <button class="btn btn-outline-primary btn-sm" type="button" [disabled]="testAccessLoading()" (click)="loadTestAccess()">Mostra accesso API</button>
+                  }
+                  @if (testAccessMessage()) { <p class="small mt-2 mb-0" role="status">{{ testAccessMessage() }}</p> }
+                </div>
+              </div>
+            </div>
+          }
         </div>
       } @else {
         <div class="alert alert-warning" role="alert">
@@ -78,6 +106,10 @@ import { AuthService } from '../../core/auth.service';
   `,
   styles: `
     .personal-area { max-width: 1100px; }
+    .app-access-data { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; }
+    .app-access-data dt { font-weight: 600; }
+    .app-access-data dd { margin: 0; min-width: 0; }
+    .app-access-data code { display: block; padding: 4px 6px; border-radius: 4px; background: #f3f5f7; overflow-wrap: anywhere; }
     .json-box {
       max-height: 24rem;
       overflow: auto;
@@ -92,6 +124,30 @@ export class PersonalAreaComponent {
   readonly auth = inject(AuthService);
   readonly user = this.auth.user;
   readonly jsonOpen = signal(false);
+  private readonly api = inject(ApiClient);
+  readonly testAccess = signal<TestAccess | null>(null);
+  readonly testAccessLoading = signal(false);
+  readonly testAccessMessage = signal('');
+
+  loadTestAccess(): void {
+    this.testAccessLoading.set(true);
+    this.testAccessMessage.set('');
+    this.api.get<TestAccess>('/me/test-access').subscribe({
+      next: (access) => { this.testAccess.set(access); this.testAccessLoading.set(false); },
+      error: () => { this.testAccessLoading.set(false); this.testAccessMessage.set('Accesso API non disponibile su questo server.'); },
+    });
+  }
+
+  /** Blocco pronto da incollare: indirizzo, cookie e intestazione CSRF. */
+  async copyTestAccess(access: TestAccess): Promise<void> {
+    const text = [`base_url: ${access.base_url}`, `cookie: ${access.cookie_name}=${access.cookie_value}`, `${access.csrf_header}: ${access.csrf_token}`].join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      this.testAccessMessage.set('Accesso API copiato. Ricordati di premere Esci a fine test.');
+    } catch {
+      this.testAccessMessage.set('Copia non riuscita: seleziona i valori e copiali a mano.');
+    }
+  }
 
   list(values?: string[]): string {
     return values?.length ? values.join(', ') : '-';

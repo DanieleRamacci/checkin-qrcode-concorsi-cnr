@@ -14,6 +14,8 @@ export interface UserContext {
   capabilities: string[];
   csrf_token: string;
   dev_mode?: boolean;
+  /** Solo amministratori sul server di test: accesso API copiabile dall'Area personale. */
+  api_test_access?: boolean;
   app_version?: string;
   app_build_time?: string;
   app_settings?: AppSettings;

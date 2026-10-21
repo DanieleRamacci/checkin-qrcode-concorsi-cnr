@@ -247,3 +247,29 @@ def test_profiles_offer_secretary_and_referente_on_first_access(monkeypatch):
 
     assert auth._profiles_for_user("nuovo@cnr.it", set()) == ["segretario", "referente"]
     assert auth._profiles_for_user("admin@cnr.it", {auth.ROLE_ADMIN}) == ["admin"]
+
+
+def _test_access_client(monkeypatch, enabled=True, roles=None):
+    from routes.api_v1 import auth
+
+    monkeypatch.setattr(auth, "get_user_roles", lambda email: roles if roles is not None else {auth.ROLE_ADMIN})
+    app = create_test_app()
+    app.config["API_TEST_ACCESS"] = enabled
+    client = app.test_client()
+    with client.session_transaction() as flask_session:
+        flask_session["user_email"] = "admin@cnr.it"
+    return client
+
+
+def test_test_access_is_available_only_to_admins_when_enabled(monkeypatch):
+    response = _test_access_client(monkeypatch).get("/api/v1/me/test-access")
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["cookie_name"] == "session"
+    assert payload["cookie_value"]
+    assert payload["csrf_header"] == "X-CSRF-Token"
+    assert payload["base_url"].endswith("/api/v1")
+    assert response.headers["Cache-Control"] == "no-store"
+
+    assert _test_access_client(monkeypatch, enabled=False).get("/api/v1/me/test-access").status_code == 404
+    assert _test_access_client(monkeypatch, roles=set()).get("/api/v1/me/test-access").status_code == 404

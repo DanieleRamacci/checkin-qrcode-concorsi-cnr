@@ -1,6 +1,6 @@
 from functools import wraps
 
-from flask import Blueprint, current_app, jsonify, session
+from flask import Blueprint, current_app, jsonify, request, session
 
 from routes.api_v1.csrf import get_csrf_token
 from routes.api_v1.errors import error_response
@@ -86,10 +86,36 @@ def me():
         capabilities=sorted(capabilities),
         csrf_token=get_csrf_token(),
         dev_mode=bool(current_app.config.get("DEV_MODE")),
+        api_test_access=bool(current_app.config.get("API_TEST_ACCESS")) and ROLE_ADMIN in roles,
         app_version=current_app.config.get("APP_VERSION", "n/d"),
         app_build_time=current_app.config.get("APP_BUILD_TIME", "n/d"),
         app_settings=get_app_settings(),
     )
+
+
+@auth_api_bp.get("/me/test-access")
+@api_auth_required
+def test_access():
+    """Accesso API dell'utente per test automatici: il cookie di sessione che il
+    browser ha appena inviato e il token CSRF. Solo amministratori e solo con
+    API_TEST_ACCESS attivo; vale finché la sessione resta valida (Esci per revocarlo)."""
+    email = session["user_email"]
+    if not current_app.config.get("API_TEST_ACCESS") or ROLE_ADMIN not in get_user_roles(email):
+        return error_response("not_found", "Risorsa API non trovata.", 404)
+    cookie_name = current_app.config.get("SESSION_COOKIE_NAME") or "session"
+    cookie_value = request.cookies.get(cookie_name)
+    if not cookie_value:
+        return error_response("authentication_required", "Cookie di sessione non trovato.", 401)
+    current_app.logger.warning("[api-test] accesso API di test mostrato a %s", email)
+    response = jsonify(
+        base_url=request.host_url.rstrip("/") + "/api/v1",
+        cookie_name=cookie_name,
+        cookie_value=cookie_value,
+        csrf_header="X-CSRF-Token",
+        csrf_token=get_csrf_token(),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @auth_api_bp.post("/session/refresh")

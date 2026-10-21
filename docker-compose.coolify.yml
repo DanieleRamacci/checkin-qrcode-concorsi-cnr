@@ -48,6 +48,8 @@ services:
       REDIS_PASSWORD: "${REDIS_PASSWORD}"
       REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379/0"
       COOKIE_SECURE: "${COOKIE_SECURE:-1}"
+      # 1 solo sul server di test: accesso API copiabile dall'Area personale (amministratori).
+      API_TEST_ACCESS: "${API_TEST_ACCESS:-0}"
       SMTP_SERVER: "${SMTP_SERVER:-}"
       SMTP_PORT: "${SMTP_PORT:-587}"
       SMTP_STARTTLS: "${SMTP_STARTTLS:-1}"

@@ -36,6 +36,9 @@ app.jinja_env.globals.update(
 
 dev_mode = os.getenv("APP_ENV", "production").lower() in ("development", "dev")
 app.config["DEV_MODE"] = dev_mode
+# Solo ambienti di test: l'amministratore vede e copia il proprio accesso API
+# (cookie di sessione + CSRF) dall'Area personale per far eseguire test automatici.
+app.config["API_TEST_ACCESS"] = os.getenv("API_TEST_ACCESS", "0").strip().lower() in ("1", "true", "yes")
 app.jinja_env.globals.update(
     has_role=has_role,
     ROLE_ADMIN=ROLE_ADMIN,
