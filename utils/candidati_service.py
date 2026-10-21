@@ -1,10 +1,16 @@
+import logging
+import os
 from datetime import date, datetime
+from urllib.parse import quote, urlsplit
 
+from flask import has_request_context, request
 from psycopg2.extras import RealDictCursor
 
 from db import get_db_connection
 from utils.candidati import importa_candidati_da_api
 from utils.notifications import _author_role, add_notification
+from utils.send_mail import send_notification_email
+from utils.sessioni import get_merged_config
 from utils.stato import get_stato_corrente, set_stato_corrente
 
 
@@ -248,7 +254,67 @@ def update_reset_password(
         payload=f"Reset password: {operation} ({uid})",
         author_email=actor_email,
     )
+    if operation == "request":
+        _email_reset_request(session_id, uid, actor_email)
     return _get_candidate(session_id, uid)
+
+
+def _session_link(session_id: str) -> str:
+    """Indirizzo della sessione per l'esperto: dominio pubblico dell'app."""
+    base = urlsplit(os.environ.get("OIDC_REDIRECT_URI") or "")
+    if base.scheme and base.netloc:
+        root = f"{base.scheme}://{base.netloc}"
+    elif has_request_context():
+        root = request.host_url.rstrip("/")
+    else:
+        return ""
+    return f"{root}/sessioni/{quote(session_id, safe='')}?mode=expert"
+
+
+def _email_reset_request(session_id: str, uid: str, actor_email: str) -> None:
+    """Email all'esperto remoto per ogni richiesta di reset (spec 013 R19, T054).
+
+    Contiene solo nome e cognome del candidato, ruolo di chi chiede, ora e
+    collegamento alla sessione. Un invio fallito viene registrato, mai rilanciato:
+    la richiesta resta valida e visibile nella tabella dei presenti.
+    """
+    try:
+        with get_db_connection() as conn, conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT s.nome, s.commission_id, c.first_name, c.last_name
+                  FROM sessioni s
+                  JOIN candidati c ON c.session_id = s.session_id
+                 WHERE s.session_id = %s AND c.uid = %s
+                """,
+                (session_id, uid),
+            )
+            row = cursor.fetchone()
+        if not row:
+            return
+        session_name, commission_id, first_name, last_name = row
+        expert = ((get_merged_config(session_id, commission_id) or {}).get("email_esperto_remoto") or "").strip()
+        if not expert:
+            return
+        requester = _RESET_REQUESTER_LABELS.get(_author_role(session_id, actor_email), "Segretario")
+        lines = [
+            f"Reset password richiesto per {last_name or ''} {first_name or ''}.".replace("  ", " "),
+            f"Richiesto da: {requester}, alle {datetime.now().strftime('%H:%M')}.",
+        ]
+        link = _session_link(session_id)
+        if link:
+            lines.append(f"Apri la sessione per segnarlo come fatto: {link}")
+        ok, error = send_notification_email(
+            [expert],
+            f"[Check-in] Reset password richiesto – {session_name or ''}",
+            "\n".join(lines),
+            actor_email=actor_email,
+            source="api_v1.reset.request",
+        )
+        if not ok:
+            logging.getLogger(__name__).warning("[reset] email all'esperto non inviata: %s", error)
+    except Exception:  # noqa: BLE001 - l'email non deve mai far fallire la richiesta
+        logging.getLogger(__name__).exception("[reset] errore nell'invio dell'email all'esperto")
 
 
 def update_candidate_note(

@@ -207,3 +207,25 @@ def test_latest_list_returns_404_when_absent(monkeypatch):
 
     assert response.status_code == 404
     assert response.get_json()["error"]["code"] == "list_not_found"
+
+
+def test_generate_lists_explains_secretary_and_selezioni_online_errors(monkeypatch):
+    from routes.api_v1 import liste
+
+    allow_session(monkeypatch)
+    client, token = authenticated_client(create_test_app())
+    cases = [
+        (PermissionError("Utente non autorizzato sulla sessione."), 403, "selezioni_online_secretary_required"),
+        (ConnectionError("rete"), 502, "external_service_unavailable"),
+        (TimeoutError("lento"), 502, "external_service_unavailable"),
+        (RuntimeError("HTTP 500"), 502, "external_service_error"),
+    ]
+    for error, status, code in cases:
+        def fail(*_args, error=error, **_kwargs):
+            raise error
+
+        monkeypatch.setattr(liste, "generate_lists", fail)
+        response = client.post("/api/v1/sessioni/session-1/lists/generate", headers={"X-CSRF-Token": token})
+
+        assert response.status_code == status
+        assert response.get_json()["error"]["code"] == code

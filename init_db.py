@@ -3,7 +3,9 @@ import psycopg2
 from psycopg2 import sql
 
 # Ambiente: 'dev' o 'prod'
-APP_ENV = os.getenv("APP_ENV", "dev")  # default: sviluppo
+# Le tabelle si cancellano solo con APP_ENV=dev esplicito: senza variabile
+# (immagine avviata a mano o con un compose incompleto) i dati restano.
+APP_ENV = os.getenv("APP_ENV", "production")
 
 # Configurazione DB da variabili d'ambiente
 DB_NAME = os.getenv("POSTGRES_DB", "checkin")

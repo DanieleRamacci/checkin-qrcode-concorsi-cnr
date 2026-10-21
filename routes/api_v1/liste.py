@@ -35,6 +35,19 @@ def lists_generate(session_id):
         )
     except ListOperationError as error:
         return error_response("list_operation_failed", str(error), 409)
+    # Il file Moodle riscarica i candidati da Selezioni Online con il token di
+    # chi genera: servono il segretario del bando e Selezioni Online raggiungibile.
+    except PermissionError:
+        return error_response(
+            "selezioni_online_secretary_required",
+            "Le liste si generano con l’utenza del segretario del bando, perché "
+            "il file Moodle si scarica da Selezioni Online con i suoi permessi.",
+            403,
+        )
+    except (ConnectionError, TimeoutError) as error:
+        return error_response("external_service_unavailable", f"Selezioni Online non risponde: {error}", 502)
+    except RuntimeError as error:
+        return error_response("external_service_error", str(error), 502)
 
 
 @liste_api_bp.get("/sessioni/<session_id>/lists/download")
